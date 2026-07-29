@@ -1,0 +1,146 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+/* Paleta extraída de Telas de modelo/ (style guide: fonte Nunito,
+   azul #7FB2EE, navy #253041, cinzas #949AA9/#D2DBED/#EBECEF). */
+:root {
+  --background: #ebecef;
+  --foreground: #253041;
+  --color-navy: #253041;
+  --color-primary: #7fb2ee;
+  --color-primary-dark: #5b93d6;
+  --color-muted: #949aa9;
+  --color-border: #d2dbed;
+  --color-surface: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-navy: var(--color-navy);
+  --color-primary: var(--color-primary);
+  --color-primary-dark: var(--color-primary-dark);
+  --color-muted: var(--color-muted);
+  --color-border: var(--color-border);
+  --color-surface: var(--color-surface);
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Componentes compartilhados — padrão visual de "Telas de modelo/":
+   cantos bem arredondados, botões em pílula, cards brancos com sombra leve. */
+@layer components {
+  .page-title {
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 800;
+    color: var(--color-navy);
+  }
+
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px 0 rgb(37 48 65 / 0.06);
+  }
+
+  .field {
+    margin-top: 0.25rem;
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    color: var(--foreground);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgb(127 178 238 / 0.35);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: var(--color-primary);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.875rem;
+    padding: 0.625rem 1.25rem;
+    transition: background-color 0.15s ease;
+  }
+  .btn-primary:hover {
+    background: var(--color-primary-dark);
+  }
+
+  .btn-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-navy);
+    font-weight: 700;
+    font-size: 0.875rem;
+    padding: 0.625rem 1.25rem;
+    transition: border-color 0.15s ease;
+  }
+  .btn-outline:hover {
+    border-color: var(--color-primary);
+  }
+
+  .btn-dark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: var(--color-navy);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.875rem;
+    padding: 0.625rem 1.25rem;
+  }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 1px solid #dc2626;
+    color: #dc2626;
+    font-weight: 700;
+    font-size: 0.875rem;
+    padding: 0.625rem 1.25rem;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .btn-danger:hover {
+    background: #dc2626;
+    color: #ffffff;
+  }
+
+  .link {
+    color: var(--color-primary-dark);
+    font-weight: 600;
+  }
+  .link:hover {
+    text-decoration: underline;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 2.5rem 1.5rem;
+    border-radius: 1rem;
+    border: 1px dashed var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-muted);
+  }
+}
