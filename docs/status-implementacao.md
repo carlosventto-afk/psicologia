@@ -1,6 +1,39 @@
 # Status da implementação
 
-Última atualização: 2026-07-29.
+Última atualização: 2026-07-30.
+
+## PsiFácil em produção (2026-07-29/30)
+
+App publicado: VPS Hostinger (179.198.103.130) via EasyPanel (Docker + Traefik,
+SSL automático), domínio `psifacil.com.br` (DNS apontado pro Registro.br),
+código em `github.com/carlosventto-afk/psicologia` (privado). Deploy via
+Dockerfile (`web/Dockerfile`, `output: "standalone"` no `next.config.mjs`),
+build context na raiz do repo (não em `web/` — detalhe importante pro
+EasyPanel, ver campo "Arquivo" = `web/Dockerfile` na config do serviço).
+Supabase Auth `SITE_URL`/`URI_ALLOW_LIST` atualizados pro domínio novo.
+
+## Agente de WhatsApp — Fase A em andamento (2026-07-30)
+
+Retomado o plano do agente de WhatsApp (arquitetura completa em
+`C:\Users\Administrador\.claude\plans\preciso-criar-um-ecossistema-tidy-bachman.md`):
+secretário do psicólogo (todos os campos do sistema + resumo diário
+proativo) + canal opcional do paciente (consulta + solicitação de
+reagendamento/cancelamento, sujeita a aprovação do psicólogo). n8n será
+self-hosted via EasyPanel no mesmo VPS (não Railway).
+
+**Concluído nesta entrega (parte da Fase A — fecha o loop de vinculação):**
+- Migration `20260730000001_whatsapp_agent_onboarding.sql` — RPCs
+  `gerar_codigo_verificacao_whatsapp` (authenticated, chamada pelo Next.js)
+  e `validar_codigo_whatsapp` (service_role, futura chamada pelo n8n).
+- Tela `/configuracoes/whatsapp` (`VincularWhatsappForm.js`) — psicólogo
+  gera um código de 6 dígitos válido por 10 minutos pra vincular o número.
+
+**Ainda faltando pra Fase A estar completa:** conta Meta Business/WhatsApp
+Cloud API, n8n publicado no EasyPanel, workflow `WA - Inbound Router` +
+`WA - Agent Psicólogo` (com as 11 tools já existentes), transcrição de
+áudio (Whisper), wrapper de log em `agent_audit_log`, submissão dos 3
+templates de mensagem já redigidos (`docs/whatsapp-message-templates.md`)
+pra aprovação da Meta.
 
 ## Nova funcionalidade: sessões recorrentes (Semanal/Quinzenal/Mensal)
 
