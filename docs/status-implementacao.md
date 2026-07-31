@@ -21,19 +21,46 @@ proativo) + canal opcional do paciente (consulta + solicitação de
 reagendamento/cancelamento, sujeita a aprovação do psicólogo). n8n será
 self-hosted via EasyPanel no mesmo VPS (não Railway).
 
+**Mudança de canal em relação ao plano original**: em vez da WhatsApp Cloud
+API oficial (Meta), o usuário optou por **Evolution API self-hosted** no
+mesmo VPS/EasyPanel — decisão tomada cientemente do risco de banimento do
+número (violação dos Termos de Serviço do WhatsApp), documentado no plano.
+
 **Concluído nesta entrega (parte da Fase A — fecha o loop de vinculação):**
 - Migration `20260730000001_whatsapp_agent_onboarding.sql` — RPCs
   `gerar_codigo_verificacao_whatsapp` (authenticated, chamada pelo Next.js)
   e `validar_codigo_whatsapp` (service_role, futura chamada pelo n8n).
 - Tela `/configuracoes/whatsapp` (`VincularWhatsappForm.js`) — psicólogo
   gera um código de 6 dígitos válido por 10 minutos pra vincular o número.
+- Serviço **Evolution API** (`evoapicloud/evolution-api:v2.3.7`) publicado
+  no EasyPanel (projeto `psifacil`), com Postgres e Redis próprios,
+  domínio automático `psifacil-evolution-api.lcuzxl.easypanel.host`.
+  Instância `psifacil` criada e pareada com sucesso com um número dedicado
+  (não é o WhatsApp pessoal do usuário — decisão deliberada pra não
+  arriscar o acesso pessoal a cada tentativa de pareamento).
+- **Incidente registrado durante o pareamento**: a primeira tentativa
+  conectou, sincronizou contatos/conversas, passou por um `stream:error
+  code 515` (normal no protocolo) e então caiu com `403 Forbidden
+  ("Connection Failure")` na reconexão, ficando desconectada por ~20min
+  sem se recuperar sozinha. É exatamente o tipo de sinal de bloqueio já
+  documentado como risco aceito no plano — possivelmente relacionado ao IP
+  de datacenter do VPS. Mitigação aplicada: apagar a instância
+  (`/instance/delete`), recriar do zero, e parear de novo com cuidado pra
+  não gerar múltiplos QR codes em sequência (evitar de novo o rate
+  limit/suspeita) — a segunda tentativa conectou com sucesso (`status:
+  open`, sem erro de desconexão). Se o número cair de novo no futuro, essa
+  mesma sequência (delete → create → connect coordenado) é o primeiro
+  passo de recuperação; se voltar a falhar repetidamente, considerar a
+  mitigação de proxy residencial (`PROXY_HOST`/`PROXY_PORT` já suportados
+  pela imagem) ou reavaliar a decisão de canal (ver seção de riscos do
+  plano).
 
-**Ainda faltando pra Fase A estar completa:** conta Meta Business/WhatsApp
-Cloud API, n8n publicado no EasyPanel, workflow `WA - Inbound Router` +
-`WA - Agent Psicólogo` (com as 11 tools já existentes), transcrição de
-áudio (Whisper), wrapper de log em `agent_audit_log`, submissão dos 3
-templates de mensagem já redigidos (`docs/whatsapp-message-templates.md`)
-pra aprovação da Meta.
+**Ainda faltando pra Fase A estar completa:** n8n publicado no EasyPanel,
+workflow `WA - Inbound Router` + `WA - Agent Psicólogo` (com as 11 tools
+já existentes), transcrição de áudio (Whisper), wrapper de log em
+`agent_audit_log`. Os 3 textos de mensagem já redigidos
+(`docs/whatsapp-message-templates.md`) não precisam mais de aprovação de
+template — com Evolution API viram apenas texto livre.
 
 ## Nova funcionalidade: sessões recorrentes (Semanal/Quinzenal/Mensal)
 
