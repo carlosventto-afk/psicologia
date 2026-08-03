@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 // principal é redirecionado pro subdomínio antes de chegar aqui também.
 const PUBLIC_PATHS = [
   "/login",
+  "/cadastro",
   "/esqueci-senha",
   "/redefinir-senha",
   "/auth/callback",

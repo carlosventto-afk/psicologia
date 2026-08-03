@@ -34,6 +34,13 @@ export default function ConvidarProfissionalForm({ action }) {
         <input id="contato" name="contato" type="text" required className="field" />
       </div>
 
+      <div>
+        <label htmlFor="crp" className="block text-sm font-semibold text-navy">
+          CRP (opcional)
+        </label>
+        <input id="crp" name="crp" type="text" className="field" />
+      </div>
+
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.mensagem && <p className="text-sm text-green-700">{state.mensagem}</p>}
 

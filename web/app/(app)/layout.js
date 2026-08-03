@@ -34,6 +34,15 @@ export default async function LayoutApp({ children }) {
         </div>
       </header>
 
+      {!usuario.aprovado && (
+        <div className="bg-yellow-50 border-b border-yellow-200">
+          <div className="max-w-5xl mx-auto px-4 py-2 text-sm text-yellow-800">
+            Seu cadastro está pendente de aprovação por um administrador. Você já
+            pode usar a ferramenta normalmente enquanto aguarda.
+          </div>
+        </div>
+      )}
+
       <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
     </div>
   );

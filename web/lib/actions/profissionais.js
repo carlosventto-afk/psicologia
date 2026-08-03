@@ -28,6 +28,7 @@ export async function convidarProfissional(prevState, formData) {
   const nome = formData.get("nome");
   const email = formData.get("email");
   const contato = formData.get("contato");
+  const crp = formData.get("crp");
 
   const origem = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const admin = createAdminClient();
@@ -48,7 +49,9 @@ export async function convidarProfissional(prevState, formData) {
     nome,
     email,
     contato: Number(String(contato).replace(/\D/g, "")),
+    crp: crp || null,
     role: "psicologo",
+    aprovado: true,
   });
 
   if (erroUsuarios) {
@@ -57,4 +60,16 @@ export async function convidarProfissional(prevState, formData) {
 
   revalidatePath("/admin/profissionais");
   return { mensagem: `Convite enviado para ${email}.` };
+}
+
+export async function aprovarProfissional(id) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("Usuarios").update({ aprovado: true }).eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/admin/profissionais");
 }

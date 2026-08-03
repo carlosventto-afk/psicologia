@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listarProfissionais } from "@/lib/data/profissionais";
+import { aprovarProfissional } from "@/lib/actions/profissionais";
 
 export default async function PaginaProfissionais() {
   const profissionais = await listarProfissionais();
@@ -25,9 +26,20 @@ export default async function PaginaProfissionais() {
                   {p.email} · {p.contato}
                 </p>
               </div>
-              <span className="text-sm text-muted">
-                {p.role === "admin" ? "Admin" : "Psicólogo"}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted">
+                  {p.role === "admin" ? "Admin" : "Psicólogo"}
+                </span>
+                {p.aprovado ? (
+                  <span className="text-sm text-green-700">Aprovado</span>
+                ) : (
+                  <form action={aprovarProfissional.bind(null, p.id)}>
+                    <button type="submit" className="btn-outline text-sm">
+                      Aprovar (pendente)
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           ))}
         </div>
