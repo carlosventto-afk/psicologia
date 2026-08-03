@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { sair } from "@/lib/actions/auth";
+import { buscarUsuarioAtual } from "@/lib/data/usuario";
 
-export default function LayoutApp({ children }) {
+export default async function LayoutApp({ children }) {
+  const usuario = await buscarUsuarioAtual();
+
   return (
     <div className="min-h-screen">
       <header className="bg-white border-b border-border">
@@ -18,6 +21,9 @@ export default function LayoutApp({ children }) {
             <Link href="/recibos">Recibos</Link>
             <Link href="/consultorios">Consultórios</Link>
             <Link href="/configuracoes/whatsapp">WhatsApp</Link>
+            {usuario.role === "admin" && (
+              <Link href="/admin/profissionais">Administração</Link>
+            )}
           </nav>
 
           <form action={sair}>

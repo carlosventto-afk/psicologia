@@ -5,7 +5,7 @@ export async function buscarUsuarioAtual() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Usuarios")
-    .select("id, nome, whatsapp_number, whatsapp_verified")
+    .select("id, nome, whatsapp_number, whatsapp_verified, role")
     .single();
 
   if (error) throw new Error(error.message);
