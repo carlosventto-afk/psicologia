@@ -38,6 +38,12 @@ use isso, mas o "quem é admin" já está modelado no banco.
 
 ## 1. Blog de psicologia e saúde mental
 
+**Status: implementado** (2026-08-03) — `/blog` + `/blog/[slug]` em
+`blog.psifacil.com.br`, tabela `public.artigos` no Supabase, painel
+`/admin/artigos` pro CRUD, Markdown via `marked`, sitemap.xml/robots.js.
+Hoje quem escreve/publica é só quem tem `role = 'admin'` (mesmo gate do
+item 3, `web/app/(app)/admin/layout.js`) — ver evolução pedida abaixo.
+
 **Objetivo:** conteúdo educativo/SEO para atrair tráfego orgânico (pacientes
 e, indiretamente, psicólogos interessados na ferramenta).
 
@@ -56,6 +62,31 @@ cadastrado (linkaria com o item 2 futuramente) ou é só editorial da marca.
 
 **Tamanho estimado:** P/M — não depende de mudança de arquitetura, é a peça
 mais isolada do backlog.
+
+### Evolução pedida: papel de "criador de conteúdo" separado de admin
+
+Hoje `/admin/artigos` usa o mesmo gate de `role = 'admin'` de
+`/admin/profissionais` — ou seja, só quem administra a plataforma inteira
+pode publicar artigo. O pedido é desacoplar isso: criar uma marcação nova em
+`Usuarios` (ex: `criador_conteudo boolean`) que **só um admin pode atribuir**
+a outros usuários, e liberar o acesso à página de publicação de artigos pra
+quem tiver essa marcação — sem precisar ser admin da plataforma.
+
+**Implica:**
+- Coluna nova em `Usuarios` (hoje só tem `role`) + policy de RLS em
+  `artigos` que hoje é só `using (public.is_admin())` pra escrita, precisa
+  virar algo como `using (public.is_admin() or (select criador_conteudo
+  from "Usuarios" where id_user = auth.uid()))`.
+- `/admin/artigos` (e só essa rota, não `/admin/profissionais`) passa a
+  aceitar admin OU criador de conteúdo — hoje o gate é compartilhado no
+  `web/app/(app)/admin/layout.js` pra toda a área `/admin`, então essa rota
+  provavelmente precisa de um gate próprio em vez de herdar o da área toda.
+- UI pra admin marcar/desmarcar "criador de conteúdo" em algum usuário —
+  provavelmente uma ação a mais na listagem de `/admin/profissionais`
+  (que já existe) em vez de tela nova.
+
+**Tamanho estimado:** P — é uma extensão pontual do que já existe, não uma
+feature nova do zero.
 
 ---
 
