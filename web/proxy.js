@@ -11,7 +11,11 @@ export async function proxy(request) {
   // precisa criar client do Supabase pra checar sessão a cada pageview.
   if (host.startsWith("blog.")) {
     const url = request.nextUrl.clone();
-    if (!url.pathname.startsWith("/blog")) {
+    const isMetadataFile = url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt";
+    // sitemap.js/robots.js só existem na raiz do app (não têm convenção
+    // aninhada por segmento) — não prefixar, senão viram /blog/sitemap.xml
+    // e dão 404.
+    if (!isMetadataFile && !url.pathname.startsWith("/blog")) {
       url.pathname = `/blog${url.pathname}`;
     }
     return NextResponse.rewrite(url);
