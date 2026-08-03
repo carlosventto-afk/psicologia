@@ -1,7 +1,17 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/esqueci-senha", "/redefinir-senha", "/auth/callback"];
+// "/blog" não entra aqui: requisições em blog.psifacil.com.br nunca chegam
+// a este arquivo (web/proxy.js resolve antes), e "/blog" no domínio
+// principal é redirecionado pro subdomínio antes de chegar aqui também.
+const PUBLIC_PATHS = [
+  "/login",
+  "/esqueci-senha",
+  "/redefinir-senha",
+  "/auth/callback",
+  "/sitemap.xml",
+  "/robots.txt",
+];
 
 export async function updateSession(request) {
   let response = NextResponse.next({ request });

@@ -1,6 +1,31 @@
+import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
+const BLOG_HOST = "blog.psifacil.com.br";
+
 export async function proxy(request) {
+  const host = request.headers.get("host") ?? "";
+
+  // blog.psifacil.com.br: reescreve pra dentro de /blog/... (invisível pro
+  // navegador) e nunca passa pelo updateSession — é conteúdo público, não
+  // precisa criar client do Supabase pra checar sessão a cada pageview.
+  if (host.startsWith("blog.")) {
+    const url = request.nextUrl.clone();
+    if (!url.pathname.startsWith("/blog")) {
+      url.pathname = `/blog${url.pathname}`;
+    }
+    return NextResponse.rewrite(url);
+  }
+
+  // Links antigos pro blog no domínio principal (psifacil.com.br/blog...)
+  // redirecionam pro subdomínio novo, de forma permanente.
+  if (request.nextUrl.pathname.startsWith("/blog")) {
+    const url = request.nextUrl.clone();
+    url.host = BLOG_HOST;
+    url.pathname = url.pathname.replace(/^\/blog/, "") || "/";
+    return NextResponse.redirect(url, 308);
+  }
+
   return await updateSession(request);
 }
 
