@@ -2,33 +2,59 @@
 
 Última atualização: 2026-08-03.
 
+## Subdomínio do blog e queda do site — resolvido (2026-08-03)
+
+`blog.psifacil.com.br` está no ar e confirmado de ponta a ponta (curl +
+navegador via chrome-devtools MCP): site principal, subdomínio do blog,
+redirect de `psifacil.com.br/blog`, `sitemap.xml` e `robots.txt` — todos
+`200`/`308` conforme esperado. Registro do que aconteceu, pra não se repetir:
+
+- **Nada tinha sido commitado até certo ponto desta sessão** — todo o
+  trabalho (itens 3, 1, subdomínio, tooling) ficou só no working directory
+  por um bom tempo, e só percebemos quando o subdomínio "não funcionava"
+  mesmo com a infra certa (o `GIT_SHA` em produção continuava o mesmo de
+  antes da sessão começar). Feitos 10 commits ao todo (ver `git log`) e
+  `git push` em várias rodadas, conforme os problemas abaixo foram achados.
+- **4 problemas encontrados e corrigidos, cada um exigindo um novo deploy**:
+  1. EasyPanel com `PORT=80` em vez de `3000` — derrubou o site inteiro (502)
+     até corrigir.
+  2. Variável de ambiente digitada como `EXT_PUBLIC_BLOG_URL` (faltando o
+     "N") — Next.js só expõe variável cujo nome comece exatamente com
+     `NEXT_PUBLIC_`, ficou sendo ignorada até corrigir o nome.
+  3. Registro DNS do `blog.psifacil.com.br` nunca tinha sido salvo de fato
+     no Registro.br.
+  4. `web/proxy.js` tinha dois bugs pequenos achados só testando em
+     produção: o redirect do link antigo vazava a porta interna do
+     container (`url.port = ""` resolveu), e o rewrite pro subdomínio
+     prefixava `/sitemap.xml`/`/robots.txt` com `/blog` sem necessidade,
+     dando 404 (esses dois arquivos só existem na raiz do app).
+  5. **O mais sério**: depois de corrigir tudo isso, o site voltou a cair
+     com 502 num deploy seguinte, sem nenhuma mudança óbvia de causa. Causa
+     raiz real: o Docker define `HOSTNAME` automaticamente como o ID do
+     container, e o `server.js` standalone do Next usa essa variável pra
+     decidir em qual endereço escutar — como o container fica em mais de
+     uma rede overlay, ele passava a escutar só numa delas (às vezes a que
+     o Traefik usa, às vezes não, dependendo de qual IP calhava de ser
+     atribuído no deploy). Corrigido de vez com `ENV HOSTNAME=0.0.0.0` no
+     `web/Dockerfile` — confirmado via `netstat` dentro do container que
+     agora escuta em todas as interfaces, então não deve voltar a acontecer
+     em deploys futuros.
+- O certificado SSL de `blog.psifacil.com.br` também não foi emitido
+  automaticamente pelo Traefik/Let's Encrypt na primeira tentativa — resolvido
+  removendo e adicionando o domínio de novo no EasyPanel (aparentemente
+  Traefik só tenta emitir certificado novo em determinados gatilhos, não
+  simplesmente por existir uma rota configurada).
+
 ## Pendências abertas
 
-- **Nada disso estava commitado até agora** — todo o trabalho desta sessão
-  (itens 3, 1, subdomínio, tooling) ficou só no working directory por um
-  bom tempo. Só descobrimos isso quando o subdomínio "não funcionava" mesmo
-  com a infra certa: o `GIT_SHA` rodando em produção continuava o mesmo de
-  antes da sessão começar. Os commits foram feitos agora (7 commits, um por
-  assunto — ver `git log`), **mas ainda não houve `git push`** — o deploy em
-  produção continua rodando o código antigo até isso acontecer.
-- **3 problemas de infra encontrados e corrigidos durante a configuração do
-  subdomínio** (documentados aqui pra não se repetir): (1) o serviço no
-  EasyPanel ficou com `PORT=80` em vez de `3000` em algum momento — causou
-  uma queda total do site (502 em `/` e `/login`) até ser corrigido; (2) a
-  variável `NEXT_PUBLIC_BLOG_URL` foi digitada como `EXT_PUBLIC_BLOG_URL`
-  (faltando o "N") — Next.js só expõe variável cujo nome comece exatamente
-  com `NEXT_PUBLIC_`, então ficou sendo ignorada até corrigir o nome; (3) o
-  registro DNS do `blog.psifacil.com.br` nunca tinha sido salvo de fato no
-  Registro.br. Os três já estão corrigidos e confirmados (`PORT=3000`,
-  `NEXT_PUBLIC_BLOG_URL` correto, DNS resolvendo nos dois resolvedores
-  testados) — falta só o `git push` pra um novo deploy rodar com o código
-  novo.
 - **Item 3 (convite de profissionais)** e **item 1 (blog, CRUD admin)**:
   código pronto e validado por build/curl, mas **ainda não clicados de
   verdade no navegador**. Falta: enviar convite de teste em produção e
   conferir o e-mail; criar/editar um artigo pelo formulário de
-  `/admin/artigos`. Só dá pra testar isso de verdade depois do `git push` +
-  redeploy.
+  `/admin/artigos` (agora que o site está estável, dá pra fazer isso com o
+  chrome-devtools MCP direto).
+- **Item 5 novo no backlog**: importar pacientes via planilha Excel, com
+  tela de mapeamento de colunas (`docs/backlog-novas-funcionalidades.md`).
 - Depois dessas verificações, seguir pros itens 2 e 4 do backlog
   (`docs/backlog-novas-funcionalidades.md`, ainda não iniciados).
 

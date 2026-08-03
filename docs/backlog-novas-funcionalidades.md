@@ -1,6 +1,6 @@
 # Backlog de novas funcionalidades (pós-MVP)
 
-Criado em 2026-08-03, a pedido do usuário. Estes 4 itens não têm implementação
+Criado em 2026-08-03, a pedido do usuário. Estes itens não têm implementação
 iniciada — é um backlog para priorizar depois, não uma especificação fechada.
 Cada um vira um plano próprio quando for destravado.
 
@@ -152,3 +152,41 @@ uma só genérica.
 
 **Tamanho estimado:** P — é o item mais rápido de entregar, mas vale alinhar
 copy/oferta com o usuário antes de construir (não é só código).
+
+---
+
+## 5. Importar pacientes via planilha Excel
+
+**Objetivo:** deixar o psicólogo trazer sua base de pacientes existente (de
+outra ferramenta, planilha própria, etc.) de uma vez, em vez de cadastrar um
+por um pela tela de "Novo Paciente". Diferente dos itens 1-4, este fica
+inteiramente dentro da área logada (`app/(app)/pacientes`) — não mexe em
+autenticação nem cria superfície pública.
+
+**Escopo provável:**
+- Upload de arquivo `.xlsx`/`.xls` na tela de Pacientes.
+- **Tela de mapeamento de colunas**: depois do upload, mostra as colunas
+  encontradas na planilha (usando a primeira linha como cabeçalho) e deixa o
+  usuário escolher, pra cada campo da tabela `Paciente` (nome, telefone,
+  e-mail, etc.), qual coluna do Excel corresponde — em vez de assumir uma
+  ordem/nome fixo de coluna, já que cada psicólogo provavelmente exporta de
+  um lugar diferente.
+- **Preview antes de confirmar**: mostrar algumas linhas já mapeadas pros
+  campos reais antes de gravar de fato, pra pegar erro de mapeamento cedo.
+- Validação linha a linha (campo obrigatório faltando, formato de
+  telefone/e-mail inválido) — decidir se linha inválida bloqueia a importação
+  inteira ou só é pulada com um relatório do que não entrou.
+- Importação cria os pacientes já associados ao `owner` (psicólogo logado),
+  respeitando o RLS existente — sem código novo de autorização, só reaproveita
+  o padrão já usado em `lib/actions/pacientes.js`.
+
+**Decisões em aberto:** critério de duplicado (mesmo nome? mesmo telefone?
+importa mesmo assim e deixa o usuário resolver depois?); tamanho/formato de
+arquivo aceito; biblioteca de parse de Excel no lado servidor (ex: `xlsx` —
+avaliar na hora, dado o histórico de vulnerabilidades já reportadas nesse
+pacote especificamente, então checar a versão/alternativas antes de adicionar
+a dependência).
+
+**Tamanho estimado:** M — upload + parse + tela de mapeamento com preview é
+mais interação de UI do que os CRUDs simples já existentes no app, mas não
+mexe em modelo de dados nem em RLS.
