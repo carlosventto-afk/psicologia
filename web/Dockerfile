@@ -21,6 +21,12 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+# O Docker define HOSTNAME automaticamente como o ID do container, e o
+# server.js standalone do Next usa essa variável pra decidir em qual
+# endereço escutar — como o container fica em mais de uma rede overlay,
+# isso faz ele escutar só numa delas (não necessariamente a que o Traefik
+# usa). Forçar 0.0.0.0 escuta em todas as interfaces.
+ENV HOSTNAME=0.0.0.0
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
