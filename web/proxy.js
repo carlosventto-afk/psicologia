@@ -22,6 +22,7 @@ export async function proxy(request) {
   if (request.nextUrl.pathname.startsWith("/blog")) {
     const url = request.nextUrl.clone();
     url.host = BLOG_HOST;
+    url.port = "";
     url.pathname = url.pathname.replace(/^\/blog/, "") || "/";
     return NextResponse.redirect(url, 308);
   }
