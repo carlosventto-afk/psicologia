@@ -1,6 +1,141 @@
 # Status da implementação
 
-Última atualização: 2026-07-30.
+Última atualização: 2026-08-03.
+
+## Pendências abertas
+
+- **Nada disso estava commitado até agora** — todo o trabalho desta sessão
+  (itens 3, 1, subdomínio, tooling) ficou só no working directory por um
+  bom tempo. Só descobrimos isso quando o subdomínio "não funcionava" mesmo
+  com a infra certa: o `GIT_SHA` rodando em produção continuava o mesmo de
+  antes da sessão começar. Os commits foram feitos agora (7 commits, um por
+  assunto — ver `git log`), **mas ainda não houve `git push`** — o deploy em
+  produção continua rodando o código antigo até isso acontecer.
+- **3 problemas de infra encontrados e corrigidos durante a configuração do
+  subdomínio** (documentados aqui pra não se repetir): (1) o serviço no
+  EasyPanel ficou com `PORT=80` em vez de `3000` em algum momento — causou
+  uma queda total do site (502 em `/` e `/login`) até ser corrigido; (2) a
+  variável `NEXT_PUBLIC_BLOG_URL` foi digitada como `EXT_PUBLIC_BLOG_URL`
+  (faltando o "N") — Next.js só expõe variável cujo nome comece exatamente
+  com `NEXT_PUBLIC_`, então ficou sendo ignorada até corrigir o nome; (3) o
+  registro DNS do `blog.psifacil.com.br` nunca tinha sido salvo de fato no
+  Registro.br. Os três já estão corrigidos e confirmados (`PORT=3000`,
+  `NEXT_PUBLIC_BLOG_URL` correto, DNS resolvendo nos dois resolvedores
+  testados) — falta só o `git push` pra um novo deploy rodar com o código
+  novo.
+- **Item 3 (convite de profissionais)** e **item 1 (blog, CRUD admin)**:
+  código pronto e validado por build/curl, mas **ainda não clicados de
+  verdade no navegador**. Falta: enviar convite de teste em produção e
+  conferir o e-mail; criar/editar um artigo pelo formulário de
+  `/admin/artigos`. Só dá pra testar isso de verdade depois do `git push` +
+  redeploy.
+- Depois dessas verificações, seguir pros itens 2 e 4 do backlog
+  (`docs/backlog-novas-funcionalidades.md`, ainda não iniciados).
+
+## Blog em subdomínio próprio: blog.psifacil.com.br (2026-08-03)
+
+Blog migrado de `psifacil.com.br/blog` pra `blog.psifacil.com.br` — mesmo
+app Next.js, roteamento inteiramente no `web/proxy.js` via header `Host`
+(nenhum arquivo novo, nenhuma tela mudou de posição):
+
+- Requisição em `blog.*` → `NextResponse.rewrite` (invisível pro navegador)
+  pra dentro de `/blog/...`; **nunca chama `updateSession`** (o subdomínio é
+  100% público, não precisa checar sessão do Supabase a cada pageview).
+  Aceita tanto o caminho limpo (`/algum-artigo`) quanto o antigo
+  (`/blog/algum-artigo`), então nada quebra por causa de link antigo.
+- Requisição em `psifacil.com.br/blog*` (domínio principal) → redirect 308
+  permanente pro mesmo caminho em `blog.psifacil.com.br`, sem o prefixo.
+- Links internos do blog (`blog/layout.js`, `blog/page.js`) viraram
+  "limpos" (sem `/blog`), e `blog/[slug]/page.js` ganhou
+  `alternates.canonical`/`openGraph.url` — importante porque agora duas
+  URLs (`/x` e `/blog/x`) respondem o mesmo conteúdo no mesmo host.
+- `sitemap.js`/`robots.js` continuam sendo um arquivo só na raiz do app
+  (confirmado no doc oficial do Next 16: não existe convenção de
+  sitemap/robots aninhado por segmento de rota) — só trocaram
+  `NEXT_PUBLIC_SITE_URL` por `NEXT_PUBLIC_BLOG_URL` e as URLs viraram
+  limpas. Isso significa que `psifacil.com.br/sitemap.xml` também responde
+  com o mesmo conteúdo do blog — inofensivo, só o de `blog.psifacil.com.br`
+  vai ser submetido no Search Console.
+- **Testado localmente** com `curl -H "Host: blog.localhost:3000" ...`
+  (rewrite, redirect do domínio principal, sitemap, robots — todos ok).
+  **Não testado em produção ainda** — faltam 3 passos manuais:
+  1. DNS (Registro.br): registro A `blog.psifacil.com.br` → `179.198.103.130`
+     (mesmo padrão de `psifacil.com.br`/`www`, não existe ainda).
+  2. EasyPanel: adicionar `blog.psifacil.com.br` como domínio do mesmo
+     serviço (aba Domains) — Traefik rotea e emite SSL sozinho.
+  3. EasyPanel: build-arg `NEXT_PUBLIC_BLOG_URL=https://blog.psifacil.com.br`
+     no mesmo lugar onde `NEXT_PUBLIC_SITE_URL` já está — dispara rebuild.
+
+## Blog público (2026-08-03, item 1 do backlog)
+
+Primeira área do app acessível sem login. Tabela nova `public.artigos`
+(migration `20260803000001_add_artigos_blog.sql`, convenção snake_case já
+usada nas tabelas do agente de WhatsApp, diferente do legado PascalCase),
+RLS reaproveitando `public.is_admin()`: leitura liberada (inclusive pra
+`anon`) quando `publicado = true`, escrita só admin.
+
+- **Conteúdo em Markdown**, renderizado com a lib nova `marked` (zero
+  dependências, dependência deliberada e pequena — alternativa seria HTML
+  cru no textarea, mas piora a experiência de quem escreve).
+- **Painel admin** (`/admin/artigos`) reaproveita o `/admin` do item 3 —
+  `web/app/(app)/admin/layout.js` ganhou uma sub-nav (Profissionais/Blog).
+- **Público**: `/blog` (lista) e `/blog/[slug]` (artigo), fora do
+  `(app)`/`(auth)` — layout próprio sem nav interno. `web/lib/supabase/proxy.js`
+  (`PUBLIC_PATHS`) liberou `/blog`, `/sitemap.xml` e `/robots.txt`.
+- **SEO básico**: `web/app/sitemap.js` (lista artigos publicados,
+  `revalidate = 3600` pra não depender de redeploy pra atualizar) e
+  `web/app/robots.js` (libera só `/blog` pro crawler, bloqueia o resto do
+  app — é um painel de gestão privado, não devia ser indexado).
+- Sem upload de imagem nesta entrega — Markdown aceita `![alt](url)`
+  hotlink; upload de verdade (Supabase Storage) fica pra depois se precisar.
+- **Testado de ponta a ponta localmente** (`npm run dev` + `curl`, inserindo
+  artigo de rascunho e um publicado direto no banco): rascunho não aparece
+  em `/blog` nem no sitemap e dá 404 em `/blog/[slug]`; publicado aparece
+  nos dois lugares e o Markdown renderiza corretamente (negrito, lista,
+  link). Dados de teste removidos depois. **Não testado ainda passando
+  pelo formulário de admin de verdade no navegador.**
+
+## Painel admin — convidar profissionais (2026-08-03, item 3 do backlog, parte 1)
+
+A pedido do usuário, primeira entrega de `docs/backlog-novas-funcionalidades.md`
+item 3 — só o fluxo de **convite** (autocadastro público fica pra depois), pra
+já poder trazer profissionais de verdade pra testar o sistema.
+
+- **`Usuarios.role`/`public.is_admin()`** já existiam no banco (migration
+  `20260727000003_enable_rls_policies.sql`) sem nenhum código de app usando —
+  agora usados de verdade. `role = 'admin'` setado manualmente na única linha
+  existente (`id = 1`, e-mail não estava preenchido nessa linha — dado legado).
+- **Novo client service-role** (`web/lib/supabase/admin.js`) — só ele chama
+  `auth.admin.inviteUserByEmail`. Env var nova `SUPABASE_SERVICE_ROLE_KEY` em
+  `web/.env.local` (chave `sb_secret_...`, par da `sb_publishable_...` já
+  usada) — **já adicionada também no EasyPanel (produção)**, serviço do app
+  Next.js, confirmado pelo usuário (não entra no Dockerfile/build, é lida só
+  em runtime; site respondeu HTTP 200 depois do restart do container).
+- **Ponto de segurança:** diferente do resto do app (que confia 100% em RLS),
+  a action `convidarProfissional` (`web/lib/actions/profissionais.js`) precisa
+  checar `role === 'admin'` explicitamente antes de qualquer coisa, porque o
+  client service-role que ela usa ignora RLS por completo.
+- **Fluxo do convidado reaproveitado 100%** do que já existia: o e-mail de
+  convite do Supabase leva pro mesmo `/auth/callback` → `/redefinir-senha` já
+  usado por recuperação de senha — nenhuma tela nova precisou ser criada pro
+  profissional convidado.
+- Novo: `web/app/(app)/admin/{layout.js,profissionais/page.js,profissionais/novo/page.js}`,
+  `web/lib/data/profissionais.js`, `web/components/ConvidarProfissionalForm.js`.
+  Link "Administração" no nav (`web/app/(app)/layout.js`) só aparece pra quem
+  tem `role = 'admin'`.
+- **SMTP próprio configurado** — usuário criou conta no Resend, verificou o
+  domínio `psifacil.com.br` e gerou uma API key; apliquei a config no
+  Supabase Auth via Management API (`PATCH /v1/projects/rohulajgyxdangxfurha/config/auth`):
+  `smtp_host=smtp.resend.com`, `smtp_port=465`, `smtp_user=resend`,
+  `smtp_sender_name=PsiFácil`, `smtp_admin_email=no-reply@psifacil.com.br`.
+  Também subi `rate_limit_email_sent` de 2 (limite do mailer de teste) pra
+  30/hora — sem isso o limite continuaria valendo mesmo com SMTP próprio.
+  **Ainda não confirmado**: se o domínio já apareceu "Verified" no Resend no
+  momento em que isso for testado de verdade (a config foi aplicada antes de
+  confirmar o status de verificação).
+- **Validado só por `npm run build`** — ainda não testado enviando um convite
+  de verdade e completando o fluxo no navegador (ver seção "Estado da sessão"
+  no topo deste arquivo pro que falta e por quê).
 
 ## PsiFácil em produção (2026-07-29/30)
 
