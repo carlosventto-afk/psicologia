@@ -1,6 +1,40 @@
 # Status da implementação
 
-Última atualização: 2026-08-03.
+Última atualização: 2026-08-04.
+
+## Landing page + autocadastro público (2026-08-04, item 4 + parte do item 3)
+
+`comece.psifacil.com.br` — landing paga com CTA "Criar conta grátis", mesmo
+padrão de subdomínio do `blog.` (rewrite no `web/proxy.js`, sem sitemap
+dedicado pois é tráfego pago, não orgânico). Puxou junto a parte do item 3
+que tinha ficado de fora: autocadastro público em `/cadastro`.
+
+- **Migration nova**: `Usuarios` ganhou `aprovado boolean not null default
+  true` (convite do admin e contas existentes continuam aprovadas
+  automaticamente; só quem se cadastra sozinho entra como `false`) e `crp
+  text` (coletado, sem verificação ainda).
+- **`cadastrar()`** em `web/lib/actions/auth.js` usa `supabase.auth.signUp()`
+  no client normal (nada de service-role, diferente do convite) — projeto
+  tem `mailer_autoconfirm: true`, então a conta já sai confirmada e logada.
+- **`aprovarProfissional()`** em `web/lib/actions/profissionais.js` também
+  usa o client normal — a policy `usuarios_self` já é `for all` e já libera
+  admin, não precisou de RLS nova.
+- **Sem gate funcional por `aprovado`** nesta entrega — só um aviso no
+  dashboard pro profissional pendente; nada é bloqueado (não existe item 2
+  ainda pra esconder alguém pendente do diretório).
+- **Testado de ponta a ponta com o chrome-devtools MCP**: cadastro real
+  criado, logou automaticamente, aviso de pendência apareceu certo,
+  confirmado no banco (`aprovado: false`, `role: psicologo`) e limpo depois.
+  Landing conferida em desktop e mobile (390×844) — responsiva, sem
+  problema de layout.
+- **Sem prova social inventada** na landing (depoimento/nota/contagem de
+  usuário) — nada disso existe de verdade ainda.
+- Tracking (GA4/Google Ads) fica pronto mas inerte — `NEXT_PUBLIC_GA_MEASUREMENT_ID`/
+  `NEXT_PUBLIC_GOOGLE_ADS_ID` não configurados ainda, banner de
+  consentimento de cookies só aparece quando algum desses existir.
+- **Falta**: DNS (`comece.psifacil.com.br` → `179.198.103.130`) e domínio no
+  EasyPanel — mesmos 2 passos manuais já feitos pro blog, ainda não feitos
+  pra esse subdomínio. Sem eles, só funciona local.
 
 ## Subdomínio do blog e queda do site — resolvido (2026-08-03)
 

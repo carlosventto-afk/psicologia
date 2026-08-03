@@ -124,6 +124,13 @@ moderação. É o item mais substancial do backlog.
 
 ## 3. Painel administrativo + cadastro de profissionais
 
+**Status: implementado** (2026-08-03/04) — convite pelo admin (primeira
+entrega) e autocadastro público (`/cadastro`) com estado `aprovado` em
+`Usuarios` (default `true` pra convite, `false` pra autocadastro) e botão de
+aprovar em `/admin/profissionais`. Sem gate funcional por `aprovado` — é só
+status visível pro admin, não bloqueia uso da ferramenta (não existe item 2
+ainda pra esconder o profissional pendente).
+
 **Objetivo:** dar aos administradores do PsiFácil um jeito de gerenciar quais
 profissionais existem na plataforma, sem abrir mão de o profissional poder se
 cadastrar sozinho.
@@ -159,6 +166,13 @@ infraestrutura de "quem é admin" já existe.
 ---
 
 ## 4. Landing page para tráfego pago (Google Ads)
+
+**Status: implementado** (2026-08-04) — `comece.psifacil.com.br` (mesmo
+padrão de subdomínio do blog), CTA "Criar conta grátis" → `/cadastro`,
+sem prova social inventada. Tracking de GA4/Google Ads com variável de
+ambiente opcional (`NEXT_PUBLIC_GA_MEASUREMENT_ID`/`NEXT_PUBLIC_GOOGLE_ADS_ID`)
+— banner de consentimento de cookies só aparece quando algum ID estiver
+configurado. Sem sitemap/robots dedicado (página paga, não orgânica).
 
 **Objetivo:** página de conversão simples e rápida para linkar em campanhas
 de Google Ads — não é o app, é a porta de entrada de quem ainda não conhece

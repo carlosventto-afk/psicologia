@@ -6,6 +6,17 @@ const BLOG_HOST = "blog.psifacil.com.br";
 export async function proxy(request) {
   const host = request.headers.get("host") ?? "";
 
+  // comece.psifacil.com.br: landing page paga, reescreve tudo pra /comece
+  // (página única) — mesmo raciocínio do blog, nunca passa pelo
+  // updateSession.
+  if (host.startsWith("comece.")) {
+    const url = request.nextUrl.clone();
+    if (!url.pathname.startsWith("/comece")) {
+      url.pathname = `/comece${url.pathname}`;
+    }
+    return NextResponse.rewrite(url);
+  }
+
   // blog.psifacil.com.br: reescreve pra dentro de /blog/... (invisível pro
   // navegador) e nunca passa pelo updateSession — é conteúdo público, não
   // precisa criar client do Supabase pra checar sessão a cada pageview.
