@@ -3,5 +3,6 @@
     "allow": [
       "PowerShell"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true
 }
