@@ -24,7 +24,10 @@ export default function PerfilDiretorioForm({ action, perfil, especialidades }) 
 
       <div>
         <label htmlFor="foto" className="block text-sm font-semibold text-navy">
-          Foto de perfil
+          Foto de perfil{" "}
+          <span className="font-normal text-muted">
+            (obrigatória para aparecer no diretório)
+          </span>
         </label>
         {perfil?.foto_url && (
           <img
@@ -126,6 +129,28 @@ export default function PerfilDiretorioForm({ action, perfil, especialidades }) 
           Aparecer no diretório público
         </label>
       </div>
+
+      {perfil?.termos_aceitos_em ? (
+        <p className="text-sm text-muted">
+          Termos de Uso aceitos em{" "}
+          {new Date(perfil.termos_aceitos_em).toLocaleDateString("pt-BR")}.
+        </p>
+      ) : (
+        <div className="flex items-center gap-2">
+          <input id="termos_aceite" name="termos_aceite" type="checkbox" className="h-4 w-4" />
+          <label htmlFor="termos_aceite" className="text-sm text-navy">
+            Li e concordo com os{" "}
+            <a
+              href="/termos"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="link"
+            >
+              Termos de Uso
+            </a>
+          </label>
+        </div>
+      )}
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.mensagem && <p className="text-sm text-green-700">{state.mensagem}</p>}
