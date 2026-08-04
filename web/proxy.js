@@ -22,7 +22,11 @@ export async function proxy(request) {
   // updateSession.
   if (host.startsWith("busca.")) {
     const url = request.nextUrl.clone();
-    if (!url.pathname.startsWith("/busca")) {
+    const isMetadataFile = url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt";
+    // sitemap.js/robots.js só existem na raiz do app (não têm convenção
+    // aninhada por segmento) — não prefixar, senão viram /busca/sitemap.xml
+    // e dão 404.
+    if (!isMetadataFile && !url.pathname.startsWith("/busca")) {
       url.pathname = `/busca${url.pathname}`;
     }
     return NextResponse.rewrite(url);
