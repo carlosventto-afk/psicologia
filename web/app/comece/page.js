@@ -1,42 +1,39 @@
 import Link from "next/link";
 import ConsentimentoCookies from "@/components/ConsentimentoCookies";
+import SessionClock from "./SessionClock";
 
 const CADASTRO_URL = "https://psifacil.com.br/cadastro";
 const LOGIN_URL = "https://psifacil.com.br/login";
 
-const DORES = [
+const CARDS = [
   {
-    titulo: "Lembretes automáticos",
-    dor: "Perder tempo confirmando sessão por sessão no WhatsApp, um por um.",
-    solucao:
-      "O agente de WhatsApp do PsiFácil confirma e lembra seus pacientes sozinho, sem você precisar digitar nada.",
+    pesa: "Confirmar sessão por sessão, um WhatsApp de cada vez.",
+    titulo: "Lembrete automático",
+    muda: "O sistema confirma e avisa cada paciente sozinho, no horário certo.",
   },
   {
-    titulo: "Financeiro integrado",
-    dor: "Não saber ao certo quem está devendo, nem quando cobrar.",
-    solucao:
-      "Recibos, pagamentos e inadimplência num painel só — sem planilha paralela pra conferir.",
+    pesa: "Não saber ao certo quem está devendo, nem desde quando.",
+    titulo: "Financeiro em dia",
+    muda: "Recibo, pagamento e inadimplência reunidos num painel só.",
   },
   {
-    titulo: "Agenda única",
-    dor: "Agenda espalhada entre papel, planilha e conversa de WhatsApp.",
-    solucao:
-      "Toda a sua semana organizada num só lugar, com recorrência automática pros pacientes fixos.",
+    pesa: "Agenda dividida entre caderno, planilha e conversa perdida.",
+    titulo: "Uma agenda só",
+    muda: "A semana inteira organizada, com sessões recorrentes automáticas.",
   },
   {
-    titulo: "Múltiplos consultórios",
-    dor: "Atender em mais de um endereço e perder o controle de qual agenda é qual.",
-    solucao:
-      "Cada consultório com sua própria agenda e pacientes, tudo dentro da mesma conta.",
+    pesa: "Mais de um consultório, mais de uma dor de cabeça.",
+    titulo: "Todos os endereços, uma conta",
+    muda: "Cada consultório com sua própria agenda e seus próprios pacientes.",
   },
 ];
 
 const PASSOS = [
-  { numero: "1", titulo: "Crie sua conta", texto: "Gratuito, leva menos de um minuto." },
+  { numero: "1", titulo: "Crie sua conta", texto: "Gratuita, leva menos de um minuto." },
   {
     numero: "2",
     titulo: "Configure seu consultório",
-    texto: "Cadastre seus pacientes e sua agenda do jeito que você já trabalha.",
+    texto: "Cadastre pacientes e agenda do jeito que você já trabalha.",
   },
   {
     numero: "3",
@@ -48,90 +45,132 @@ const PASSOS = [
 export default function PaginaComece() {
   return (
     <>
-      <header className="border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <img src="/logo.svg" alt="PsiFácil" className="h-8 w-auto" />
-        </div>
-      </header>
+      <SessionClock />
 
-      <main>
-        {/* Hero */}
-        <section className="bg-background">
-          <div className="max-w-5xl mx-auto px-4 py-16 md:py-24 text-center">
-            <h1 className="text-3xl md:text-5xl font-extrabold text-navy leading-tight max-w-3xl mx-auto">
-              Sua rotina de consultório, finalmente em um só lugar
-            </h1>
-            <p className="mt-5 text-base md:text-lg text-muted max-w-xl mx-auto">
-              Agenda, pacientes, financeiro e lembretes automáticos por
-              WhatsApp — sem planilha, sem caderno, sem perder tempo.
-            </p>
-            <div className="mt-8 flex flex-col items-center gap-3">
-              <Link href={CADASTRO_URL} className="btn-primary text-base px-8 py-3">
-                Criar conta grátis
-              </Link>
-              <p className="text-xs text-muted">Sem cartão de crédito.</p>
-            </div>
+      <div className="lg:pl-20">
+        <header className="px-4 py-5">
+          <div className="max-w-3xl mx-auto lg:mx-0 lg:ml-8">
+            <img src="/logo.svg" alt="PsiFácil" className="h-7 w-auto" />
           </div>
-        </section>
+        </header>
 
-        {/* Dores -> Soluções */}
-        <section className="max-w-5xl mx-auto px-4 py-16 md:py-20">
-          <h2 className="text-2xl md:text-3xl font-extrabold text-navy text-center">
-            O que hoje toma seu tempo, o PsiFácil resolve
-          </h2>
-          <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5">
-            {DORES.map((item) => (
-              <div key={item.titulo} className="card p-6">
-                <p className="text-sm text-muted line-through decoration-red-400">
-                  {item.dor}
-                </p>
-                <h3 className="mt-2 text-lg font-bold text-navy">{item.titulo}</h3>
-                <p className="mt-1 text-sm text-muted">{item.solucao}</p>
+        <main>
+          {/* Chegada */}
+          <section id="chegada" className="relative overflow-hidden px-4 py-20 md:py-28">
+            <div
+              aria-hidden="true"
+              className="respiracao pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[32rem] w-[32rem] rounded-full opacity-60 blur-3xl"
+              style={{
+                background:
+                  "radial-gradient(circle, var(--moss-soft) 0%, transparent 70%)",
+              }}
+            />
+            <div className="relative max-w-2xl mx-auto lg:mx-0 lg:ml-8 text-center lg:text-left">
+              <h1 className="font-display text-4xl md:text-6xl font-medium leading-[1.08] text-[var(--ink)]">
+                A parte administrativa do consultório,{" "}
+                <em className="font-display italic text-[var(--moss-dark)]">fora</em> do
+                seu caminho.
+              </h1>
+              <p className="mt-6 text-lg text-[var(--ink-soft)] max-w-lg mx-auto lg:mx-0">
+                Agenda, pacientes, financeiro e lembrete automático de sessão por
+                WhatsApp — tudo em um só lugar, pra sobrar você pra quem senta na
+                sua frente.
+              </p>
+              <div className="mt-9 flex flex-col items-center lg:items-start gap-3">
+                <Link
+                  href={CADASTRO_URL}
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--moss)] text-white font-bold px-8 py-3.5 text-base transition-colors hover:bg-[var(--moss-dark)]"
+                >
+                  Criar conta gratuita
+                </Link>
+                <p className="text-xs text-[var(--ink-soft)]">Sem cartão de crédito.</p>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Como funciona */}
-        <section className="bg-background">
-          <div className="max-w-5xl mx-auto px-4 py-16 md:py-20">
-            <h2 className="text-2xl md:text-3xl font-extrabold text-navy text-center">
-              Como funciona
-            </h2>
-            <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {PASSOS.map((passo) => (
-                <div key={passo.numero} className="text-center">
-                  <div className="mx-auto h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center font-bold">
-                    {passo.numero}
-                  </div>
-                  <h3 className="mt-3 font-bold text-navy">{passo.titulo}</h3>
-                  <p className="mt-1 text-sm text-muted">{passo.texto}</p>
-                </div>
-              ))}
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* CTA final */}
-        <section className="max-w-3xl mx-auto px-4 py-16 md:py-20 text-center">
-          <h2 className="text-2xl md:text-3xl font-extrabold text-navy">
-            Pronto pra organizar seu consultório?
-          </h2>
-          <div className="mt-6">
-            <Link href={CADASTRO_URL} className="btn-primary text-base px-8 py-3">
-              Criar conta grátis
-            </Link>
-          </div>
-        </section>
-      </main>
+          {/* O que pesa / muda */}
+          <section id="pesa" className="px-4 py-20 md:py-24 border-t border-[var(--border)]">
+            <div className="max-w-4xl mx-auto lg:mx-0 lg:ml-8">
+              <h2 className="font-display text-3xl md:text-4xl font-medium text-[var(--ink)]">
+                O que hoje pesa no seu dia
+              </h2>
+              <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {CARDS.map((c) => (
+                  <div
+                    key={c.titulo}
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--paper-warm)] p-7"
+                  >
+                    <p className="text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">
+                      Pesa
+                    </p>
+                    <p className="mt-1.5 text-[var(--ink-soft)]">{c.pesa}</p>
+                    <div className="my-5 h-px bg-[var(--border)]" />
+                    <p className="text-xs font-bold uppercase tracking-wider text-[var(--moss-dark)]">
+                      Muda
+                    </p>
+                    <h3 className="mt-1.5 font-display text-xl font-medium text-[var(--ink)]">
+                      {c.titulo}
+                    </h3>
+                    <p className="mt-1 text-[var(--ink-soft)]">{c.muda}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
 
-      <footer className="border-t border-border">
-        <div className="max-w-5xl mx-auto px-4 py-6 text-center text-sm text-muted">
-          <Link href={LOGIN_URL} className="link">
+          {/* Como começa */}
+          <section
+            id="comeca"
+            className="px-4 py-20 md:py-24 border-t border-[var(--border)] bg-[var(--paper-warm)]"
+          >
+            <div className="max-w-4xl mx-auto lg:mx-0 lg:ml-8">
+              <h2 className="font-display text-3xl md:text-4xl font-medium text-[var(--ink)]">
+                Como começa
+              </h2>
+              <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+                {PASSOS.map((passo) => (
+                  <div key={passo.numero}>
+                    <span className="font-display text-4xl text-[var(--moss)]">
+                      {passo.numero}
+                    </span>
+                    <h3 className="mt-2 font-bold text-[var(--ink)]">{passo.titulo}</h3>
+                    <p className="mt-1 text-sm text-[var(--ink-soft)]">{passo.texto}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* CTA final */}
+          <section
+            id="marcar"
+            className="px-4 py-20 md:py-28 border-t border-[var(--border)] text-center lg:text-left"
+          >
+            <div className="max-w-2xl mx-auto lg:mx-0 lg:ml-8">
+              <h2 className="font-display text-3xl md:text-4xl font-medium text-[var(--ink)]">
+                Pronto pra começar?
+              </h2>
+              <p className="mt-4 text-[var(--ink-soft)]">
+                Sua primeira sessão organizada é gratuita.
+              </p>
+              <div className="mt-8">
+                <Link
+                  href={CADASTRO_URL}
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--moss)] text-white font-bold px-8 py-3.5 text-base transition-colors hover:bg-[var(--moss-dark)]"
+                >
+                  Criar conta gratuita
+                </Link>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <footer className="px-4 py-8 border-t border-[var(--border)] text-center">
+          <Link href={LOGIN_URL} className="text-sm font-semibold text-[var(--moss-dark)]">
             Já tem conta? Entrar
           </Link>
-        </div>
-      </footer>
+        </footer>
+      </div>
 
       <ConsentimentoCookies />
     </>
