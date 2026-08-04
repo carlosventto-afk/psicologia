@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   "/auth/callback",
   "/sitemap.xml",
   "/robots.txt",
+  "/termos",
 ];
 
 export async function updateSession(request) {
