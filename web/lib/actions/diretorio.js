@@ -61,11 +61,10 @@ export async function salvarPerfil(prevState, formData) {
   let fotoUrl = perfilExistente?.foto_url ?? null;
 
   if (foto && foto.size > 0) {
-    const extensao = foto.name.split(".").pop();
-    const caminho = `${user.id}/foto.${extensao}`;
+    const caminho = `${user.id}/foto`;
     const { error: erroUpload } = await supabase.storage
       .from("perfis-publicos")
-      .upload(caminho, foto, { upsert: true });
+      .upload(caminho, foto, { upsert: true, contentType: foto.type });
 
     if (erroUpload) {
       return { error: "Não foi possível enviar a foto." };
