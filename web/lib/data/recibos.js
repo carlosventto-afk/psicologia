@@ -5,8 +5,9 @@ export async function listarSessoesElegiveisParaRecibo() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Sessao")
-    .select("id, data, horario, Paciente!inner(id, nome), Recibo(id)")
+    .select("id, data, horario, Paciente!inner(id, nome, precisa_recibo), Recibo(id)")
     .eq("Realizado", true)
+    .eq("Paciente.precisa_recibo", true)
     .order("data", { ascending: false });
 
   if (error) throw new Error(error.message);
