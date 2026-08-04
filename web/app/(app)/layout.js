@@ -20,6 +20,7 @@ export default async function LayoutApp({ children }) {
             <Link href="/financeiro">Financeiro</Link>
             <Link href="/recibos">Recibos</Link>
             <Link href="/consultorios">Consultórios</Link>
+            <Link href="/diretorio">Diretório</Link>
             <Link href="/configuracoes/whatsapp">WhatsApp</Link>
             {usuario.role === "admin" && (
               <Link href="/admin/profissionais">Administração</Link>
