@@ -2,12 +2,14 @@ import PerfilDiretorioForm from "@/components/PerfilDiretorioForm";
 import BotaoCompartilharPerfil from "@/components/BotaoCompartilharPerfil";
 import { salvarPerfil } from "@/lib/actions/diretorio";
 import { buscarMeuPerfil, listarEspecialidades, contarMeusContatos } from "@/lib/data/diretorio";
+import { buscarUsuarioAtual } from "@/lib/data/usuario";
 
 export default async function PaginaDiretorio() {
-  const [perfil, especialidades, totalContatos] = await Promise.all([
+  const [perfil, especialidades, totalContatos, usuario] = await Promise.all([
     buscarMeuPerfil(),
     listarEspecialidades(),
     contarMeusContatos(),
+    buscarUsuarioAtual(),
   ]);
 
   const buscaUrl = process.env.NEXT_PUBLIC_BUSCA_URL ?? "http://localhost:3000";
@@ -18,7 +20,16 @@ export default async function PaginaDiretorio() {
         <h1 className="page-title">Meu Perfil no Diretório</h1>
         <p className="text-sm text-muted">{totalContatos} contato(s) recebido(s)</p>
       </div>
-      {perfil?.slug && <BotaoCompartilharPerfil url={`${buscaUrl}/${perfil.slug}`} />}
+      {!usuario.aprovado && (
+        <p className="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2">
+          Seu cadastro ainda não foi aprovado por um administrador — seu perfil
+          só aparece publicamente no diretório depois da aprovação, mesmo que
+          você marque "Aparecer no diretório público" e salve.
+        </p>
+      )}
+      {perfil?.slug && perfil?.visivel_diretorio && (
+        <BotaoCompartilharPerfil url={`${buscaUrl}/${perfil.slug}`} />
+      )}
       <PerfilDiretorioForm action={salvarPerfil} perfil={perfil} especialidades={especialidades} />
     </div>
   );
