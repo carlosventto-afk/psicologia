@@ -15,6 +15,7 @@ function dadosDoFormulario(formData) {
     pacote: formData.get("pacote") ? Number(formData.get("pacote")) : null,
     valor_sessao: Number(formData.get("valor_sessao")),
     observacoes: formData.get("observacoes") || null,
+    precisa_recibo: formData.get("precisa_recibo") === "on",
   };
 }
 
