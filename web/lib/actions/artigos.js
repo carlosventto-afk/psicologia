@@ -3,16 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-
-function normalizarSlug(valor) {
-  return valor
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+import { normalizarSlug } from "@/lib/slugify";
 
 export async function criarArtigo(prevState, formData) {
   const supabase = await createClient();
