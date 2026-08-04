@@ -92,6 +92,14 @@ feature nova do zero.
 
 ## 2. Diretório público de psicólogos (busca por paciente)
 
+**Status: implementado** (2026-08-03/04) — `busca.psifacil.com.br`
+(listagem com filtros, perfil individual, contato via WhatsApp registrado
+em `ContatoDiretorio`), painel `/diretorio` pro profissional editar o
+próprio perfil e controlar visibilidade. Extensão nesta sessão: CTA de
+cadastro em `/busca`, Termos de Uso com aceite obrigatório, barreira
+mínima de qualidade (bio/foto/especialidade obrigatórios pra publicar),
+botão de compartilhar perfil e Open Graph na página pública.
+
 **Objetivo:** site público onde pacientes em potencial encontram e
 contatam psicólogos cadastrados na ferramenta — o pedaço "marketplace" do
 produto.

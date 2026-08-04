@@ -2,6 +2,30 @@
 
 Última atualização: 2026-08-04.
 
+## Diretório público: CTA de cadastro, termos de uso e divulgação (2026-08-04)
+
+Extensão do item 2 (`busca.psifacil.com.br`, que já estava implementado
+desde 2026-08-03/04 mas nunca tinha ganho uma seção aqui — corrigido
+junto com esta entrega).
+
+- **CTA "Cadastre-se grátis"** sempre visível no topo de `/busca`, link
+  absoluto pra `https://psifacil.com.br/cadastro?origem=busca` (mesmo
+  motivo do `comece.`: link relativo em subdomínio reescrito quebra).
+  Quem se cadastra por esse caminho cai direto em `/diretorio` em vez do
+  dashboard padrão (`cadastrar()` em `web/lib/actions/auth.js` lê o campo
+  oculto `origem`).
+- **Termos de Uso** (`/termos`, público, liberado em `PUBLIC_PATHS`):
+  aceite obrigatório pra publicar, registrado com timestamp em
+  `PerfilPublico.termos_aceitos_em` (sem versionamento — reforço futuro de
+  consentimento seria por e-mail, não reabrindo esta coluna).
+- **Barreira de qualidade**: `salvarPerfil` agora exige bio, foto e ao
+  menos 1 especialidade pra `visivel_diretorio = true`, validado antes de
+  qualquer escrita no banco — perfil incompleto continua podendo ser
+  salvo como rascunho invisível.
+- **Divulgação**: botão "Compartilhar meu perfil" em `/diretorio` (copia
+  o link público pra área de transferência) e `openGraph.images` na
+  página de perfil (`/busca/[slug]`) usando a foto do profissional.
+
 ## Landing page + autocadastro público (2026-08-04, item 4 + parte do item 3)
 
 `comece.psifacil.com.br` — landing paga com CTA "Criar conta grátis", mesmo
