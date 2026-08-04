@@ -54,6 +54,11 @@ quanto na planilha de importação, e passa a filtrar a tela `/recibos`.
    marcar quem precisa.
 9. **`/recibos` passa a filtrar** por `precisa_recibo = true` — hoje lista
    todas as sessões realizadas sem recibo emitido, de qualquer paciente.
+10. **Cancelamento em duas frentes**: um "Cancelar" nos passos 1–3 (antes
+    de confirmar), que só descarta o estado local e volta pra
+    `/pacientes` — e um "Desfazer importação" na tela de resultado, depois
+    de já ter confirmado, que apaga em lote só os pacientes inseridos
+    naquela leva específica.
 
 ## Arquitetura de dados
 
@@ -87,7 +92,8 @@ Botão "Importar planilha" em `web/app/(app)/pacientes/page.js`, ao lado de
 "Novo Paciente", linkando pra `/pacientes/importar` (página nova). A
 página é majoritariamente um client component
 (`web/components/ImportarPacientesWizard.js`) com estado local em 4
-passos:
+passos. Nos passos 1–3, um botão "Cancelar" descarta o estado local e
+volta pra `/pacientes` (só navegação — nada foi persistido até o passo 4).
 
 **Passo 1 — Upload**
 - Input de arquivo (`.xlsx`, `.csv`) + link "Baixar planilha modelo".
@@ -116,7 +122,14 @@ passos:
   action.
 
 **Tela de resultado**, após a confirmação: relatório retornado pela server
-action (ver próxima seção) + botão "Voltar para pacientes".
+action (ver próxima seção) + botão "Voltar para pacientes" + botão
+"Desfazer importação" (só aparece se `importados > 0`). O desfazer chama
+`desfazerImportacao(idsInseridos)`, que apaga exatamente os pacientes
+daquela leva; depois de usado, o botão some (evita apagar duas vezes) e
+mostra confirmação "Importação desfeita". Não há prazo de expiração — o
+botão fica disponível enquanto a tela de resultado estiver aberta (ao sair
+da página, perde-se a lista de IDs e a chance de desfazer por essa tela;
+os pacientes continuariam existindo até serem apagados manualmente).
 
 ## Validação, deduplicação e relatório (server action)
 
@@ -156,11 +169,26 @@ Retorno da server action (relatório):
 {
   totalLinhas,
   importados,
+  idsInseridos: [...],
   puladosSemNome,
   puladosDuplicados: [{ linha, nome }],
   avisos: [{ linha, nome, campo, motivo }],
 }
 ```
+
+`idsInseridos` vem direto do `.select("id")` encadeado no `insert` — é o
+que permite desfazer depois.
+
+### Desfazer importação
+
+Segunda server action, `desfazerImportacao(ids)`: `supabase.from("Paciente")
+.delete().in("id", ids)`. Não precisa de nenhuma outra checagem de posse —
+a RLS de `Paciente` já restringe delete a linhas com `owner = auth.uid()`,
+então só apaga o que pertence ao profissional autenticado mesmo que os IDs
+tenham sido adulterados no cliente. Como é chamada logo em seguida da
+criação, dentro da mesma sessão, não tem efeito colateral em sessões,
+recibos ou lançamentos financeiros — os pacientes recém-criados ainda não
+têm nada vinculado a eles.
 
 ## Planilha modelo
 
@@ -195,6 +223,10 @@ preenchida abaixo do cabeçalho, mostrando o formato esperado (data
   sem nome, uma duplicada e uma com data inválida → prévia reflete o
   mapeamento → confirmar → relatório mostra as contagens certas →
   pacientes válidos aparecem em `/pacientes`.
+- Botão "Cancelar" nos passos 1–3 volta pra `/pacientes` sem persistir
+  nada.
+- Botão "Desfazer importação" na tela de resultado apaga exatamente os
+  pacientes daquela leva (e nenhum outro) e some depois de usado.
 - Cadastro manual: checkbox "Precisa de recibo" salva e recarrega
   corretamente na edição.
 - `/recibos` só lista sessões de pacientes com `precisa_recibo = true`.
