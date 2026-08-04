@@ -41,8 +41,20 @@ function parsearRecibo(texto) {
 export async function importarPacientes(consultorioId, linhas) {
   const supabase = await createClient();
 
-  const { data: existentes, error: erroExistentes } = await supabase.from("Paciente").select("nome");
-  if (erroExistentes) throw new Error(erroExistentes.message);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Não autorizado." };
+  }
+
+  const { data: existentes, error: erroExistentes } = await supabase
+    .from("Paciente")
+    .select("nome")
+    .eq("owner", user.id);
+  if (erroExistentes) {
+    return { error: "Não foi possível verificar pacientes já cadastrados." };
+  }
 
   const nomesExistentes = new Set(existentes.map((p) => normalizarNome(p.nome)));
   const nomesNestaImportacao = new Set();
@@ -109,7 +121,9 @@ export async function importarPacientes(consultorioId, linhas) {
 
   if (candidatos.length > 0) {
     const { data: inseridos, error } = await supabase.from("Paciente").insert(candidatos).select("id");
-    if (error) throw new Error(error.message);
+    if (error) {
+      return { error: "Não foi possível importar os pacientes." };
+    }
     relatorio.importados = inseridos.length;
     relatorio.idsInseridos = inseridos.map((p) => Number(p.id));
   }
@@ -120,7 +134,19 @@ export async function importarPacientes(consultorioId, linhas) {
 
 export async function desfazerImportacao(ids) {
   const supabase = await createClient();
-  const { error } = await supabase.from("Paciente").delete().in("id", ids);
-  if (error) throw new Error(error.message);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Não autorizado." };
+  }
+
+  const { error } = await supabase.from("Paciente").delete().in("id", ids).eq("owner", user.id);
+  if (error) {
+    return { error: "Não foi possível desfazer a importação." };
+  }
+
   revalidatePath("/pacientes");
+  return { error: null };
 }

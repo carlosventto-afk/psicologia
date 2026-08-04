@@ -68,7 +68,7 @@ async function parsearArquivo(arquivo) {
 
   if (nomeArquivo.endsWith(".csv")) {
     const texto = await arquivo.text();
-    workbook = XLSX.read(texto, { type: "string", cellDates: true });
+    workbook = XLSX.read(texto, { type: "string", raw: true });
   } else {
     const buffer = await arquivo.arrayBuffer();
     workbook = XLSX.read(buffer, { type: "array", cellDates: true });
@@ -143,9 +143,13 @@ export default function ImportarPacientesWizard({ consultorios }) {
     setErro("");
     try {
       const relatorio = await importarPacientes(Number(consultorioId), linhasMapeadas);
-      setResultado(relatorio);
+      if (relatorio?.error) {
+        setErro(relatorio.error);
+      } else {
+        setResultado(relatorio);
+      }
     } catch (erroImportacao) {
-      setErro(`Não foi possível importar: ${erroImportacao.message}`);
+      setErro("Não foi possível importar. Tente novamente.");
     } finally {
       setEnviando(false);
     }
@@ -154,10 +158,14 @@ export default function ImportarPacientesWizard({ consultorios }) {
   async function aoDesfazer() {
     setEnviando(true);
     try {
-      await desfazerImportacao(resultado.idsInseridos);
-      setResultado({ ...resultado, desfeito: true });
+      const resposta = await desfazerImportacao(resultado.idsInseridos);
+      if (resposta?.error) {
+        setErro(resposta.error);
+      } else {
+        setResultado({ ...resultado, desfeito: true });
+      }
     } catch (erroDesfazer) {
-      setErro(`Não foi possível desfazer: ${erroDesfazer.message}`);
+      setErro("Não foi possível desfazer. Tente novamente.");
     } finally {
       setEnviando(false);
     }
