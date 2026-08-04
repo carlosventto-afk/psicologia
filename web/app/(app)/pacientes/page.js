@@ -9,9 +9,14 @@ export default async function PaginaPacientes({ searchParams }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="page-title">Pacientes</h1>
-        <Link href="/pacientes/novo" className="btn-primary">
-          Novo Paciente
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/pacientes/importar" className="btn-outline">
+            Importar planilha
+          </Link>
+          <Link href="/pacientes/novo" className="btn-primary">
+            Novo Paciente
+          </Link>
+        </div>
       </div>
 
       <form className="max-w-sm">
