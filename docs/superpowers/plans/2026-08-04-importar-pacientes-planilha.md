@@ -442,6 +442,7 @@ especificamente (os "high" pré-existentes de `brace-expansion`/
 // mapeamento de importação mudarem — não é executado em runtime.
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import fs from "node:fs";
 import XLSX from "xlsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -475,9 +476,21 @@ planilha["!cols"] = cabecalho.map(() => ({ wch: 24 }));
 const livro = XLSX.utils.book_new();
 XLSX.utils.book_append_sheet(livro, planilha, "Pacientes");
 
-XLSX.writeFile(livro, destino);
+const buffer = XLSX.write(livro, { bookType: "xlsx", type: "buffer" });
+fs.writeFileSync(destino, buffer);
 console.log(`Planilha modelo gerada em ${destino}`);
 ```
+
+**Nota (descoberta durante a execução):** `XLSX.writeFile`/`XLSX.readFile` são
+APIs que o pacote da CDN da SheetJS (0.20.3) não expõe corretamente sob
+Node — falham com "cannot save/access file" mesmo sendo `typeof
+"function"`. O caminho que funciona em Node é sempre via buffer:
+`XLSX.write(livro, { type: "buffer" })` + `fs.writeFileSync(...)` pra
+escrever, `fs.readFileSync(...)` + `XLSX.read(buffer)` pra ler. Isso só
+afeta scripts Node (geração da planilha modelo, planilha de teste da Task
+8) — o wizard no navegador (Task 7) usa `XLSX.read()` sobre
+`arrayBuffer()`/`text()`, nunca `readFile`/`writeFile`, então não é
+afetado.
 
 - [ ] **Step 3: Rodar o script e verificar o resultado**
 
@@ -490,7 +503,9 @@ Expected: `Planilha modelo gerada em .../web/public/planilha-modelo-pacientes.xl
 ```bash
 cd "c:/Users/Administrador/Desktop/Projetos/Psicologia/web" && node -e '
 import("xlsx").then(({ default: XLSX }) => {
-  const wb = XLSX.readFile("public/planilha-modelo-pacientes.xlsx");
+  const fs = require("fs");
+  const buffer = fs.readFileSync("public/planilha-modelo-pacientes.xlsx");
+  const wb = XLSX.read(buffer);
   const aba = wb.Sheets[wb.SheetNames[0]];
   console.log(JSON.stringify(XLSX.utils.sheet_to_json(aba, { header: 1 })));
 });
@@ -1225,6 +1240,7 @@ todas listadas.
 ```bash
 cd "c:/Users/Administrador/Desktop/Projetos/Psicologia/web" && node -e '
 import("xlsx").then(({ default: XLSX }) => {
+  const fs = require("fs");
   const cabecalho = ["Nome", "Data de Nascimento", "Telefone", "E-mail", "Endereço", "Valor da Sessão", "Observações", "Precisa de recibo"];
   const linhas = [
     cabecalho,
@@ -1236,7 +1252,8 @@ import("xlsx").then(({ default: XLSX }) => {
   const planilha = XLSX.utils.aoa_to_sheet(linhas);
   const livro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(livro, planilha, "Teste");
-  XLSX.writeFile(livro, "planilha-teste-importacao.xlsx");
+  const buffer = XLSX.write(livro, { bookType: "xlsx", type: "buffer" });
+  fs.writeFileSync("planilha-teste-importacao.xlsx", buffer);
   console.log("gerado: planilha-teste-importacao.xlsx");
 });
 '
