@@ -2,6 +2,25 @@
 
 Última atualização: 2026-08-04.
 
+## Importação de pacientes via planilha + campo "Precisa de recibo" (2026-08-04)
+
+Item 5 do backlog. Wizard em `/pacientes/importar`: upload `.xlsx`/`.csv`
+→ escolher consultório → mapear colunas da planilha pros campos do
+cadastro (com auto-detecção quando o cabeçalho bate) → prévia → confirmar.
+Parsing 100% no navegador (SheetJS `xlsx`, instalado via CDN oficial da
+SheetJS por causa de vulnerabilidades já corrigidas na versão travada no
+registro npm). A Server Action `importarPacientes` valida e deduplica por
+nome (contra pacientes já cadastrados e dentro da própria planilha),
+pulando linhas sem nome ou duplicadas e deixando em branco campos de
+data/valor em formato inválido — tudo reportado na tela de resultado.
+`desfazerImportacao` apaga em lote os pacientes daquela leva específica,
+se o profissional perceber algo errado depois de confirmar.
+
+Junto, campo novo `Paciente.precisa_recibo` (nasce como `false` mesmo
+pra pacientes já existentes, decisão explícita do usuário), editável no
+cadastro manual e na planilha, que agora filtra `/recibos` — só sessões
+de pacientes marcados como "Sim" aparecem como elegíveis.
+
 ## Diretório público: CTA de cadastro, termos de uso e divulgação (2026-08-04)
 
 Extensão do item 2 (`busca.psifacil.com.br`, que já estava implementado

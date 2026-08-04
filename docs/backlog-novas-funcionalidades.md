@@ -210,6 +210,16 @@ copy/oferta com o usuário antes de construir (não é só código).
 
 ## 5. Importar pacientes via planilha Excel
 
+**Status: implementado** (2026-08-04) — wizard em `/pacientes/importar`
+(upload `.xlsx`/`.csv`, mapeamento de colunas, prévia, confirmação),
+planilha modelo pra download, deduplicação por nome e relatório de
+linhas puladas/avisos, com opção de cancelar antes de confirmar e
+desfazer a leva inteira depois. Detalhes:
+`docs/superpowers/specs/2026-08-04-importar-pacientes-planilha-design.md`.
+Biblioteca de parse escolhida: `xlsx` (SheetJS), instalada a partir da
+CDN oficial deles (não do registro npm, que está travado numa versão com
+vulnerabilidades já corrigidas).
+
 **Objetivo:** deixar o psicólogo trazer sua base de pacientes existente (de
 outra ferramenta, planilha própria, etc.) de uma vez, em vez de cadastrar um
 por um pela tela de "Novo Paciente". Diferente dos itens 1-4, este fica
