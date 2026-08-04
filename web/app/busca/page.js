@@ -66,6 +66,20 @@ export default async function PaginaBusca({ searchParams }) {
             ))}
           </select>
         </div>
+        <div>
+          <label htmlFor="valorMax" className="block text-xs font-semibold text-navy">
+            Valor máximo
+          </label>
+          <input
+            id="valorMax"
+            name="valorMax"
+            type="number"
+            step="0.01"
+            placeholder="Sem limite"
+            defaultValue={filtros.valorMax}
+            className="field mt-0"
+          />
+        </div>
         <button type="submit" className="btn-primary">
           Filtrar
         </button>
