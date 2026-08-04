@@ -154,7 +154,7 @@ export async function buscarMeuPerfil() {
     .from("PerfilPublico")
     .select(
       `id, slug, bio, cidade, estado, modalidade, valor_sessao, foto_url,
-       visivel_diretorio,
+       visivel_diretorio, termos_aceitos_em,
        PerfilEspecialidade(especialidade_id)`
     )
     .eq("usuario_id", usuario.id)
