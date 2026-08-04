@@ -32,11 +32,13 @@ create policy "perfilespecialidade_select_publico" on public."PerfilEspecialidad
   for select using (
     exists (
       select 1 from "PerfilPublico" p
-      join "Usuarios" u on u.id = p.usuario_id
       where p.id = perfil_id
         and (
           (p.visivel_diretorio = true and public.usuario_aprovado(p.usuario_id))
-          or u.id_user = auth.uid()
+          or exists (
+            select 1 from "Usuarios" u2
+            where u2.id = p.usuario_id and u2.id_user = auth.uid()
+          )
           or public.is_admin()
         )
     )
