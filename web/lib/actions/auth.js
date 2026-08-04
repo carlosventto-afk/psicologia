@@ -49,6 +49,7 @@ export async function cadastrar(prevState, formData) {
   const senha = formData.get("senha");
   const contato = formData.get("contato");
   const crp = formData.get("crp");
+  const origem = formData.get("origem");
 
   const supabase = await createClient();
 
@@ -78,7 +79,7 @@ export async function cadastrar(prevState, formData) {
     return { error: "Conta criada, mas não foi possível salvar seus dados. Avise o suporte." };
   }
 
-  redirect("/");
+  redirect(origem === "busca" ? "/diretorio" : "/");
 }
 
 export async function atualizarSenha(prevState, formData) {
