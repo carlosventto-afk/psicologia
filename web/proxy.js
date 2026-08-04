@@ -17,6 +17,17 @@ export async function proxy(request) {
     return NextResponse.rewrite(url);
   }
 
+  // busca.psifacil.com.br: diretório público de psicólogos, reescreve
+  // tudo pra /busca — mesmo raciocínio do blog/landing, nunca passa pelo
+  // updateSession.
+  if (host.startsWith("busca.")) {
+    const url = request.nextUrl.clone();
+    if (!url.pathname.startsWith("/busca")) {
+      url.pathname = `/busca${url.pathname}`;
+    }
+    return NextResponse.rewrite(url);
+  }
+
   // blog.psifacil.com.br: reescreve pra dentro de /blog/... (invisível pro
   // navegador) e nunca passa pelo updateSession — é conteúdo público, não
   // precisa criar client do Supabase pra checar sessão a cada pageview.
