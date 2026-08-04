@@ -51,12 +51,29 @@ export async function salvarPerfil(prevState, formData) {
   const visivel = formData.get("visivel_diretorio") === "on";
   const especialidadeIds = formData.getAll("especialidades");
   const foto = formData.get("foto");
+  const termosAceite = formData.get("termos_aceite") === "on";
 
   const { data: perfilExistente } = await supabase
     .from("PerfilPublico")
-    .select("id, slug, foto_url")
+    .select("id, slug, foto_url, termos_aceitos_em")
     .eq("usuario_id", usuario.id)
     .maybeSingle();
+
+  if (visivel) {
+    const temFoto = (foto && foto.size > 0) || Boolean(perfilExistente?.foto_url);
+    const temTermos = termosAceite || Boolean(perfilExistente?.termos_aceitos_em);
+    const faltando = [];
+    if (!bio) faltando.push("bio");
+    if (!temFoto) faltando.push("foto");
+    if (especialidadeIds.length === 0) faltando.push("ao menos uma especialidade");
+    if (!temTermos) faltando.push("aceite dos Termos de Uso");
+
+    if (faltando.length > 0) {
+      return {
+        error: `Pra aparecer no diretório, preencha: ${faltando.join(", ")}.`,
+      };
+    }
+  }
 
   let fotoUrl = perfilExistente?.foto_url ?? null;
 
@@ -85,6 +102,9 @@ export async function salvarPerfil(prevState, formData) {
     valor_sessao: valorSessaoRaw ? Number(valorSessaoRaw) : null,
     foto_url: fotoUrl,
     visivel_diretorio: visivel,
+    termos_aceitos_em: termosAceite
+      ? perfilExistente?.termos_aceitos_em ?? new Date().toISOString()
+      : perfilExistente?.termos_aceitos_em ?? null,
     atualizado_em: new Date().toISOString(),
   };
 
