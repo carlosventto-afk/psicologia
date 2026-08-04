@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   "/esqueci-senha",
   "/redefinir-senha",
   "/auth/callback",
+  "/busca",
   "/sitemap.xml",
   "/robots.txt",
 ];
