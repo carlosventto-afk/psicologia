@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { buscarPerfisPublicos, listarEspecialidades } from "@/lib/data/diretorio";
 
+const CADASTRO_URL = "https://psifacil.com.br/cadastro?origem=busca";
+
 export default async function PaginaBusca({ searchParams }) {
   const params = await searchParams;
 
@@ -19,6 +21,18 @@ export default async function PaginaBusca({ searchParams }) {
   return (
     <div className="space-y-6">
       <h1 className="page-title">Encontre um psicólogo</h1>
+
+      <div className="card p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="font-semibold text-navy">É psicólogo? Apareça aqui gratuitamente.</p>
+          <p className="text-sm text-muted">
+            Cadastre seu perfil e comece a ser encontrado por pacientes.
+          </p>
+        </div>
+        <Link href={CADASTRO_URL} className="btn-primary whitespace-nowrap">
+          Cadastre-se grátis
+        </Link>
+      </div>
 
       <form className="card p-4 flex flex-wrap gap-3 items-end">
         <div>
