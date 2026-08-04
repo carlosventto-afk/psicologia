@@ -9,6 +9,11 @@ export async function generateMetadata({ params }) {
   return {
     title: perfil.nome,
     description: perfil.bio ?? undefined,
+    openGraph: {
+      title: perfil.nome,
+      description: perfil.bio ?? undefined,
+      images: perfil.foto_url ? [perfil.foto_url] : undefined,
+    },
   };
 }
 
