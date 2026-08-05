@@ -1,37 +1,40 @@
 .comece {
-  --paper: #fafaf8;
-  --paper-warm: #f3f1ec;
-  --ink: #1f2a37;
-  --ink-soft: #4b5768;
-  --primary: #7fb2ee;
-  --primary-dark: #4c7fc4;
-  --moss: #6e8f6b;
-  --moss-dark: #4f6b4c;
-  --moss-soft: #e8eee6;
-  --border: #e3e1d8;
+  --petroleo: #17514e;
+  --petroleo-escuro: #0e3936;
+  --ambar: #e0913f;
+  --ambar-escuro: #c67a2e;
+  --menta: #6fcbb6;
+  --marfim: #f8f6f1;
+  --grafite: #22201e;
+  --cinza-pedra: #7c766d;
+  --linha: #e2ded6;
 
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--marfim);
+  color: var(--grafite);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
 .comece .font-display {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+.comece .font-mono {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 }
 
 .comece ::selection {
-  background: var(--moss-soft);
-  color: var(--moss-dark);
+  background: var(--menta);
+  color: var(--petroleo-escuro);
 }
 
 .comece a:focus-visible,
 .comece button:focus-visible {
-  outline: 2px solid var(--moss-dark);
+  outline: 2px solid var(--petroleo);
   outline-offset: 3px;
   border-radius: 4px;
 }
 
-/* Elemento-assinatura: respiração ambiente atrás do hero */
+/* Elemento-assinatura 1: respiração ambiente atrás do hero */
 .comece .respiracao {
   animation: respirar 7s ease-in-out infinite;
 }
@@ -40,11 +43,11 @@
   0%,
   100% {
     transform: scale(1);
-    opacity: 0.55;
+    opacity: 0.5;
   }
   50% {
     transform: scale(1.08);
-    opacity: 0.85;
+    opacity: 0.8;
   }
 }
 
