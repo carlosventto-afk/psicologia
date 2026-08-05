@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { buscarPerfisPublicos, listarEspecialidades } from "@/lib/data/diretorio";
 
-const CADASTRO_URL = "https://psifacil.com.br/cadastro?origem=busca";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const CADASTRO_URL = `${SITE_URL}/cadastro?origem=busca`;
 
 export default async function PaginaBusca({ searchParams }) {
   const params = await searchParams;

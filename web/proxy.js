@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
-const BLOG_HOST = "blog.psifacil.com.br";
+const OLD_DOMAIN = "psifacil.com.br";
+const NEW_DOMAIN = "psiagente.com.br";
+const BLOG_HOST = "blog.psiagente.com.br";
 
 export async function proxy(request) {
   const host = request.headers.get("host") ?? "";
 
-  // comece.psifacil.com.br: landing page paga, reescreve tudo pra /comece
+  // Domínio antigo (psifacil.com.br e qualquer subdomínio dele) redireciona
+  // pro domínio novo, de forma permanente — protege link salvo, e-mail já
+  // enviado e SEO acumulado durante a troca de marca.
+  if (host === OLD_DOMAIN || host.endsWith(`.${OLD_DOMAIN}`)) {
+    const url = request.nextUrl.clone();
+    url.host = host.replace(OLD_DOMAIN, NEW_DOMAIN);
+    url.port = "";
+    return NextResponse.redirect(url, 308);
+  }
+
+  // comece.psiagente.com.br: landing page paga, reescreve tudo pra /comece
   // (página única) — mesmo raciocínio do blog, nunca passa pelo
   // updateSession.
   if (host.startsWith("comece.")) {
@@ -17,7 +29,7 @@ export async function proxy(request) {
     return NextResponse.rewrite(url);
   }
 
-  // busca.psifacil.com.br: diretório público de psicólogos, reescreve
+  // busca.psiagente.com.br: diretório público de psicólogos, reescreve
   // tudo pra /busca — mesmo raciocínio do blog/landing, nunca passa pelo
   // updateSession.
   if (host.startsWith("busca.")) {
@@ -32,7 +44,7 @@ export async function proxy(request) {
     return NextResponse.rewrite(url);
   }
 
-  // blog.psifacil.com.br: reescreve pra dentro de /blog/... (invisível pro
+  // blog.psiagente.com.br: reescreve pra dentro de /blog/... (invisível pro
   // navegador) e nunca passa pelo updateSession — é conteúdo público, não
   // precisa criar client do Supabase pra checar sessão a cada pageview.
   if (host.startsWith("blog.")) {
@@ -47,7 +59,7 @@ export async function proxy(request) {
     return NextResponse.rewrite(url);
   }
 
-  // Links antigos pro blog no domínio principal (psifacil.com.br/blog...)
+  // Links antigos pro blog no domínio principal (psiagente.com.br/blog...)
   // redirecionam pro subdomínio novo, de forma permanente.
   if (request.nextUrl.pathname.startsWith("/blog")) {
     const url = request.nextUrl.clone();

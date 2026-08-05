@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 
-// "/blog" não entra aqui: requisições em blog.psifacil.com.br nunca chegam
+// "/blog" não entra aqui: requisições em blog.psiagente.com.br nunca chegam
 // a este arquivo (web/proxy.js resolve antes), e "/blog" no domínio
 // principal é redirecionado pro subdomínio antes de chegar aqui também.
 const PUBLIC_PATHS = [

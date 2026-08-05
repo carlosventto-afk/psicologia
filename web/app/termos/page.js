@@ -15,7 +15,7 @@ export default function PaginaTermos() {
           <h1 className="page-title">Termos de Uso do Diretório PsiFácil</h1>
           <p className="text-navy">
             Ao ativar seu perfil no diretório público
-            (busca.psifacil.com.br), você concorda com o seguinte:
+            (busca.psiagente.com.br), você concorda com o seguinte:
           </p>
           <ol className="list-decimal list-inside space-y-3 text-navy">
             <li>

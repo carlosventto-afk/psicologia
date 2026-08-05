@@ -2,8 +2,9 @@ import Link from "next/link";
 import ConsentimentoCookies from "@/components/ConsentimentoCookies";
 import SessionClock from "./SessionClock";
 
-const CADASTRO_URL = "https://psifacil.com.br/cadastro";
-const LOGIN_URL = "https://psifacil.com.br/login";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const CADASTRO_URL = `${SITE_URL}/cadastro`;
+const LOGIN_URL = `${SITE_URL}/login`;
 
 const CARDS = [
   {
