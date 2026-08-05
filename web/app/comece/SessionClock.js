@@ -47,10 +47,10 @@ export default function SessionClock() {
       {/* Mobile: barra fina no topo */}
       <div
         aria-hidden="true"
-        className="lg:hidden fixed top-0 inset-x-0 z-40 h-1 bg-[var(--border)]"
+        className="lg:hidden fixed top-0 inset-x-0 z-40 h-1 bg-[var(--linha)]"
       >
         <div
-          className="h-full bg-[var(--moss)]"
+          className="h-full bg-[var(--petroleo)]"
           style={{ width: `${progresso * 100}%` }}
         />
       </div>
@@ -60,9 +60,9 @@ export default function SessionClock() {
         aria-hidden="true"
         className="hidden lg:flex fixed left-6 top-0 h-screen z-40 flex-col items-center py-16"
       >
-        <div className="relative flex-1 w-px bg-[var(--border)]">
+        <div className="relative flex-1 w-px bg-[var(--linha)]">
           <div
-            className="absolute left-1/2 -translate-x-1/2 w-px bg-[var(--moss)] top-0"
+            className="absolute left-1/2 -translate-x-1/2 w-px bg-[var(--petroleo)] top-0"
             style={{ height: `${progresso * 100}%` }}
           />
           {ETAPAS.map((etapa, i) => (
@@ -74,13 +74,13 @@ export default function SessionClock() {
               <span
                 className={`block h-2 w-2 rounded-full border transition-colors ${
                   i <= etapaAtiva
-                    ? "bg-[var(--moss)] border-[var(--moss)]"
-                    : "bg-[var(--paper)] border-[var(--border)]"
+                    ? "bg-[var(--petroleo)] border-[var(--petroleo)]"
+                    : "bg-[var(--marfim)] border-[var(--linha)]"
                 }`}
               />
               <span
                 className={`absolute left-4 whitespace-nowrap text-xs font-semibold tracking-wide transition-colors ${
-                  i === etapaAtiva ? "text-[var(--moss-dark)]" : "text-[var(--ink-soft)] opacity-0"
+                  i === etapaAtiva ? "text-[var(--petroleo)]" : "text-[var(--cinza-pedra)] opacity-0"
                 }`}
               >
                 {etapa.rotulo}
@@ -88,7 +88,7 @@ export default function SessionClock() {
             </div>
           ))}
         </div>
-        <div className="mt-4 text-xs font-bold tabular-nums text-[var(--moss-dark)]">
+        <div className="mt-4 text-xs font-bold tabular-nums text-[var(--petroleo)] font-mono">
           {String(minuto).padStart(2, "0")}′/50′
         </div>
       </div>
