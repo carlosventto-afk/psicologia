@@ -95,11 +95,11 @@ export default function PaginaComece() {
           <section className="px-4 py-16 md:py-20 bg-[var(--petroleo)]">
             <div className="max-w-4xl mx-auto lg:mx-0 lg:ml-8 text-center lg:text-left">
               <p className="font-display font-mono text-6xl md:text-8xl font-bold text-[var(--menta)] leading-none">
-                30 a 60<span className="text-3xl md:text-5xl ml-2">min</span>
+                1 a 12<span className="text-3xl md:text-5xl ml-2">horas</span>
               </p>
               <p className="mt-4 text-base md:text-lg text-[#dce9e6] max-w-md mx-auto lg:mx-0">
                 é o que a documentação manual consome de você{" "}
-                <strong className="text-white">por sessão</strong>.
+                <strong className="text-white">por mês</strong>.
               </p>
               <div className="mt-7">
                 <Link
