@@ -54,6 +54,9 @@ export default function PaginaLogin() {
         <Link href="/esqueci-senha" className="block text-sm link text-center">
           Esqueci minha senha
         </Link>
+        <Link href="/cadastro" className="block text-sm link text-center">
+          Não tem conta? Cadastre-se
+        </Link>
       </form>
     </div>
   );
