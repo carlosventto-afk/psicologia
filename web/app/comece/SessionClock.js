@@ -60,7 +60,10 @@ export default function SessionClock() {
         aria-hidden="true"
         className="hidden lg:flex fixed left-6 top-0 h-screen z-40 flex-col items-center py-16"
       >
-        <div className="relative flex-1 w-px bg-[var(--linha)]">
+        <div
+          className="relative flex-1 w-px bg-[var(--linha)] rounded-full"
+          style={{ boxShadow: "0 0 0 5px var(--marfim)" }}
+        >
           <div
             className="absolute left-1/2 -translate-x-1/2 w-px bg-[var(--petroleo)] top-0"
             style={{ height: `${progresso * 100}%` }}
@@ -79,8 +82,10 @@ export default function SessionClock() {
                 }`}
               />
               <span
-                className={`absolute left-4 whitespace-nowrap text-xs font-semibold tracking-wide transition-colors ${
-                  i === etapaAtiva ? "text-[var(--petroleo)]" : "text-[var(--cinza-pedra)] opacity-0"
+                className={`absolute left-4 whitespace-nowrap rounded-full text-xs font-semibold tracking-wide transition-colors ${
+                  i === etapaAtiva
+                    ? "bg-[var(--marfim)] px-2 py-0.5 text-[var(--petroleo)] opacity-100 shadow-sm"
+                    : "text-[var(--cinza-pedra)] opacity-0"
                 }`}
               >
                 {etapa.rotulo}
@@ -88,7 +93,7 @@ export default function SessionClock() {
             </div>
           ))}
         </div>
-        <div className="mt-4 text-xs font-bold tabular-nums text-[var(--petroleo)] font-mono">
+        <div className="mt-4 rounded-full bg-[var(--marfim)] px-2 py-0.5 text-xs font-bold tabular-nums text-[var(--petroleo)] font-mono shadow-sm">
           {String(minuto).padStart(2, "0")}′/50′
         </div>
       </div>
