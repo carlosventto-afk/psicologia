@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "PsiFácil",
-  description: "Gestão de consultório para psicólogos",
+  title: "PsiAgente",
+  description: "Gestão de consultório para psicólogos, com um agente que cuida da parte administrativa.",
 };
 
 export default function RootLayout({ children }) {

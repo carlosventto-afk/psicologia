@@ -1,16 +1,22 @@
-@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700&display=swap");
 @import "tailwindcss";
 
-/* Paleta extraída de Telas de modelo/ (style guide: fonte Nunito,
-   azul #7FB2EE, navy #253041, cinzas #949AA9/#D2DBED/#EBECEF). */
+/* Paleta PsiAgente (brand book v1, agosto/2026): petróleo #17514E, âmbar
+   #E0913F, marfim #F8F6F1, grafite #22201E, cinza-pedra #7C766D, linha
+   #E2DED6. Nomes de variável mantidos (--color-navy/--color-primary/...)
+   pra não exigir troca de classe em todo o app — Tailwind (@theme inline)
+   já propaga o valor novo pra toda classe text-navy/bg-primary/etc.
+   existente. Menta (#6FCBB6) não entra aqui: é reservada só pra conteúdo
+   gerado por agente de IA, que o produto ainda não tem — ver brand book
+   seção 04. */
 :root {
-  --background: #ebecef;
-  --foreground: #253041;
-  --color-navy: #253041;
-  --color-primary: #7fb2ee;
-  --color-primary-dark: #5b93d6;
-  --color-muted: #949aa9;
-  --color-border: #d2dbed;
+  --background: #f8f6f1;
+  --foreground: #22201e;
+  --color-navy: #17514e;
+  --color-primary: #e0913f;
+  --color-primary-dark: #c67a2e;
+  --color-muted: #7c766d;
+  --color-border: #e2ded6;
   --color-surface: #ffffff;
 }
 
@@ -23,7 +29,8 @@
   --color-muted: var(--color-muted);
   --color-border: var(--color-border);
   --color-surface: var(--color-surface);
-  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
@@ -35,9 +42,10 @@ body {
    cantos bem arredondados, botões em pílula, cards brancos com sombra leve. */
 @layer components {
   .page-title {
+    font-family: var(--font-display);
     font-size: 1.5rem;
     line-height: 2rem;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--color-navy);
   }
 

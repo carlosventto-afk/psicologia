@@ -1,12 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" width="220" height="48" role="img" aria-label="PsiFácil">
-  <defs>
-    <linearGradient id="fluxo-gradient" x1="10" y1="8" x2="38" y2="37" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#7FB2EE" />
-      <stop offset="1" stop-color="#5B93D6" />
-    </linearGradient>
-  </defs>
-  <circle cx="24" cy="24" r="22" fill="#FFFFFF" stroke="#D2DBED" stroke-width="1" />
-  <path d="M24 37 V23 C24 23 14 23 12 15 C11 11 14 8 18 9 C22 10 24 15 24 23 C24 15 26 10 30 9 C34 8 37 11 36 15 C34 23 24 23 24 23"
-        fill="none" stroke="url(#fluxo-gradient)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" />
-  <text x="56" y="32" font-family="Nunito, Arial, sans-serif" font-size="26" font-weight="800" fill="#253041">Psi<tspan fill="#5B93D6">Fácil</tspan></text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 212 48" width="212" height="48" role="img" aria-label="PsiAgente">
+  <path d="M20 44 V27.4" fill="none" stroke="#17514E" stroke-width="3.6" stroke-linecap="round" />
+  <path d="M20 27.4 V8" fill="none" stroke="#17514E" stroke-width="3.6" stroke-linecap="round" />
+  <path d="M20 27.4C20 27.4 9.5 26.3 9.5 8.6" fill="none" stroke="#17514E" stroke-width="3.6" stroke-linecap="round" />
+  <path d="M20 27.4C20 27.4 27.7 26.4 28.2 14" fill="none" stroke="#17514E" stroke-width="3.6" stroke-linecap="round" />
+  <circle cx="28.9" cy="10.8" r="2.8" fill="#6FCBB6" />
+  <text x="52" y="33" font-family="Sora, Arial, sans-serif" font-size="27" font-weight="700" fill="#17514E">PsiAgente</text>
 </svg>

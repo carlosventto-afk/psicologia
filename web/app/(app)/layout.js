@@ -11,7 +11,7 @@ export default async function LayoutApp({ children }) {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <nav className="flex items-center gap-6 text-sm font-semibold text-navy">
             <Link href="/">
-              <img src="/logo.svg" alt="PsiFácil" className="h-8 w-auto" />
+              <img src="/logo.svg" alt="PsiAgente" className="h-8 w-auto" />
             </Link>
             <Link href="/">Painel</Link>
             <Link href="/agenda">Agenda</Link>
