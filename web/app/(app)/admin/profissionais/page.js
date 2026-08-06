@@ -1,8 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { listarProfissionais } from "@/lib/data/profissionais";
 import { aprovarProfissional } from "@/lib/actions/profissionais";
 
 export default async function PaginaProfissionais() {
+  const usuario = await buscarUsuarioAtual();
+  if (usuario.role !== "admin") {
+    redirect("/admin/artigos");
+  }
+
   const profissionais = await listarProfissionais();
 
   return (
