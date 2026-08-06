@@ -73,3 +73,18 @@ export async function aprovarProfissional(id) {
 
   revalidatePath("/admin/profissionais");
 }
+
+export async function alternarCriadorConteudo(id, valorAtual) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("Usuarios")
+    .update({ criador_conteudo: !valorAtual })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/admin/profissionais");
+}
