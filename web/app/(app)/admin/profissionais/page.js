@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { listarProfissionais } from "@/lib/data/profissionais";
-import { aprovarProfissional } from "@/lib/actions/profissionais";
+import { aprovarProfissional, alternarCriadorConteudo } from "@/lib/actions/profissionais";
 
 export default async function PaginaProfissionais() {
   const usuario = await buscarUsuarioAtual();
@@ -43,6 +43,13 @@ export default async function PaginaProfissionais() {
                   <form action={aprovarProfissional.bind(null, p.id)}>
                     <button type="submit" className="btn-outline text-sm">
                       Aprovar (pendente)
+                    </button>
+                  </form>
+                )}
+                {p.role !== "admin" && (
+                  <form action={alternarCriadorConteudo.bind(null, p.id, p.criador_conteudo)}>
+                    <button type="submit" className="btn-outline text-sm">
+                      {p.criador_conteudo ? "Remover criador de conteúdo" : "Tornar criador de conteúdo"}
                     </button>
                   </form>
                 )}
