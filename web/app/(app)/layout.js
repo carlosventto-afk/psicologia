@@ -1,50 +1,22 @@
-import Link from "next/link";
-import { sair } from "@/lib/actions/auth";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
+import SidebarNav from "@/components/SidebarNav";
 
 export default async function LayoutApp({ children }) {
   const usuario = await buscarUsuarioAtual();
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-white border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <nav className="flex items-center gap-6 text-sm font-semibold text-navy">
-            <Link href="/">
-              <img src="/logo.svg" alt="PsiAgente" className="h-8 w-auto" />
-            </Link>
-            <Link href="/">Painel</Link>
-            <Link href="/agenda">Agenda</Link>
-            <Link href="/recorrencias">Recorrências</Link>
-            <Link href="/pacientes">Pacientes</Link>
-            <Link href="/financeiro">Financeiro</Link>
-            <Link href="/recibos">Recibos</Link>
-            <Link href="/consultorios">Consultórios</Link>
-            <Link href="/diretorio">Diretório</Link>
-            <Link href="/configuracoes/whatsapp">WhatsApp</Link>
-            {usuario.role === "admin" && (
-              <Link href="/admin/profissionais">Administração</Link>
-            )}
-          </nav>
+    <div className="min-h-screen lg:flex">
+      <SidebarNav ehAdmin={usuario.role === "admin"} />
 
-          <form action={sair}>
-            <button type="submit" className="text-sm text-muted">
-              Sair
-            </button>
-          </form>
-        </div>
-      </header>
-
-      {!usuario.aprovado && (
-        <div className="bg-yellow-50 border-b border-yellow-200">
-          <div className="max-w-5xl mx-auto px-4 py-2 text-sm text-yellow-800">
+      <div className="min-w-0 flex-1">
+        {!usuario.aprovado && (
+          <div className="border-b border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-800">
             Seu cadastro está pendente de aprovação por um administrador. Você já
             pode usar a ferramenta normalmente enquanto aguarda.
           </div>
-        </div>
-      )}
-
-      <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
+        )}
+        <main className="mx-auto max-w-5xl px-4 py-6 lg:px-8">{children}</main>
+      </div>
     </div>
   );
 }
