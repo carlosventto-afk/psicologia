@@ -24,9 +24,9 @@ export default async function PaginaProfissionais() {
       {profissionais.length === 0 ? (
         <p className="empty-state">Nenhum profissional cadastrado ainda.</p>
       ) : (
-        <div className="card divide-y">
+        <div className="space-y-3">
           {profissionais.map((p) => (
-            <div key={p.id} className="flex items-center justify-between px-4 py-3">
+            <div key={p.id} className="card flex items-center justify-between px-4 py-3">
               <div>
                 <p className="font-semibold text-navy">{p.nome}</p>
                 <p className="text-sm text-muted">

@@ -19,9 +19,9 @@ export default async function PaginaContas() {
       {contas.length === 0 ? (
         <p className="empty-state">Nenhuma conta cadastrada.</p>
       ) : (
-        <div className="card divide-y">
+        <div className="space-y-3">
           {contas.map((c) => (
-            <div key={c.id} className="px-4 py-3 text-sm">
+            <div key={c.id} className="card px-4 py-3 text-sm">
               <p className="font-semibold text-navy">{c.nome}</p>
               <p className="text-muted">
                 {c.banco} · Ag. {c.agencia} · Conta {c.numero} · {c.tipo}

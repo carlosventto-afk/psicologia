@@ -59,12 +59,12 @@ export default async function PaginaPainel() {
         {atendimentosHoje.length === 0 ? (
           <p className="empty-state">Nenhum atendimento hoje</p>
         ) : (
-          <div className="card divide-y">
+          <div className="space-y-3">
             {atendimentosHoje.map((s) => (
               <Link
                 key={s.id}
                 href={`/sessoes/${s.id}/editar`}
-                className="flex items-center justify-between px-4 py-3 text-sm hover:bg-background"
+                className="card flex items-center justify-between px-4 py-3 text-sm transition-shadow hover:shadow-md"
               >
                 <span className="text-muted w-16">{s.horario}</span>
                 <span className="font-semibold text-navy flex-1 px-3">{s.paciente_nome}</span>

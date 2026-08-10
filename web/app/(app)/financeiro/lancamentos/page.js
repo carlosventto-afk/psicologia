@@ -62,9 +62,9 @@ export default async function PaginaLancamentos({ searchParams }) {
       {lancamentos.length === 0 ? (
         <p className="empty-state">Nenhum lançamento encontrado.</p>
       ) : (
-        <div className="card divide-y">
+        <div className="space-y-3">
           {lancamentos.map((l) => (
-            <div key={l.id} className="flex items-center justify-between px-4 py-3 text-sm">
+            <div key={l.id} className="card flex items-center justify-between px-4 py-3 text-sm">
               <div>
                 <p className="font-semibold text-navy">{l.descricao}</p>
                 <p className="text-muted">

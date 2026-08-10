@@ -16,9 +16,9 @@ export default async function PaginaArtigosAdmin() {
       {artigos.length === 0 ? (
         <p className="empty-state">Nenhum artigo cadastrado ainda.</p>
       ) : (
-        <div className="card divide-y">
+        <div className="space-y-3">
           {artigos.map((a) => (
-            <div key={a.id} className="flex items-center justify-between px-4 py-3">
+            <div key={a.id} className="card flex items-center justify-between px-4 py-3">
               <div>
                 <p className="font-semibold text-navy">{a.titulo}</p>
                 <p className="text-sm text-muted">

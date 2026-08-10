@@ -57,9 +57,9 @@ export default async function PaginaDetalhePaciente({ params }) {
         {sessoes.length === 0 ? (
           <p className="empty-state">Nenhuma sessão registrada.</p>
         ) : (
-          <div className="card divide-y">
+          <div className="space-y-3">
             {sessoes.map((s) => (
-              <div key={s.id} className="flex items-center justify-between px-4 py-3 text-sm">
+              <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
                 <span>
                   {s.data} ({diaDaSemanaAbreviado(s.data)}) {s.horario?.slice(0, 5)}
                 </span>

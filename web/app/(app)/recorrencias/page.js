@@ -12,11 +12,11 @@ export default async function PaginaRecorrencias() {
       {recorrencias.length === 0 ? (
         <p className="empty-state">Nenhuma recorrência ativa.</p>
       ) : (
-        <div className="card divide-y">
+        <div className="space-y-3">
           {recorrencias.map((r) => {
             const acao = cancelarRecorrencia.bind(null, r.id);
             return (
-              <div key={r.id} className="flex items-center justify-between px-4 py-3 text-sm">
+              <div key={r.id} className="card flex items-center justify-between px-4 py-3 text-sm">
                 <div>
                   <Link href={`/pacientes/${r.paciente_id}`} className="font-semibold text-navy">
                     {r.paciente_nome}

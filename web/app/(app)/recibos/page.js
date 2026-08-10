@@ -16,11 +16,11 @@ export default async function PaginaRecibos() {
             recibo" no cadastro.
           </p>
         ) : (
-          <div className="card divide-y">
+          <div className="space-y-3">
             {elegiveis.map((s) => {
               const acao = gerarRecibo.bind(null, s.id);
               return (
-                <div key={s.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
                   <div>
                     <p className="font-semibold text-navy">{s.paciente_nome}</p>
                     <p className="text-muted">
@@ -44,9 +44,9 @@ export default async function PaginaRecibos() {
         {emitidos.length === 0 ? (
           <p className="empty-state">Nenhum recibo emitido ainda.</p>
         ) : (
-          <div className="card divide-y">
+          <div className="space-y-3">
             {emitidos.map((r) => (
-              <div key={r.id} className="flex items-center justify-between px-4 py-3 text-sm">
+              <div key={r.id} className="card flex items-center justify-between px-4 py-3 text-sm">
                 <span className="font-semibold text-navy">{r.paciente_nome}</span>
                 <span className="text-muted">{r.data_emissao}</span>
               </div>

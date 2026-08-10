@@ -56,25 +56,6 @@ body {
     box-shadow: 0 1px 2px 0 rgb(37 48 65 / 0.06);
   }
 
-  /* Card usado como lista de linhas (recorrências, pacientes,
-     consultórios, financeiro, recibos...) — divide-y do Tailwind sozinho
-     usa uma cor de borda genérica que destoa da paleta; aqui ela vira a
-     mesma cor suave do resto do site, com hover por linha e cantos
-     arredondados preservados (sem isso, o hover/divisor vazava reto por
-     cima do border-radius do .card). */
-  .card.divide-y {
-    overflow: hidden;
-  }
-  .card.divide-y > * {
-    transition: background-color 0.15s ease;
-  }
-  .card.divide-y > *:hover {
-    background: var(--background);
-  }
-  .card.divide-y > * + * {
-    border-top-color: var(--color-border);
-  }
-
   .field {
     margin-top: 0.25rem;
     width: 100%;

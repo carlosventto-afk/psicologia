@@ -82,9 +82,9 @@ export default async function PaginaAgenda({ searchParams }) {
       ) : sessoes.length === 0 ? (
         <p className="empty-state">Nenhuma sessão marcada.</p>
       ) : (
-        <div className="card divide-y">
+        <div className="space-y-3">
           {sessoes.map((s) => (
-            <div key={s.id} className="flex items-center justify-between px-4 py-3 text-sm">
+            <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
               <div>
                 <p className="font-semibold text-navy">{s.paciente_nome}</p>
                 <p className="text-muted">

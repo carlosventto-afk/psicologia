@@ -16,9 +16,9 @@ export default async function PaginaConsultorios() {
       {consultorios.length === 0 ? (
         <p className="empty-state">Nenhum consultório cadastrado.</p>
       ) : (
-        <div className="card divide-y">
+        <div className="space-y-3">
           {consultorios.map((c) => (
-            <div key={c.id} className="flex items-center justify-between px-4 py-3">
+            <div key={c.id} className="card flex items-center justify-between px-4 py-3">
               <div>
                 <p className="font-semibold text-navy">{c.nome}</p>
                 <p className="text-sm text-muted">

@@ -54,9 +54,9 @@ export default async function PaginaFinanceiro() {
         {inadimplentes.length === 0 ? (
           <p className="empty-state">Nenhum paciente inadimplente.</p>
         ) : (
-          <div className="card divide-y">
+          <div className="space-y-3">
             {inadimplentes.map((i) => (
-              <div key={i.sessao_id} className="flex items-center justify-between px-4 py-3 text-sm">
+              <div key={i.sessao_id} className="card flex items-center justify-between px-4 py-3 text-sm">
                 <Link href={`/pacientes/${i.paciente_id}`} className="font-semibold text-navy">
                   {i.paciente_nome}
                 </Link>

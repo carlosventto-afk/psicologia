@@ -32,12 +32,12 @@ export default async function PaginaPacientes({ searchParams }) {
       {pacientes.length === 0 ? (
         <p className="empty-state">Nenhum paciente cadastrado.</p>
       ) : (
-        <div className="card divide-y">
+        <div className="space-y-3">
           {pacientes.map((p) => (
             <Link
               key={p.id}
               href={`/pacientes/${p.id}`}
-              className="flex items-center justify-between px-4 py-3 hover:bg-background"
+              className="card flex items-center justify-between px-4 py-3 transition-shadow hover:shadow-md"
             >
               <p className="font-semibold text-navy">{p.nome}</p>
               <p className="text-sm text-muted">
