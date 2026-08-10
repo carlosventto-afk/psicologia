@@ -111,3 +111,29 @@ export function IconeSair(props) {
     </svg>
   );
 }
+
+export function IconeMenu(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3.5 6h13M3.5 10h13M3.5 14h13" />
+    </svg>
+  );
+}
+
+export function IconeFechar(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 5l10 10M15 5 5 15" />
+    </svg>
+  );
+}
+
+export function IconeRecolher(props) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="3.5" width="14" height="13" rx="2" />
+      <path d="M8 3.5v13" />
+      <path d="m13.5 8-2 2 2 2" />
+    </svg>
+  );
+}
