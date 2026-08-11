@@ -89,6 +89,9 @@ export async function atualizarSenha(prevState, formData) {
   const { error } = await supabase.auth.updateUser({ password: novaSenha });
 
   if (error) {
+    if (error.code === "same_password") {
+      return { error: "A nova senha precisa ser diferente da senha atual." };
+    }
     return { error: "Não foi possível atualizar a senha." };
   }
 
