@@ -22,7 +22,12 @@ export default async function PaginaRecibos() {
               return (
                 <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
                   <div>
-                    <p className="font-semibold text-navy">{s.paciente_nome}</p>
+                    <p className="font-semibold text-navy">
+                      {s.paciente_nome}
+                      {s.paciente_dependente && s.responsavel_nome && (
+                        <span className="text-muted font-normal"> (dependente de {s.responsavel_nome})</span>
+                      )}
+                    </p>
                     <p className="text-muted">
                       {s.data} {s.horario}
                     </p>
@@ -47,7 +52,12 @@ export default async function PaginaRecibos() {
           <div className="space-y-3">
             {emitidos.map((r) => (
               <div key={r.id} className="card flex items-center justify-between px-4 py-3 text-sm">
-                <span className="font-semibold text-navy">{r.paciente_nome}</span>
+                <span className="font-semibold text-navy">
+                  {r.paciente_nome}
+                  {r.paciente_dependente && r.responsavel_nome && (
+                    <span className="text-muted font-normal"> (dependente de {r.responsavel_nome})</span>
+                  )}
+                </span>
                 <span className="text-muted">{r.data_emissao}</span>
               </div>
             ))}
