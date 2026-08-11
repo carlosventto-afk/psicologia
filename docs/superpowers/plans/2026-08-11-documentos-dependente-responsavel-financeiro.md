@@ -164,7 +164,7 @@ export async function buscarPaciente(id) {
   const { data, error } = await supabase
     .from("Paciente")
     .select(
-      "id, nome, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, precisa_recibo, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, dependente, responsavel_financeiro, ResponsavelFinanceiro:Paciente!Paciente_responsavel_financeiro_fkey(nome)"
+      "id, nome, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, precisa_recibo, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, dependente, responsavel_financeiro, ResponsavelFinanceiro:responsavel_financeiro(nome)"
     )
     .eq("id", id)
     .single();
@@ -214,7 +214,7 @@ const admin = createClient(url, serviceKey);
   // mesma query que buscarPaciente faz
   const { data: busca, error } = await admin
     .from('Paciente')
-    .select('id, nome, cpf, rg_numero, dependente, responsavel_financeiro, ResponsavelFinanceiro:Paciente!Paciente_responsavel_financeiro_fkey(nome)')
+    .select('id, nome, cpf, rg_numero, dependente, responsavel_financeiro, ResponsavelFinanceiro:responsavel_financeiro(nome)')
     .eq('id', dependenteRow.id)
     .single();
   console.log('embed error:', error?.message || 'nenhum');
@@ -580,7 +580,7 @@ cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add web/component
 - Modify: `web/app/(app)/recibos/page.js`
 
 **Interfaces:**
-- Consumes: mesmo hint de FK usado no Task 2 (`Paciente!Paciente_responsavel_financeiro_fkey`).
+- Consumes: mesmo hint de FK usado no Task 2 (`responsavel_financeiro`).
 - Produces: `listarSessoesElegiveisParaRecibo()` e `listarRecibosEmitidos()` retornam também `paciente_dependente` (boolean) e `responsavel_nome` (string ou null) por item.
 
 - [ ] **Step 1: Editar `lib/data/recibos.js`**
@@ -596,7 +596,7 @@ export async function listarSessoesElegiveisParaRecibo() {
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, horario, Paciente!inner(id, nome, precisa_recibo, dependente, ResponsavelFinanceiro:Paciente!Paciente_responsavel_financeiro_fkey(nome)), Recibo(id)"
+      "id, data, horario, Paciente!inner(id, nome, precisa_recibo, dependente, ResponsavelFinanceiro:responsavel_financeiro(nome)), Recibo(id)"
     )
     .eq("Realizado", true)
     .eq("Paciente.precisa_recibo", true)
@@ -626,7 +626,7 @@ export async function listarRecibosEmitidos() {
   const { data, error } = await supabase
     .from("Recibo")
     .select(
-      "id, data_emissao, Paciente(nome, dependente, ResponsavelFinanceiro:Paciente!Paciente_responsavel_financeiro_fkey(nome))"
+      "id, data_emissao, Paciente(nome, dependente, ResponsavelFinanceiro:responsavel_financeiro(nome))"
     )
     .order("data_emissao", { ascending: false });
 
@@ -694,7 +694,7 @@ const admin = createClient(url, serviceKey);
 
   const { data, error } = await admin
     .from('Sessao')
-    .select('id, data, horario, Paciente!inner(id, nome, precisa_recibo, dependente, ResponsavelFinanceiro:Paciente!Paciente_responsavel_financeiro_fkey(nome)), Recibo(id)')
+    .select('id, data, horario, Paciente!inner(id, nome, precisa_recibo, dependente, ResponsavelFinanceiro:responsavel_financeiro(nome)), Recibo(id)')
     .eq('id', sessao.id)
     .single();
   console.log('error:', error?.message || 'nenhum');
@@ -738,7 +738,7 @@ export async function listarInadimplentes() {
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, Paciente!inner(id, nome, valor_sessao, dependente, ResponsavelFinanceiro:Paciente!Paciente_responsavel_financeiro_fkey(nome)), PagamentoSessao(id)"
+      "id, data, Paciente!inner(id, nome, valor_sessao, dependente, ResponsavelFinanceiro:responsavel_financeiro(nome)), PagamentoSessao(id)"
     )
     .eq("Realizado", true)
     .order("data");
@@ -803,7 +803,7 @@ const admin = createClient(url, serviceKey);
 
   const { data, error } = await admin
     .from('Sessao')
-    .select('id, data, Paciente!inner(id, nome, valor_sessao, dependente, ResponsavelFinanceiro:Paciente!Paciente_responsavel_financeiro_fkey(nome)), PagamentoSessao(id)')
+    .select('id, data, Paciente!inner(id, nome, valor_sessao, dependente, ResponsavelFinanceiro:responsavel_financeiro(nome)), PagamentoSessao(id)')
     .eq('id', sessao.id)
     .single();
   console.log('error:', error?.message || 'nenhum');
