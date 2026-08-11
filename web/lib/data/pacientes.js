@@ -46,9 +46,12 @@ export async function listarPacientes({ busca = "" } = {}) {
   }));
 }
 
-export async function listarPacientesParaSelect() {
+export async function listarPacientesParaSelect(excluirId) {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("Paciente").select("id, nome, pacote").order("nome");
+  let query = supabase.from("Paciente").select("id, nome, pacote").order("nome");
+  if (excluirId) query = query.neq("id", excluirId);
+
+  const { data, error } = await query;
 
   if (error) throw new Error(error.message);
   return normalizarIdsLista(data, ["id", "pacote"]);
@@ -59,13 +62,28 @@ export async function buscarPaciente(id) {
   const { data, error } = await supabase
     .from("Paciente")
     .select(
-      "id, nome, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, precisa_recibo"
+      "id, nome, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, precisa_recibo, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, dependente, responsavel_financeiro"
     )
     .eq("id", id)
     .single();
 
   if (error) throw new Error(error.message);
-  return normalizarIds(data, ["id", "consultorio", "pacote"]);
+
+  let responsavel_nome = null;
+  if (data.responsavel_financeiro) {
+    const { data: responsavel } = await supabase
+      .from("Paciente")
+      .select("nome")
+      .eq("id", data.responsavel_financeiro)
+      .single();
+    responsavel_nome = responsavel?.nome ?? null;
+  }
+
+  const normalizado = normalizarIds(data, ["id", "consultorio", "pacote", "responsavel_financeiro"]);
+  return {
+    ...normalizado,
+    responsavel_nome,
+  };
 }
 
 export async function listarSessoesDoPaciente(pacienteId) {
