@@ -62,27 +62,17 @@ export async function buscarPaciente(id) {
   const { data, error } = await supabase
     .from("Paciente")
     .select(
-      "id, nome, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, precisa_recibo, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, dependente, responsavel_financeiro"
+      "id, nome, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, precisa_recibo, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, dependente, responsavel_financeiro, ResponsavelFinanceiro:responsavel_financeiro(nome)"
     )
     .eq("id", id)
     .single();
 
   if (error) throw new Error(error.message);
 
-  let responsavel_nome = null;
-  if (data.responsavel_financeiro) {
-    const { data: responsavel } = await supabase
-      .from("Paciente")
-      .select("nome")
-      .eq("id", data.responsavel_financeiro)
-      .single();
-    responsavel_nome = responsavel?.nome ?? null;
-  }
-
   const normalizado = normalizarIds(data, ["id", "consultorio", "pacote", "responsavel_financeiro"]);
   return {
     ...normalizado,
-    responsavel_nome,
+    responsavel_nome: data.ResponsavelFinanceiro?.nome ?? null,
   };
 }
 
