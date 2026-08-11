@@ -44,6 +44,24 @@ export default async function PaginaDetalhePaciente({ params }) {
           <p className="text-muted">Valor da sessão</p>
           <p>R$ {paciente.valor_sessao}</p>
         </div>
+        <div>
+          <p className="text-muted">CPF</p>
+          <p>{paciente.cpf || "—"}</p>
+        </div>
+        <div>
+          <p className="text-muted">RG</p>
+          <p>
+            {paciente.rg_numero || "—"}
+            {paciente.rg_orgao_emissor && ` · ${paciente.rg_orgao_emissor}`}
+            {paciente.rg_data_expedicao && ` · exp. ${paciente.rg_data_expedicao}`}
+          </p>
+        </div>
+        {paciente.dependente && (
+          <div className="col-span-2">
+            <p className="text-muted">Responsável financeiro</p>
+            <p>{paciente.responsavel_nome || "—"}</p>
+          </div>
+        )}
         {paciente.observacoes && (
           <div className="col-span-2">
             <p className="text-muted">Observações</p>

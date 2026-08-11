@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 
 const estadoInicial = {};
 
-export default function PacienteForm({ action, paciente, pacotes, consultorios }) {
+export default function PacienteForm({ action, paciente, pacotes, consultorios, pacientes = [] }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const valorSessaoRef = useRef(null);
+  const [dependente, setDependente] = useState(Boolean(paciente?.dependente));
 
   function aoTrocarPacote(event) {
     const pacoteId = Number(event.target.value);
@@ -168,6 +169,101 @@ export default function PacienteForm({ action, paciente, pacotes, consultorios }
           Precisa de recibo
         </label>
       </div>
+
+      <fieldset className="space-y-3 border-t border-border pt-4">
+        <legend className="text-sm font-semibold text-navy px-0">Documentos</legend>
+        <div>
+          <label htmlFor="cpf" className="block text-sm font-semibold text-navy">
+            CPF (opcional)
+          </label>
+          <input
+            id="cpf"
+            name="cpf"
+            type="text"
+            defaultValue={paciente?.cpf ?? ""}
+            className="field"
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label htmlFor="rg_numero" className="block text-sm font-semibold text-navy">
+              RG - Número
+            </label>
+            <input
+              id="rg_numero"
+              name="rg_numero"
+              type="text"
+              defaultValue={paciente?.rg_numero ?? ""}
+              className="field"
+            />
+          </div>
+          <div>
+            <label htmlFor="rg_data_expedicao" className="block text-sm font-semibold text-navy">
+              Data de expedição
+            </label>
+            <input
+              id="rg_data_expedicao"
+              name="rg_data_expedicao"
+              type="date"
+              defaultValue={paciente?.rg_data_expedicao ?? ""}
+              className="field"
+            />
+          </div>
+          <div>
+            <label htmlFor="rg_orgao_emissor" className="block text-sm font-semibold text-navy">
+              Órgão emissor
+            </label>
+            <input
+              id="rg_orgao_emissor"
+              name="rg_orgao_emissor"
+              type="text"
+              defaultValue={paciente?.rg_orgao_emissor ?? ""}
+              className="field"
+            />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-3 border-t border-border pt-4">
+        <legend className="text-sm font-semibold text-navy px-0">Responsável financeiro</legend>
+        <div className="flex items-center gap-2">
+          <input
+            id="dependente"
+            name="dependente"
+            type="checkbox"
+            checked={dependente}
+            onChange={(e) => setDependente(e.target.checked)}
+            className="h-4 w-4"
+          />
+          <label htmlFor="dependente" className="text-sm font-semibold text-navy">
+            Este paciente é dependente de outra pessoa
+          </label>
+        </div>
+
+        {dependente && (
+          <div>
+            <label htmlFor="responsavel_financeiro" className="block text-sm font-semibold text-navy">
+              Responsável financeiro
+            </label>
+            <select
+              id="responsavel_financeiro"
+              name="responsavel_financeiro"
+              required={dependente}
+              defaultValue={paciente?.responsavel_financeiro ?? ""}
+              className="field"
+            >
+              <option value="" disabled>
+                Selecione
+              </option>
+              {pacientes.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </fieldset>
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
 
