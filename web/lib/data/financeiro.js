@@ -39,7 +39,9 @@ export async function listarInadimplentes() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Sessao")
-    .select("id, data, Paciente!inner(id, nome, valor_sessao), PagamentoSessao(id)")
+    .select(
+      "id, data, Paciente!inner(id, nome, valor_sessao, dependente, ResponsavelFinanceiro:responsavel_financeiro(nome)), PagamentoSessao(id)"
+    )
     .eq("Realizado", true)
     .order("data");
 
@@ -54,6 +56,8 @@ export async function listarInadimplentes() {
           data: s.data,
           paciente_id: s.Paciente.id,
           paciente_nome: s.Paciente.nome,
+          paciente_dependente: s.Paciente.dependente,
+          responsavel_nome: s.Paciente.ResponsavelFinanceiro?.nome ?? null,
           valor_devido: s.Paciente.valor_sessao,
         },
         ["sessao_id", "paciente_id"]

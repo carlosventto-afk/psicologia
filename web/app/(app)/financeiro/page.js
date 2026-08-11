@@ -59,6 +59,9 @@ export default async function PaginaFinanceiro() {
               <div key={i.sessao_id} className="card flex items-center justify-between px-4 py-3 text-sm">
                 <Link href={`/pacientes/${i.paciente_id}`} className="font-semibold text-navy">
                   {i.paciente_nome}
+                  {i.paciente_dependente && i.responsavel_nome && (
+                    <span className="text-muted font-normal"> (dependente de {i.responsavel_nome})</span>
+                  )}
                 </Link>
                 <span className="text-muted">{i.data}</span>
                 <span className="text-red-600">R$ {i.valor_devido}</span>
