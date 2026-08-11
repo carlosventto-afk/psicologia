@@ -36,7 +36,20 @@ const ITENS_NAV = [
 
 const CHAVE_RECOLHIDA = "psiagente-sidebar-recolhida";
 
-export default function SidebarNav({ ehAdmin }) {
+const ROTULOS_PAPEL = {
+  admin: "Administrador",
+  psicologo: "Psicólogo(a)",
+};
+
+function iniciais(nome) {
+  if (!nome) return "?";
+  const partes = nome.trim().split(/\s+/);
+  const primeira = partes[0]?.[0] ?? "";
+  const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
+  return (primeira + ultima).toUpperCase();
+}
+
+export default function SidebarNav({ ehAdmin, nome, papel }) {
   const pathname = usePathname();
   const [menuAberto, setMenuAberto] = useState(false);
   const [recolhida, setRecolhida] = useState(false);
@@ -90,6 +103,25 @@ export default function SidebarNav({ ehAdmin }) {
     );
   }
 
+  function CartaoUsuario({ compacto }) {
+    return (
+      <div
+        className={`flex items-center gap-2.5 px-3 py-2 ${compacto ? "justify-center px-0" : ""}`}
+        title={compacto ? nome : undefined}
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+          {iniciais(nome)}
+        </span>
+        {!compacto && (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-navy">{nome}</p>
+            <p className="truncate text-xs text-muted">{ROTULOS_PAPEL[papel] ?? papel}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Barra compacta mobile */}
@@ -138,7 +170,8 @@ export default function SidebarNav({ ehAdmin }) {
 
             <ListaNav compacta={false} onNavegar={() => setMenuAberto(false)} />
 
-            <div className="border-t border-border px-3 py-4">
+            <div className="space-y-1 border-t border-border px-3 py-4">
+              <CartaoUsuario compacto={false} />
               <form action={sair}>
                 <button
                   type="submit"
@@ -169,6 +202,7 @@ export default function SidebarNav({ ehAdmin }) {
         <ListaNav compacta={recolhida} />
 
         <div className="space-y-1 border-t border-border px-3 py-3">
+          <CartaoUsuario compacto={recolhida} />
           <form action={sair}>
             <button
               type="submit"
