@@ -1,12 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIds, normalizarIdsLista } from "@/lib/normalizar-ids";
 
-export async function listarPacientes({ busca = "" } = {}) {
+export async function listarPacientes({ busca = "", status = "ativos" } = {}) {
   const supabase = await createClient();
 
-  let query = supabase.from("Paciente").select("id, nome, telefone, email, valor_sessao").order("nome");
+  let query = supabase.from("Paciente").select("id, nome, telefone, email, valor_sessao, ativo").order("nome");
 
   if (busca) query = query.ilike("nome", `%${busca}%`);
+  if (status === "ativos") query = query.eq("ativo", true);
+  else if (status === "inativos") query = query.eq("ativo", false);
 
   const { data: pacientesBrutos, error } = await query;
   if (error) throw new Error(error.message);
@@ -48,13 +50,34 @@ export async function listarPacientes({ busca = "" } = {}) {
 
 export async function listarPacientesParaSelect(excluirId) {
   const supabase = await createClient();
-  let query = supabase.from("Paciente").select("id, nome, pacote").order("nome");
+  let query = supabase.from("Paciente").select("id, nome, pacote").eq("ativo", true).order("nome");
   if (excluirId) query = query.neq("id", excluirId);
 
   const { data, error } = await query;
 
   if (error) throw new Error(error.message);
   return normalizarIdsLista(data, ["id", "pacote"]);
+}
+
+export async function verificarVinculosPaciente(id) {
+  const supabase = await createClient();
+
+  const [sessoes, recibos, recorrencias, dependentes] = await Promise.all([
+    supabase.from("Sessao").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("Recibo").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("Recorrencia").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("Paciente").select("nome").eq("responsavel_financeiro", id),
+  ]);
+
+  const vinculos = [];
+  if (sessoes.count > 0) vinculos.push({ tipo: "sessão(ões)", quantidade: sessoes.count });
+  if (recibos.count > 0) vinculos.push({ tipo: "recibo(s)", quantidade: recibos.count });
+  if (recorrencias.count > 0) vinculos.push({ tipo: "recorrência(s)", quantidade: recorrencias.count });
+  if (dependentes.data?.length > 0) {
+    vinculos.push({ tipo: "é responsável financeiro de", nomes: dependentes.data.map((d) => d.nome) });
+  }
+
+  return vinculos;
 }
 
 export async function buscarPaciente(id) {
