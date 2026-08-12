@@ -69,6 +69,11 @@ export async function verificarVinculosPaciente(id) {
     supabase.from("Paciente").select("nome").eq("responsavel_financeiro", id),
   ]);
 
+  if (sessoes.error) throw new Error(sessoes.error.message);
+  if (recibos.error) throw new Error(recibos.error.message);
+  if (recorrencias.error) throw new Error(recorrencias.error.message);
+  if (dependentes.error) throw new Error(dependentes.error.message);
+
   const vinculos = [];
   if (sessoes.count > 0) vinculos.push({ tipo: "sessão(ões)", quantidade: sessoes.count });
   if (recibos.count > 0) vinculos.push({ tipo: "recibo(s)", quantidade: recibos.count });
