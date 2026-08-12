@@ -20,6 +20,10 @@ const cabecalho = [
   "Valor da Sessão",
   "Observações",
   "Precisa de recibo",
+  "CPF",
+  "RG - Número",
+  "Data de Expedição (RG)",
+  "Órgão Emissor (RG)",
 ];
 
 const exemplo = [
@@ -31,6 +35,10 @@ const exemplo = [
   "150",
   "Paciente encaminhada pelo Dr. João",
   "Sim",
+  "111.222.333-44",
+  "MG-12.345.678",
+  "10/05/2015",
+  "SSP",
 ];
 
 const planilha = XLSX.utils.aoa_to_sheet([cabecalho, exemplo]);

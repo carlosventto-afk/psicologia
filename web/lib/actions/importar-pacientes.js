@@ -105,6 +105,16 @@ export async function importarPacientes(consultorioId, linhas) {
       });
     }
 
+    const rgDataExpedicao = parsearData(linha.rg_data_expedicao);
+    if (linha.rg_data_expedicao && !rgDataExpedicao) {
+      relatorio.avisos.push({
+        linha: numeroLinha,
+        nome,
+        campo: "Data de Expedição (RG)",
+        motivo: "formato inválido, campo deixado em branco",
+      });
+    }
+
     candidatos.push({
       nome,
       data_nascimento: dataNascimento,
@@ -114,6 +124,10 @@ export async function importarPacientes(consultorioId, linhas) {
       valor_sessao: valorSessao,
       observacoes: (linha.observacoes ?? "").trim() || null,
       precisa_recibo: parsearRecibo(linha.precisa_recibo),
+      cpf: (linha.cpf ?? "").trim() || null,
+      rg_numero: (linha.rg_numero ?? "").trim() || null,
+      rg_data_expedicao: rgDataExpedicao,
+      rg_orgao_emissor: (linha.rg_orgao_emissor ?? "").trim() || null,
       consultorio: consultorioId,
       pacote: null,
     });

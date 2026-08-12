@@ -34,6 +34,25 @@ const CAMPOS = [
     obrigatorio: false,
     aliases: ["precisa de recibo", "recibo"],
   },
+  { chave: "cpf", rotulo: "CPF", obrigatorio: false, aliases: ["cpf"] },
+  {
+    chave: "rg_numero",
+    rotulo: "RG - Número",
+    obrigatorio: false,
+    aliases: ["rg", "rg numero", "rg - numero", "numero do rg"],
+  },
+  {
+    chave: "rg_data_expedicao",
+    rotulo: "Data de Expedição (RG)",
+    obrigatorio: false,
+    aliases: ["data de expedicao (rg)", "data de expedicao", "expedicao rg"],
+  },
+  {
+    chave: "rg_orgao_emissor",
+    rotulo: "Órgão Emissor (RG)",
+    obrigatorio: false,
+    aliases: ["orgao emissor (rg)", "orgao emissor", "emissor"],
+  },
 ];
 
 function semAcentos(texto) {
