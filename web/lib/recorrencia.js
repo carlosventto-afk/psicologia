@@ -80,8 +80,9 @@ export async function garantirRecorrenciasEstendidas() {
 
   const { data: recorrencias, error } = await supabase
     .from("Recorrencia")
-    .select("id, paciente, frequencia, horario, duracao_min, tipo_sessao, data_inicio, gerado_ate")
+    .select("id, paciente, frequencia, horario, duracao_min, tipo_sessao, data_inicio, gerado_ate, Paciente!inner(ativo)")
     .eq("ativa", true)
+    .eq("Paciente.ativo", true)
     .lt("gerado_ate", ateISO);
 
   if (error) throw new Error(error.message);
