@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { buscarPaciente, listarSessoesDoPaciente } from "@/lib/data/pacientes";
 import { diaDaSemanaAbreviado } from "@/lib/periodo-agenda";
+import { desativarPaciente, reativarPaciente } from "@/lib/actions/pacientes";
+import ExcluirPacienteBotao from "@/components/ExcluirPacienteBotao";
 
 export default async function PaginaDetalhePaciente({ params }) {
   const { id } = await params;
@@ -24,6 +26,22 @@ export default async function PaginaDetalhePaciente({ params }) {
           <Link href={`/pacientes/${pacienteId}/editar`} className="link">
             Editar
           </Link>
+          {paciente.ativo ? (
+            <>
+              <form action={desativarPaciente.bind(null, pacienteId)}>
+                <button type="submit" className="link">
+                  Desativar
+                </button>
+              </form>
+              <ExcluirPacienteBotao pacienteId={pacienteId} />
+            </>
+          ) : (
+            <form action={reativarPaciente.bind(null, pacienteId)}>
+              <button type="submit" className="link">
+                Reativar
+              </button>
+            </form>
+          )}
         </div>
       </div>
 
