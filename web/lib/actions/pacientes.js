@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { verificarVinculosPaciente } from "@/lib/data/pacientes";
 
 function dadosDoFormulario(formData) {
   const dependente = formData.get("dependente") === "on";
@@ -74,4 +75,41 @@ export async function atualizarPaciente(id, prevState, formData) {
   revalidatePath("/pacientes");
   revalidatePath(`/pacientes/${id}`);
   redirect(`/pacientes/${id}`);
+}
+
+export async function excluirPaciente(id, prevState, formData) {
+  const vinculos = await verificarVinculosPaciente(id);
+  if (vinculos.length > 0) {
+    return { bloqueado: true, vinculos };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("Paciente").delete().eq("id", id);
+
+  if (error) {
+    return { error: "Não foi possível excluir o paciente." };
+  }
+
+  revalidatePath("/pacientes");
+  redirect("/pacientes");
+}
+
+export async function desativarPaciente(id) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("Paciente").update({ ativo: false }).eq("id", id);
+
+  if (error) return;
+
+  revalidatePath("/pacientes");
+  revalidatePath(`/pacientes/${id}`);
+}
+
+export async function reativarPaciente(id) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("Paciente").update({ ativo: true }).eq("id", id);
+
+  if (error) return;
+
+  revalidatePath("/pacientes");
+  revalidatePath(`/pacientes/${id}`);
 }
