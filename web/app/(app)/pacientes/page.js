@@ -41,7 +41,7 @@ export default async function PaginaPacientes({ searchParams }) {
           {ABAS_STATUS.map((aba) => (
             <Link
               key={aba.valor}
-              href={q ? `?status=${aba.valor}&q=${q}` : `?status=${aba.valor}`}
+              href={q ? `?status=${aba.valor}&q=${encodeURIComponent(q)}` : `?status=${aba.valor}`}
               className={`rounded-lg px-3 py-1.5 font-semibold ${
                 status === aba.valor ? "bg-primary/10 text-primary" : "text-muted hover:bg-background"
               }`}

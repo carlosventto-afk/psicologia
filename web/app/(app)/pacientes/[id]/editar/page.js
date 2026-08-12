@@ -7,11 +7,11 @@ import { listarConsultorios } from "@/lib/data/consultorios";
 export default async function PaginaEditarPaciente({ params }) {
   const { id } = await params;
   const pacienteId = Number(id);
-  const [paciente, pacotes, consultorios, pacientes] = await Promise.all([
-    buscarPaciente(pacienteId),
+  const paciente = await buscarPaciente(pacienteId);
+  const [pacotes, consultorios, pacientes] = await Promise.all([
     listarPacotes(),
     listarConsultorios(),
-    listarPacientesParaSelect(pacienteId),
+    listarPacientesParaSelect(pacienteId, paciente.responsavel_financeiro),
   ]);
   const acaoComId = atualizarPaciente.bind(null, pacienteId);
 

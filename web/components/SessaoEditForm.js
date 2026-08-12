@@ -21,6 +21,9 @@ export default function SessaoEditForm({ action, cancelarAction, sessao, pacient
             defaultValue={sessao.paciente_id}
             className="field"
           >
+            <option value="" disabled>
+              Selecione
+            </option>
             {pacientes.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome}

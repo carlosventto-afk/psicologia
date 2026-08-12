@@ -8,9 +8,9 @@ export default async function PaginaEditarSessao({ params }) {
   const { id } = await params;
   const sessaoId = Number(id);
 
-  const [sessao, pacientes, tiposAtendimento] = await Promise.all([
-    buscarSessao(sessaoId),
-    listarPacientesParaSelect(),
+  const sessao = await buscarSessao(sessaoId);
+  const [pacientes, tiposAtendimento] = await Promise.all([
+    listarPacientesParaSelect(undefined, sessao.paciente_id),
     listarTiposAtendimento(),
   ]);
 

@@ -48,7 +48,7 @@ export async function listarPacientes({ busca = "", status = "ativos" } = {}) {
   }));
 }
 
-export async function listarPacientesParaSelect(excluirId) {
+export async function listarPacientesParaSelect(excluirId, incluirId) {
   const supabase = await createClient();
   let query = supabase.from("Paciente").select("id, nome, pacote").eq("ativo", true).order("nome");
   if (excluirId) query = query.neq("id", excluirId);
@@ -56,7 +56,23 @@ export async function listarPacientesParaSelect(excluirId) {
   const { data, error } = await query;
 
   if (error) throw new Error(error.message);
-  return normalizarIdsLista(data, ["id", "pacote"]);
+  const pacientes = normalizarIdsLista(data, ["id", "pacote"]);
+
+  if (incluirId != null && !pacientes.some((p) => p.id === Number(incluirId))) {
+    const { data: extra, error: erroExtra } = await supabase
+      .from("Paciente")
+      .select("id, nome, pacote")
+      .eq("id", incluirId)
+      .maybeSingle();
+
+    if (erroExtra) throw new Error(erroExtra.message);
+    if (extra) {
+      const extraNormalizado = normalizarIds(extra, ["id", "pacote"]);
+      pacientes.push({ ...extraNormalizado, nome: `${extraNormalizado.nome} (inativo)` });
+    }
+  }
+
+  return pacientes;
 }
 
 export async function verificarVinculosPaciente(id) {
