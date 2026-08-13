@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { sair } from "@/lib/actions/auth";
 import LogoPsiAgente from "@/components/LogoPsiAgente";
+import { iniciais } from "@/lib/iniciais";
 import {
   IconePainel,
   IconeAgenda,
@@ -40,14 +41,6 @@ const ROTULOS_PAPEL = {
   admin: "Administrador",
   psicologo: "Psicólogo(a)",
 };
-
-function iniciais(nome) {
-  if (!nome) return "?";
-  const partes = nome.trim().split(/\s+/);
-  const primeira = partes[0]?.[0] ?? "";
-  const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-  return (primeira + ultima).toUpperCase();
-}
 
 export default function SidebarNav({ ehAdmin, nome, papel }) {
   const pathname = usePathname();
