@@ -33,9 +33,11 @@ function parsearValor(texto) {
   return numero;
 }
 
-function parsearRecibo(texto) {
+function parsearDocumento(texto) {
   const normalizado = (texto ?? "").trim().toLowerCase();
-  return ["sim", "yes", "true", "1"].includes(normalizado);
+  if (["receita saude", "receita saúde", "recibo"].includes(normalizado)) return "recibo";
+  if (["nota fiscal", "nf", "nota"].includes(normalizado)) return "nota_fiscal";
+  return null;
 }
 
 export async function importarPacientes(consultorioId, linhas) {
@@ -123,7 +125,7 @@ export async function importarPacientes(consultorioId, linhas) {
       endereco: (linha.endereco ?? "").trim() || null,
       valor_sessao: valorSessao,
       observacoes: (linha.observacoes ?? "").trim() || null,
-      precisa_recibo: parsearRecibo(linha.precisa_recibo),
+      documento: parsearDocumento(linha.documento),
       cpf: (linha.cpf ?? "").trim() || null,
       rg_numero: (linha.rg_numero ?? "").trim() || null,
       rg_data_expedicao: rgDataExpedicao,

@@ -29,10 +29,10 @@ const CAMPOS = [
     aliases: ["observacoes", "observações", "observacao"],
   },
   {
-    chave: "precisa_recibo",
-    rotulo: "Precisa de recibo",
+    chave: "documento",
+    rotulo: "Documento",
     obrigatorio: false,
-    aliases: ["precisa de recibo", "recibo"],
+    aliases: ["documento"],
   },
   { chave: "cpf", rotulo: "CPF", obrigatorio: false, aliases: ["cpf"] },
   {
