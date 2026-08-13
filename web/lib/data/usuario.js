@@ -9,7 +9,7 @@ export async function buscarUsuarioAtual() {
 
   const { data, error } = await supabase
     .from("Usuarios")
-    .select("id, nome, whatsapp_number, whatsapp_verified, role, aprovado, criador_conteudo, plano")
+    .select("id, nome, cpf, crp, contato, whatsapp_number, whatsapp_verified, role, aprovado, criador_conteudo, plano")
     .eq("id_user", user.id)
     .single();
 
