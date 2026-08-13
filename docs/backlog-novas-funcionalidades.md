@@ -441,3 +441,70 @@ dependendo do fluxo); se dá pra "desmarcar" um atendimento gerado por engano.
 
 **Tamanho estimado:** P — um campo novo + um filtro a mais nas duas
 gerações (manual e automática).
+
+---
+
+## 11. Planos do produto (Psi Gestão / Psi Gestão + Marketing / Psi Marketing)
+
+**Status: a realizar** — pedido do usuário em 2026-08-13.
+
+**Objetivo:** o produto passa a ter 3 planos iniciais, diferenciando acesso
+ao sistema de gestão (agenda, financeiro, pacientes etc.) e à divulgação no
+marketplace (diretório público, item 2):
+
+- **A) Psi Gestão** — acesso ao sistema de gestão. Sem divulgação no
+  diretório público.
+- **B) Psi Gestão + Marketing** — os dois: sistema de gestão completo e
+  perfil divulgado no diretório público (`busca.psiagente.com.br`).
+- **C) Psi Marketing** — só divulgação no diretório público, sem acesso ao
+  sistema de gestão.
+
+**Contexto importante:** hoje não existe conceito de plano — todo usuário
+aprovado (`Usuarios.aprovado = true`) tem acesso total ao sistema de gestão
+(`app/(app)/*`), e a visibilidade no diretório é controlada à parte por
+`PerfilPublico.visivel_diretorio`, sem nenhuma trava ligada a plano ou
+pagamento. O plano C (Psi Marketing) introduz um tipo de usuário novo: quem
+tem perfil público mas **não** deveria conseguir abrir agenda/financeiro/
+pacientes — isso hoje não é bloqueado em lugar nenhum.
+
+**Escopo provável:**
+- Campo novo em `Usuarios` (ex.: `plano`: `'gestao' | 'gestao_marketing' |
+  'marketing'`).
+- Gate de acesso ao grupo de rotas `app/(app)` (hoje só verifica
+  login+aprovado em `proxy.js`/`app/(app)/layout.js`) — usuário no plano
+  **C** não deveria conseguir abrir Agenda/Financeiro/Pacientes/Recibos,
+  só a área de perfil público/diretório.
+- Gate de elegibilidade pro diretório público (item 2): só planos **B** e
+  **C** podem ter `visivel_diretorio = true` — plano **A** não aparece na
+  busca mesmo que preencha o perfil.
+- Tela/fluxo pra escolher o plano no cadastro (ou depois, numa área de
+  configurações/assinatura).
+- Alguma cobrança recorrente por trás disso — **não foi definido ainda** (ver
+  decisões em aberto).
+
+**Decisões em aberto (grandes, precisam de brainstorm próprio antes de
+qualquer código):**
+- **Preço de cada plano** — não foi informado.
+- **Gateway/processador de pagamento** — este sistema hoje não processa
+  nenhum pagamento de assinatura (só registra pagamentos de sessão dos
+  pacientes do profissional, que é outra coisa). Precisa escolher um
+  provedor (Stripe, Mercado Pago, etc.) e desenhar o fluxo de
+  cobrança/renovação/inadimplência de assinatura.
+- **O que acontece com os usuários já cadastrados hoje** — todos entram como
+  plano B (gestão + marketing, mantendo o comportamento atual) por padrão?
+  Viram um "plano legado" sem cobrança?
+- **O que acontece se o pagamento falhar/atrasar** — o acesso é cortado na
+  hora, dá um prazo de carência, ou só limita algumas funções?
+- **Trocas de plano** — profissional pode fazer upgrade/downgrade quando
+  quiser, ou só na renovação?
+
+**Depende do item 2 (diretório público)**, já em produção — este item
+reaproveita `visivel_diretorio`, só adiciona uma trava de plano em cima
+dela. Não depende dos itens 6-10 (recibo/nota fiscal), são frentes
+independentes.
+
+**Tamanho estimado:** G — não é só um campo de plano: envolve gateway de
+pagamento (integração nova, ainda inexistente no projeto), um tipo de
+usuário com acesso parcial que hoje não existe, e várias decisões de
+negócio (preço, inadimplência, migração dos usuários atuais) que precisam
+ser fechadas antes de desenhar a implementação.

@@ -26,6 +26,7 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 8 | Gerar arquivo TXT do movimento de atendimentos "Recibo" pro Carnê-Leão (layout a apresentar) | 6 |
 | 9 | Rotina periódica (semanal/quinzenal/mensal) de envio automático do TXT do Carnê-Leão por e-mail | 8 |
 | 10 | Marcar atendimento como "já gerado em TXT", avisando o operador e excluindo das gerações automáticas seguintes | 8, 9 |
+| 11 | Planos do produto (Psi Gestão / Psi Gestão + Marketing / Psi Marketing) — diferencia acesso ao sistema de gestão e à divulgação no diretório público | 2 |
 
 Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também
 `docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original
