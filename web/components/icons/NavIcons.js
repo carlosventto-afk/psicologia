@@ -137,3 +137,14 @@ export function IconeRecolher(props) {
     </svg>
   );
 }
+
+export function IconeContaUsuario(props) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="4.5" width="14" height="11" rx="2" />
+      <circle cx="7.5" cy="9" r="1.6" />
+      <path d="M5.5 13c.4-1.3 1.3-2 2-2s1.6.7 2 2" />
+      <path d="M11.5 8h3M11.5 11h3" />
+    </svg>
+  );
+}

@@ -15,6 +15,7 @@ import {
   IconeRecibo,
   IconeConsultorio,
   IconeDiretorio,
+  IconeContaUsuario,
   IconeWhatsapp,
   IconeAdmin,
   IconeSair,
@@ -32,6 +33,7 @@ const ITENS_NAV = [
   { href: "/recibos", label: "Recibos", Icone: IconeRecibo },
   { href: "/consultorios", label: "Consultórios", Icone: IconeConsultorio },
   { href: "/diretorio", label: "Diretório", Icone: IconeDiretorio },
+  { href: "/configuracoes/conta", label: "Meus Dados", Icone: IconeContaUsuario },
   { href: "/configuracoes/whatsapp", label: "WhatsApp", Icone: IconeWhatsapp },
 ];
 
