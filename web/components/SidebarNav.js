@@ -42,7 +42,7 @@ const ROTULOS_PAPEL = {
   psicologo: "Psicólogo(a)",
 };
 
-export default function SidebarNav({ ehAdmin, nome, papel }) {
+export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
   const pathname = usePathname();
   const [menuAberto, setMenuAberto] = useState(false);
   const [recolhida, setRecolhida] = useState(false);
@@ -68,9 +68,12 @@ export default function SidebarNav({ ehAdmin, nome, papel }) {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
-  const itens = ehAdmin
-    ? [...ITENS_NAV, { href: "/admin/profissionais", label: "Administração", Icone: IconeAdmin }]
-    : ITENS_NAV;
+  const itens =
+    plano === "marketing"
+      ? ITENS_NAV.filter((item) => item.href === "/diretorio")
+      : ehAdmin
+        ? [...ITENS_NAV, { href: "/admin/profissionais", label: "Administração", Icone: IconeAdmin }]
+        : ITENS_NAV;
 
   function ListaNav({ compacta, onNavegar }) {
     return (

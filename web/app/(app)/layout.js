@@ -6,7 +6,12 @@ export default async function LayoutApp({ children }) {
 
   return (
     <div className="min-h-screen lg:flex">
-      <SidebarNav ehAdmin={usuario.role === "admin"} nome={usuario.nome} papel={usuario.role} />
+      <SidebarNav
+        ehAdmin={usuario.role === "admin"}
+        nome={usuario.nome}
+        papel={usuario.role}
+        plano={usuario.plano}
+      />
 
       <div className="min-w-0 flex-1">
         {!usuario.aprovado && (

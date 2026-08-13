@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import PerfilDiretorioForm from "@/components/PerfilDiretorioForm";
 import BotaoCompartilharPerfil from "@/components/BotaoCompartilharPerfil";
 import { salvarPerfil } from "@/lib/actions/diretorio";
@@ -11,6 +12,10 @@ export default async function PaginaDiretorio() {
     contarMeusContatos(),
     buscarUsuarioAtual(),
   ]);
+
+  if (usuario.plano === "gestao") {
+    redirect("/");
+  }
 
   const buscaUrl = process.env.NEXT_PUBLIC_BUSCA_URL ?? "http://localhost:3000";
 
