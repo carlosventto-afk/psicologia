@@ -33,6 +33,12 @@ use isso, mas o "quem é admin" já está modelado no banco.
   um jeito de um profissional entrar no sistema (convite ou autocadastro) e de
   alguém aprovar/moderar antes de ficar visível publicamente. Sugestão:
   3 antes de 2.
+- **Itens 6-10 (recibo vs. nota fiscal, emissão de NFS-e, TXT do Carnê-Leão)
+  formam uma cadeia**: item 6 (campo "Documento") é pré-requisito de todos os
+  outros; item 8 (gerar TXT) é pré-requisito dos itens 9 (envio automático) e
+  10 (marcar como já gerado). Item 7 (emitir NFS-e) só depende do 6 e pode
+  ser feito em paralelo com 8/9/10. Sugestão de ordem: 6 → 7 e 8 em paralelo
+  → 9 e 10 depois de 8.
 
 ---
 
@@ -253,3 +259,185 @@ a dependência).
 **Tamanho estimado:** M — upload + parse + tela de mapeamento com preview é
 mais interação de UI do que os CRUDs simples já existentes no app, mas não
 mexe em modelo de dados nem em RLS.
+
+---
+
+## 6. Diferenciar Recibo de Nota Fiscal no cadastro do paciente
+
+**Status: a realizar** — pedido do usuário em 2026-08-13.
+
+**Objetivo:** hoje `Paciente.precisa_recibo` é um boolean (sim/não). Nem todo
+paciente que precisa de documento fiscal quer o mesmo tipo — alguns preferem
+recibo (Receita Saúde), outros exigem Nota Fiscal (NFS-e). Esse item troca o
+boolean por uma escolha de tipo.
+
+**Escopo provável:**
+- Trocar `precisa_recibo` (boolean) por um campo `documento` (texto/enum) com
+  2 opções: **Receita Saúde** (o recibo de hoje) e **Nota Fiscal**.
+- Migration: adicionar a nova coluna, migrar os valores existentes
+  (`precisa_recibo = true` → `documento = 'recibo'`; `false` → `documento =
+  null`/"nenhum"), decidir se remove a coluna antiga ou mantém por um tempo.
+- Renomear a tela/ação "Emitir recibo" pra algo mais genérico tipo "Emitir
+  documento", ajustando o rótulo conforme o tipo escolhido no cadastro.
+- `/recibos` passa a filtrar por `documento = 'recibo'` em vez de
+  `precisa_recibo = true` — mesma lógica, campo diferente.
+
+**Decisões em aberto:** nome exato do campo/valores no banco (`documento` +
+`'recibo'`/`'nota_fiscal'`, ou uma tabela de tipos); se pacientes com
+`documento = 'nota_fiscal'` aparecem em alguma tela separada de "Notas a
+emitir" já nesta entrega ou só depois que o item 7 existir.
+
+**Pré-requisito dos itens 7, 8, 9 e 10** — todos dependem de existir essa
+diferenciação primeiro.
+
+**Tamanho estimado:** P — troca mecânica de um boolean por um campo de
+2 opções, mesmo padrão já usado pra `precisa_recibo` original.
+
+---
+
+## 7. Emitir Nota Fiscal (NFS-e) direto pelo sistema
+
+**Status: a realizar** — pedido do usuário em 2026-08-13.
+
+**Objetivo:** pra pacientes marcados como "Nota Fiscal" (item 6), emitir a
+NFS-e sem sair do sistema, e mandar automaticamente por e-mail pro paciente
+assim que emitida.
+
+**Ferramenta indicada pelo usuário:**
+`C:\Users\Administrador\Desktop\Projetos\NotaFiscal\nfse-nacional-kit` — kit
+Python de emissão/consulta/cancelamento no padrão **Nacional** de NFS-e
+(SEFIN/gov.br), extraído de um ERP em produção (TN Costa Tecnologia). Não é
+uma lib genérica de nota fiscal: só serve pra municípios que já aderiram ao
+Sistema Nacional (checar em gov.br/nfse — quem não aderiu rejeita tudo). Já
+inclui montagem/assinatura de XML (DPS), comunicação com a SEFIN (mTLS),
+cancelamento e leitura de erro traduzida.
+
+**Escopo provável:**
+- **Ponte Python ↔ Next.js**: o kit é Python puro (sem framework web); este
+  app é Next.js/Node. Precisa decidir a integração — um microserviço Python
+  separado exposto por HTTP (rodando ao lado do app no mesmo VPS/EasyPanel),
+  chamado via `fetch` a partir de uma Server Action, é o caminho mais direto
+  sem reescrever a lógica fiscal em JS.
+- **Certificado A1 (e-CNPJ) por profissional**: cada psicólogo que emite nota
+  precisa do próprio certificado (`.pfx` + senha) — decidir onde/como guardar
+  isso com segurança (nunca em texto plano no banco; considerar um secrets
+  manager ou ao menos criptografia em repouso).
+- **Inscrição Municipal** por profissional — campo novo no cadastro,
+  obrigatório pra quem for emitir nota.
+- **Numeração sequencial única por série** — o kit exige isso vindo de fora;
+  precisa de um contador transacional no banco (nunca `max(numero) + 1` lido
+  antes do commit, como o próprio README do kit avisa).
+- **Ambiente**: começar testando em *homologação* (produção restrita) antes
+  de liberar emissão em *produção* de verdade — nota emitida em produção é
+  documento fiscal real, cancelar depois tem prazo e exige justificativa.
+- Envio automático do XML/PDF (DANFSe) por e-mail pro paciente logo após a
+  emissão confirmada.
+- Guardar o XML autorizado (é o documento fiscal — o PDF é só representação e
+  pode ser regerado, o XML não).
+
+**Decisões em aberto:** licenciamento — o kit não declara licença aberta
+("combine com ele os termos de uso e redistribuição" com o autor original,
+TN Costa Tecnologia) — resolver isso antes de usar em produção; se o
+microserviço Python fica no mesmo VPS (EasyPanel) ou separado; como cada
+profissional sobe o próprio certificado `.pfx` com segurança pela UI.
+
+**Depende do item 6.**
+
+**Tamanho estimado:** G — é o item mais arriscado e com mais dependências
+externas do backlog inteiro (certificado digital por usuário, adesão
+municipal variável, ambiente de homologação, ponte entre duas linguagens,
+numeração transacional, e uma decisão de licenciamento em aberto).
+
+---
+
+## 8. Gerar TXT do movimento de atendimentos (Recibo) pro Carnê-Leão
+
+**Status: a realizar** — pedido do usuário em 2026-08-13.
+
+**Objetivo:** gerar um arquivo `.txt` com os atendimentos marcados como
+"Recibo" (item 6) pra importar direto no Carnê-Leão (programa da Receita
+Federal pra autônomos), evitando digitação manual.
+
+**Escopo provável:**
+- Tela/ação pra gerar o TXT num período (mês/intervalo de datas).
+- Filtra só atendimentos com `documento = 'recibo'`.
+- **Layout do arquivo**: o usuário vai apresentar o formato exato na hora da
+  implementação — não assumir estrutura de colunas antes disso (o Carnê-Leão
+  tem um layout de importação específico da Receita Federal que precisa ser
+  seguido à risca).
+
+**Decisões em aberto:** layout do TXT (a apresentar); nome/local de
+download do arquivo gerado; se cobre só atendimentos "realizados" (com
+pagamento confirmado) ou também os marcados sem `PagamentoSessao` ainda.
+
+**Depende do item 6.**
+
+**Tamanho estimado:** M — a lógica de exportação em si é simples, mas exige
+seguir um layout externo à risca (Receita Federal), o que costuma revelar
+detalhes só na hora de testar contra o programa real do Carnê-Leão.
+
+---
+
+## 9. Rotina periódica de envio automático do TXT (Carnê-Leão) por e-mail
+
+**Status: a realizar** — pedido do usuário em 2026-08-13.
+
+**Objetivo:** automatizar o item 8 — gerar o TXT sozinho, num intervalo
+configurável, e mandar pra um e-mail configurado, sem o profissional
+precisar lembrar de gerar manualmente.
+
+**Contexto importante:** este app **não tem nenhum scheduler/cron de
+verdade hoje**. O único mecanismo parecido é o "cron preguiçoso" de
+recorrências (`web/lib/recorrencia.js`), que só roda quando alguém abre a
+Agenda/Painel — não serve pra isso, porque precisa disparar mesmo sem
+ninguém logado. Precisa de infraestrutura nova: um cron de verdade (ex:
+`node-cron` rodando junto do processo Next.js, um serviço separado, ou um
+workflow no n8n — já cogitado antes pro agente de WhatsApp, mas ainda não
+implantado).
+
+**Escopo provável:**
+- Configuração por profissional: frequência (semanal/quinzenal/mensal) e
+  e-mail de destino.
+- Job periódico que gera o TXT do item 8 e envia por e-mail (reaproveitando
+  o SMTP/Resend já configurado pro Auth, ou um remetente próprio).
+- Registrar quando cada envio automático rodou (auditoria básica — pra saber
+  se um envio falhou).
+
+**Decisões em aberto:** onde roda o scheduler (dentro do próprio app Next.js
+via `node-cron`, ou n8n/serviço externo); o que fazer se o e-mail falhar
+(retry? avisar o profissional dentro do app?).
+
+**Depende do item 8.**
+
+**Tamanho estimado:** M — a geração do TXT já existe (item 8); a parte nova
+é só infraestrutura de agendamento, que este projeto ainda não tem em
+nenhum lugar.
+
+---
+
+## 10. Marcar atendimento como "já gerado" em TXT
+
+**Status: a realizar** — pedido do usuário em 2026-08-13.
+
+**Objetivo:** evitar gerar o mesmo atendimento duas vezes num TXT do
+Carnê-Leão (item 8/9) — nem manualmente por engano, nem automaticamente na
+rotina periódica (item 9).
+
+**Escopo provável:**
+- Novo campo na tabela de atendimento/lançamento (ex: `gerado_em_txt`,
+  timestamp ou boolean) marcado no momento em que o atendimento entra num
+  TXT gerado (manual ou automático).
+- Geração manual (item 8): se o operador tentar incluir um atendimento já
+  marcado, avisar antes de gerar (não bloquear silenciosamente — deixar o
+  profissional decidir se quer incluir de novo mesmo assim).
+- Geração automática (item 9): nunca incluir atendimentos já marcados, sem
+  perguntar (é o próprio propósito da automação).
+
+**Decisões em aberto:** qual tabela recebe o campo (sessão? lançamento
+financeiro? os dois, já que "atendimento" pode significar coisas diferentes
+dependendo do fluxo); se dá pra "desmarcar" um atendimento gerado por engano.
+
+**Depende dos itens 8 e 9.**
+
+**Tamanho estimado:** P — um campo novo + um filtro a mais nas duas
+gerações (manual e automática).

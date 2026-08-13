@@ -19,4 +19,15 @@ data. Detalhamento de escopo/decisões de cada item está em
 
 ## A realizar
 
-Nenhum item formal pendente no momento — ver `docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original (rebrand PsiAgente, documentos/dependente financeiro do paciente, excluir/desativar paciente, cartão de usuário logado na sidebar).
+| Item | Descrição | Depende de |
+| --- | --- | --- |
+| 6 | Diferenciar Recibo de Nota Fiscal no cadastro do paciente (campo "Documento": Receita Saúde ou Nota Fiscal) | — |
+| 7 | Emitir Nota Fiscal (NFS-e) direto pelo sistema, usando o kit em `NotaFiscal/nfse-nacional-kit`, com envio automático por e-mail ao paciente | 6 |
+| 8 | Gerar arquivo TXT do movimento de atendimentos "Recibo" pro Carnê-Leão (layout a apresentar) | 6 |
+| 9 | Rotina periódica (semanal/quinzenal/mensal) de envio automático do TXT do Carnê-Leão por e-mail | 8 |
+| 10 | Marcar atendimento como "já gerado em TXT", avisando o operador e excluindo das gerações automáticas seguintes | 8, 9 |
+
+Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também
+`docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original
+(rebrand PsiAgente, documentos/dependente financeiro do paciente, excluir/desativar
+paciente, cartão de usuário logado na sidebar).
