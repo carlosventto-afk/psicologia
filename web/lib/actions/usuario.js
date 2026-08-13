@@ -9,6 +9,10 @@ export async function atualizarMeusDados(prevState, formData) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    return { error: "Não autorizado." };
+  }
+
   const contatoBruto = formData.get("contato");
 
   const dados = {
