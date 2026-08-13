@@ -138,6 +138,16 @@ export function IconeRecolher(props) {
   );
 }
 
+export function IconeCarneLeao(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M10 3v9" />
+      <path d="M6.5 8.5 10 12l3.5-3.5" />
+      <path d="M4 14v1.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V14" />
+    </svg>
+  );
+}
+
 export function IconeContaUsuario(props) {
   return (
     <svg {...base} {...props}>
