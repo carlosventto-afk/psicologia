@@ -38,7 +38,7 @@ export default function VincularWhatsappForm() {
       {state?.codigo && (
         <div className="card p-6 max-w-md space-y-2">
           <p className="text-sm text-navy">
-            Envie o código abaixo pelo WhatsApp para o número do assistente PsiFácil, dentro de 10 minutos:
+            Envie o código abaixo pelo WhatsApp para o número do assistente PsiAgente, dentro de 10 minutos:
           </p>
           <p className="text-3xl font-bold text-navy tracking-widest">{state.codigo}</p>
           <p className="text-xs text-muted">

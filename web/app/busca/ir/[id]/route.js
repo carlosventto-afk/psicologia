@@ -46,7 +46,7 @@ export async function GET(request, { params }) {
   const digitos = String(usuario.contato).replace(/\D/g, "");
   const numero = digitos.length > 11 ? digitos : `55${digitos}`;
   const mensagem = encodeURIComponent(
-    `Olá ${usuario.nome}, vi seu perfil no PsiFácil e gostaria de conversar.`
+    `Olá ${usuario.nome}, vi seu perfil no PsiAgente e gostaria de conversar.`
   );
 
   return NextResponse.redirect(`https://wa.me/${numero}?text=${mensagem}`);
