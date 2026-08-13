@@ -12,8 +12,8 @@ export default async function PaginaRecibos() {
         <h2 className="text-lg font-bold text-navy mb-2">Sessões elegíveis</h2>
         {elegiveis.length === 0 ? (
           <p className="empty-state">
-            Nenhuma sessão disponível para recibo. Só aparecem aqui sessões de pacientes marcados como "Precisa de
-            recibo" no cadastro.
+            Nenhuma sessão disponível para recibo. Só aparecem aqui sessões de pacientes com "Documento" marcado
+            como Receita Saúde no cadastro.
           </p>
         ) : (
           <div className="space-y-3">
