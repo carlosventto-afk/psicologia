@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIdsLista } from "@/lib/normalizar-ids";
+import { cpfValido } from "@/lib/carne-leao-txt";
 
 const SELECT_PAGAMENTO =
   "id, valor, data_pagamento, Sessao!inner(data, Paciente!inner(nome, cpf, dependente, documento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf)))";
+
+function elegivel(p) {
+  return cpfValido(p.cpfPagador) && cpfValido(p.cpfBeneficiario);
+}
 
 function resolverPagamento(p) {
   const paciente = p.Sessao.Paciente;
@@ -36,12 +41,12 @@ export async function listarPagamentosElegiveis({ dataInicio, dataFim }) {
   const resolvidos = normalizarIdsLista(data, ["id"]).map(resolverPagamento);
 
   return {
-    elegiveis: resolvidos.filter((p) => p.cpfPagador && p.cpfBeneficiario),
-    semCpf: resolvidos.filter((p) => !p.cpfPagador || !p.cpfBeneficiario),
+    elegiveis: resolvidos.filter(elegivel),
+    semCpf: resolvidos.filter((p) => !elegivel(p)),
   };
 }
 
-export async function buscarPagamentosPorIds(ids) {
+export async function buscarPagamentosPorIds(ids, { dataInicio, dataFim }) {
   if (ids.length === 0) return [];
 
   const supabase = await createClient();
@@ -49,11 +54,13 @@ export async function buscarPagamentosPorIds(ids) {
     .from("PagamentoSessao")
     .select(SELECT_PAGAMENTO)
     .in("id", ids)
-    .eq("Sessao.Paciente.documento", "recibo");
+    .eq("Sessao.Paciente.documento", "recibo")
+    .gte("data_pagamento", dataInicio)
+    .lte("data_pagamento", dataFim);
 
   if (error) throw new Error(error.message);
 
   return normalizarIdsLista(data, ["id"])
     .map(resolverPagamento)
-    .filter((p) => p.cpfPagador && p.cpfBeneficiario);
+    .filter(elegivel);
 }

@@ -1,11 +1,16 @@
 import { buscarPagamentosPorIds } from "@/lib/data/carne-leao";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
-import { montarDescricao, montarArquivoTxt } from "@/lib/carne-leao-txt";
+import { montarDescricao, montarArquivoTxt, cpfValido } from "@/lib/carne-leao-txt";
+import { calcularPeriodo } from "@/lib/periodo-agenda";
 
 export async function POST(request) {
   const formData = await request.formData();
   const mes = formData.get("mes");
   const ano = formData.get("ano");
+
+  if (!/^\d{1,2}$/.test(mes) || !/^\d{4}$/.test(ano)) {
+    return new Response("Período inválido.", { status: 400 });
+  }
 
   let grupos;
   try {
@@ -15,12 +20,14 @@ export async function POST(request) {
   }
 
   const usuario = await buscarUsuarioAtual();
-  if (!usuario.cpf) {
+  if (!cpfValido(usuario.cpf)) {
     return new Response("CPF do profissional não cadastrado. Preencha em /configuracoes/conta.", { status: 400 });
   }
 
+  const { inicio: dataInicio, fim: dataFim } = calcularPeriodo("mes", `${ano}-${String(mes).padStart(2, "0")}-01`);
+
   const todosIds = [...new Set(grupos.flat())];
-  const pagamentos = await buscarPagamentosPorIds(todosIds);
+  const pagamentos = await buscarPagamentosPorIds(todosIds, { dataInicio, dataFim });
   const porId = new Map(pagamentos.map((p) => [p.pagamentoId, p]));
 
   const linhas = [];
@@ -39,12 +46,15 @@ export async function POST(request) {
     for (const item of itens) idsConsumidos.add(item.pagamentoId);
 
     // Nunca confia no agrupamento do client — reagrupa por CPF do
-    // pagador real (vindo do banco) antes de montar cada linha.
+    // pagador + CPF do beneficiário reais (vindos do banco) antes de
+    // montar cada linha, pois um mesmo pagador pode pagar por mais de
+    // um beneficiário (ex.: dois dependentes distintos).
     const porPagador = new Map();
     for (const item of itens) {
-      const lista = porPagador.get(item.cpfPagador) ?? [];
+      const chave = `${item.cpfPagador}|${item.cpfBeneficiario}`;
+      const lista = porPagador.get(chave) ?? [];
       lista.push(item);
-      porPagador.set(item.cpfPagador, lista);
+      porPagador.set(chave, lista);
     }
 
     for (const subGrupo of porPagador.values()) {

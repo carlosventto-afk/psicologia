@@ -2,6 +2,10 @@ export function formatarCpf(cpf) {
   return String(cpf ?? "").replace(/\D/g, "");
 }
 
+export function cpfValido(cpf) {
+  return formatarCpf(cpf).length === 11;
+}
+
 export function formatarValor(valor) {
   return Number(valor).toFixed(2).replace(".", ",");
 }

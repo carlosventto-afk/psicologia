@@ -20,8 +20,17 @@ export default async function PaginaCarneLeao({ searchParams }) {
 
   const porPagador = Object.values(
     elegiveis.reduce((acc, item) => {
-      const chave = item.cpfPagador;
-      if (!acc[chave]) acc[chave] = { cpfPagador: chave, pagadorNome: item.pagadorNome, pagamentos: [] };
+      const chave = `${item.cpfPagador}|${item.cpfBeneficiario}`;
+      if (!acc[chave]) {
+        acc[chave] = {
+          chave,
+          cpfPagador: item.cpfPagador,
+          cpfBeneficiario: item.cpfBeneficiario,
+          pagadorNome: item.pagadorNome,
+          pacienteNome: item.pacienteNome,
+          pagamentos: [],
+        };
+      }
       acc[chave].pagamentos.push(item);
       return acc;
     }, {})

@@ -4,27 +4,27 @@ import { useState } from "react";
 
 export default function CarneLeaoForm({ porPagador, mes, ano }) {
   const [gruposPorPagador, setGruposPorPagador] = useState(() =>
-    Object.fromEntries(porPagador.map((p) => [p.cpfPagador, p.pagamentos.map((item) => [item.pagamentoId])]))
+    Object.fromEntries(porPagador.map((p) => [p.chave, p.pagamentos.map((item) => [item.pagamentoId])]))
   );
   const [selecionados, setSelecionados] = useState({});
 
-  function alternarSelecao(cpfPagador, id) {
+  function alternarSelecao(chave, id) {
     setSelecionados((atual) => {
-      const lista = atual[cpfPagador] ?? [];
+      const lista = atual[chave] ?? [];
       const nova = lista.includes(id) ? lista.filter((x) => x !== id) : [...lista, id];
-      return { ...atual, [cpfPagador]: nova };
+      return { ...atual, [chave]: nova };
     });
   }
 
-  function combinar(cpfPagador) {
-    const ids = selecionados[cpfPagador] ?? [];
+  function combinar(chave) {
+    const ids = selecionados[chave] ?? [];
     if (ids.length < 2) return;
     setGruposPorPagador((atual) => {
-      const grupos = atual[cpfPagador];
+      const grupos = atual[chave];
       const restante = grupos.filter((grupo) => !grupo.some((id) => ids.includes(id)));
-      return { ...atual, [cpfPagador]: [...restante, ids] };
+      return { ...atual, [chave]: [...restante, ids] };
     });
-    setSelecionados((atual) => ({ ...atual, [cpfPagador]: [] }));
+    setSelecionados((atual) => ({ ...atual, [chave]: [] }));
   }
 
   const todosGrupos = Object.values(gruposPorPagador).flat();
@@ -36,17 +36,22 @@ export default function CarneLeaoForm({ porPagador, mes, ano }) {
       <input type="hidden" name="grupos" value={JSON.stringify(todosGrupos)} />
 
       {porPagador.map((pagador) => {
-        const grupos = gruposPorPagador[pagador.cpfPagador];
+        const grupos = gruposPorPagador[pagador.chave];
         const porId = Object.fromEntries(pagador.pagamentos.map((item) => [item.pagamentoId, item]));
-        const selecionadosDoPagador = selecionados[pagador.cpfPagador] ?? [];
+        const selecionadosDoPagador = selecionados[pagador.chave] ?? [];
 
         return (
-          <div key={pagador.cpfPagador} className="card p-4 space-y-2">
+          <div key={pagador.chave} className="card p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="font-semibold text-navy">{pagador.pagadorNome}</p>
+              <p className="font-semibold text-navy">
+                {pagador.pagadorNome}
+                {pagador.pacienteNome !== pagador.pagadorNome && (
+                  <span className="text-muted font-normal"> — paciente: {pagador.pacienteNome}</span>
+                )}
+              </p>
               <button
                 type="button"
-                onClick={() => combinar(pagador.cpfPagador)}
+                onClick={() => combinar(pagador.chave)}
                 disabled={selecionadosDoPagador.length < 2}
                 className="btn-outline py-1 px-2 text-xs disabled:opacity-50"
               >
@@ -73,7 +78,7 @@ export default function CarneLeaoForm({ porPagador, mes, ano }) {
                           type="checkbox"
                           checked={selecionadosDoPagador.includes(item.pagamentoId)}
                           disabled={combinado}
-                          onChange={() => alternarSelecao(pagador.cpfPagador, item.pagamentoId)}
+                          onChange={() => alternarSelecao(pagador.chave, item.pagamentoId)}
                         />
                         {item.dataPagamento} — R$ {Number(item.valor).toFixed(2)}
                       </label>
