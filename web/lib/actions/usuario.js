@@ -14,12 +14,15 @@ export async function atualizarMeusDados(prevState, formData) {
   }
 
   const contatoBruto = formData.get("contato");
+  const frequencia = formData.get("carne_leao_frequencia") || null;
 
   const dados = {
     nome: formData.get("nome"),
     cpf: formData.get("cpf") || null,
     crp: formData.get("crp") || null,
     contato: contatoBruto ? Number(String(contatoBruto).replace(/\D/g, "")) : null,
+    carne_leao_frequencia: frequencia,
+    carne_leao_email: formData.get("carne_leao_email") || null,
   };
 
   const { error } = await supabase.from("Usuarios").update(dados).eq("id_user", user.id);

@@ -40,6 +40,41 @@ export default function MeusDadosForm({ action, usuario }) {
         <input id="contato" name="contato" type="text" defaultValue={usuario?.contato ?? ""} className="field" />
       </div>
 
+      <fieldset className="space-y-3 border-t border-border pt-4">
+        <legend className="text-sm font-semibold text-navy px-0">Envio automático por e-mail</legend>
+        <div>
+          <label htmlFor="carne_leao_frequencia" className="block text-sm font-semibold text-navy">
+            Frequência
+          </label>
+          <select
+            id="carne_leao_frequencia"
+            name="carne_leao_frequencia"
+            defaultValue={usuario?.carne_leao_frequencia ?? ""}
+            className="field"
+          >
+            <option value="">Desativado</option>
+            <option value="semanal">Semanal</option>
+            <option value="quinzenal">Quinzenal</option>
+            <option value="mensal">Mensal</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="carne_leao_email" className="block text-sm font-semibold text-navy">
+            E-mail de destino
+          </label>
+          <input
+            id="carne_leao_email"
+            name="carne_leao_email"
+            type="email"
+            defaultValue={usuario?.carne_leao_email ?? ""}
+            className="field"
+          />
+          <p className="text-xs text-muted mt-1">
+            Deixe em branco para usar seu e-mail de login. Pode ser o e-mail do seu contador.
+          </p>
+        </div>
+      </fieldset>
+
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.sucesso && <p className="text-sm text-green-700">Dados salvos.</p>}
 
