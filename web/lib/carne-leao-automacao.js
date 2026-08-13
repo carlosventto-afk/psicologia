@@ -40,7 +40,8 @@ export function estaNaData(frequencia, ultimoEnvio, hojeISO) {
 // como "já exportado" (item 10 do backlog, ainda não implementado).
 export function periodoParaEnvio(frequencia, ultimoEnvio, hojeISO) {
   if (frequencia === "mensal") {
-    const mesAnteriorBase = deslocarData(hojeISO, "mes", -1);
+    const primeiroDiaMesCorrente = calcularPeriodo("mes", hojeISO).inicio;
+    const mesAnteriorBase = deslocarData(primeiroDiaMesCorrente, "mes", -1);
     return calcularPeriodo("mes", mesAnteriorBase);
   }
 
