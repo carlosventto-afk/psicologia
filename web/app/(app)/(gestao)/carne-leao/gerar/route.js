@@ -1,6 +1,6 @@
 import { buscarPagamentosPorIds } from "@/lib/data/carne-leao";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
-import { montarDescricao, montarArquivoTxt, cpfValido } from "@/lib/carne-leao-txt";
+import { montarArquivoTxt, agruparEmLinhas, cpfValido } from "@/lib/carne-leao-txt";
 import { calcularPeriodo } from "@/lib/periodo-agenda";
 
 export async function POST(request) {
@@ -45,34 +45,7 @@ export async function POST(request) {
 
     for (const item of itens) idsConsumidos.add(item.pagamentoId);
 
-    // Nunca confia no agrupamento do client — reagrupa por CPF do
-    // pagador + CPF do beneficiário reais (vindos do banco) antes de
-    // montar cada linha, pois um mesmo pagador pode pagar por mais de
-    // um beneficiário (ex.: dois dependentes distintos).
-    const porPagador = new Map();
-    for (const item of itens) {
-      const chave = `${item.cpfPagador}|${item.cpfBeneficiario}`;
-      const lista = porPagador.get(chave) ?? [];
-      lista.push(item);
-      porPagador.set(chave, lista);
-    }
-
-    for (const subGrupo of porPagador.values()) {
-      const valorTotal = subGrupo.reduce((soma, i) => soma + Number(i.valor), 0);
-      const dataPagamento = subGrupo.reduce(
-        (maisRecente, i) => (i.dataPagamento > maisRecente ? i.dataPagamento : maisRecente),
-        subGrupo[0].dataPagamento
-      );
-      const descricao = montarDescricao(subGrupo.map((i) => i.dataAtendimento));
-
-      linhas.push({
-        dataPagamento,
-        valor: valorTotal,
-        descricao,
-        cpfPagador: subGrupo[0].cpfPagador,
-        cpfBeneficiario: subGrupo[0].cpfBeneficiario,
-      });
-    }
+    linhas.push(...agruparEmLinhas(itens));
   }
 
   if (linhas.length === 0) {
