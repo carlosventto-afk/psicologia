@@ -24,9 +24,19 @@ export async function POST(request) {
   const porId = new Map(pagamentos.map((p) => [p.pagamentoId, p]));
 
   const linhas = [];
+  const idsConsumidos = new Set();
   for (const grupoIds of grupos) {
-    const itens = grupoIds.map((id) => porId.get(id)).filter(Boolean);
+    // Nunca confia que o client não repetiu o mesmo id em grupos
+    // diferentes — um id já usado em um grupo anterior nesta mesma
+    // submissão não pode gerar uma segunda linha (senão o pagamento
+    // dobra no arquivo declarado).
+    const itens = grupoIds
+      .filter((id) => !idsConsumidos.has(id))
+      .map((id) => porId.get(id))
+      .filter(Boolean);
     if (itens.length === 0) continue;
+
+    for (const item of itens) idsConsumidos.add(item.pagamentoId);
 
     // Nunca confia no agrupamento do client — reagrupa por CPF do
     // pagador real (vindo do banco) antes de montar cada linha.
