@@ -106,7 +106,7 @@ export async function buscarPaciente(id) {
   const { data, error } = await supabase
     .from("Paciente")
     .select(
-      "id, nome, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, precisa_recibo, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, dependente, responsavel_financeiro, ativo, ResponsavelFinanceiro:responsavel_financeiro(nome)"
+      "id, nome, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, documento, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, dependente, responsavel_financeiro, ativo, ResponsavelFinanceiro:responsavel_financeiro(nome)"
     )
     .eq("id", id)
     .single();

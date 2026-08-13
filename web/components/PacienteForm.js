@@ -157,17 +157,15 @@ export default function PacienteForm({ action, paciente, pacotes, consultorios, 
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          id="precisa_recibo"
-          name="precisa_recibo"
-          type="checkbox"
-          defaultChecked={paciente?.precisa_recibo}
-          className="h-4 w-4"
-        />
-        <label htmlFor="precisa_recibo" className="text-sm font-semibold text-navy">
-          Precisa de recibo
+      <div>
+        <label htmlFor="documento" className="block text-sm font-semibold text-navy">
+          Documento
         </label>
+        <select id="documento" name="documento" defaultValue={paciente?.documento ?? ""} className="field">
+          <option value="">Nenhum</option>
+          <option value="recibo">Receita Saúde</option>
+          <option value="nota_fiscal">Nota Fiscal</option>
+        </select>
       </div>
 
       <fieldset className="space-y-3 border-t border-border pt-4">

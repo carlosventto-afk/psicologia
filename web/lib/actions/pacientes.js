@@ -21,7 +21,7 @@ function dadosDoFormulario(formData) {
     pacote: formData.get("pacote") ? Number(formData.get("pacote")) : null,
     valor_sessao: Number(formData.get("valor_sessao")),
     observacoes: formData.get("observacoes") || null,
-    precisa_recibo: formData.get("precisa_recibo") === "on",
+    documento: formData.get("documento") || null,
     cpf: formData.get("cpf") || null,
     rg_numero: formData.get("rg_numero") || null,
     rg_data_expedicao: formData.get("rg_data_expedicao") || null,
