@@ -88,3 +88,15 @@ export async function alternarCriadorConteudo(id, valorAtual) {
 
   revalidatePath("/admin/profissionais");
 }
+
+export async function alterarPlano(id, novoPlano) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("Usuarios").update({ plano: novoPlano }).eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/admin/profissionais");
+}
