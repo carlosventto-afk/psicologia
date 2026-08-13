@@ -4,3 +4,4 @@ node_modules/
 .env.*.local
 schema_atual.sql
 .superpowers/
+/Modelo Importação CarneLeão/
