@@ -18,13 +18,13 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 1b | Papel de "criador de conteúdo" separado de admin (evolução pedida do item 1) | 2026-08-06 | — |
 | 11 (metade 1) | Planos do produto (Psi Gestão / Psi Gestão + Marketing / Psi Marketing) — modelo de plano e controle de acesso, atribuição manual pelo admin em `/admin/profissionais` | 2026-08-13 | Sem cobrança/gateway (fora de escopo, ver item 11 completo abaixo). Código mesclado e pushado; verificação end-to-end no navegador ainda pendente (ferramentas de browser desconectadas na sessão) |
 | 6 | Diferenciar Recibo de Nota Fiscal no cadastro do paciente — campo `Paciente.documento` (Nenhum/Receita Saúde/Nota Fiscal) substitui o boolean `precisa_recibo` | 2026-08-13 | `/recibos` continua só lidando com Receita Saúde (Nota Fiscal ainda não tem emissão real — depende do item 7). Código mesclado e pushado; verificação end-to-end no navegador ainda pendente |
+| 8 | Gerar arquivo TXT do movimento de atendimentos "Recibo" pro Carnê-Leão, no layout "Recibos do Receita Saúde" (16 campos) — tela `/carne-leao` com seletor de mês, agrupamento por pagador+paciente e opção de combinar múltiplos atendimentos pagos juntos numa única linha/recibo. Inclui nova tela `/configuracoes/conta` pro profissional cadastrar o próprio CPF/CRP (pré-requisito, campo `Usuarios.cpf` novo) | 2026-08-13 | Fonte de dados é `PagamentoSessao` (valor/data realmente recebidos), não `Sessao`. CPF validado (11 dígitos) antes de entrar no arquivo; pagamento sem CPF válido fica de fora com aviso. Geração sempre recalculada no servidor a partir dos ids (nunca confia em valor/CPF vindo do client). Verificação end-to-end no navegador ainda pendente |
 
 ## A realizar
 
 | Item | Descrição | Depende de |
 | --- | --- | --- |
 | 7 | Emitir Nota Fiscal (NFS-e) direto pelo sistema, usando o kit em `NotaFiscal/nfse-nacional-kit`, com envio automático por e-mail ao paciente | 6 |
-| 8 | Gerar arquivo TXT do movimento de atendimentos "Recibo" pro Carnê-Leão (layout a apresentar) | 6 |
 | 9 | Rotina periódica (semanal/quinzenal/mensal) de envio automático do TXT do Carnê-Leão por e-mail | 8 |
 | 10 | Marcar atendimento como "já gerado em TXT", avisando o operador e excluindo das gerações automáticas seguintes | 8, 9 |
 | 11 (metade 2) | Cobrança/gateway de pagamento dos planos (preço, assinatura, inadimplência) | 11 (metade 1) |
