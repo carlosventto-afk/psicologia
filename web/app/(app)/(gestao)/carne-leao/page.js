@@ -64,7 +64,7 @@ export default async function PaginaCarneLeao({ searchParams }) {
       {elegiveis.length === 0 ? (
         <p className="empty-state">Nenhum pagamento elegível para o Carnê-Leão neste mês.</p>
       ) : usuario.cpf ? (
-        <CarneLeaoForm porPagador={porPagador} mes={mes} ano={ano} />
+        <CarneLeaoForm key={`${ano}-${mes}`} porPagador={porPagador} mes={mes} ano={ano} />
       ) : null}
     </div>
   );
