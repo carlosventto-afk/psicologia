@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { listarProfissionais } from "@/lib/data/profissionais";
 import { aprovarProfissional, alternarCriadorConteudo } from "@/lib/actions/profissionais";
+import SeletorPlano from "@/components/SeletorPlano";
 
 export default async function PaginaProfissionais() {
   const usuario = await buscarUsuarioAtual();
@@ -53,6 +54,7 @@ export default async function PaginaProfissionais() {
                     </button>
                   </form>
                 )}
+                <SeletorPlano id={p.id} planoAtual={p.plano} />
               </div>
             </div>
           ))}
