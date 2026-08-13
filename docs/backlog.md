@@ -16,6 +16,7 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 2 | Diretório público de psicólogos (`busca.psiagente.com.br`: listagem/filtro, perfil individual, contato via WhatsApp) + CTA de cadastro, Termos de Uso obrigatórios, barreira de qualidade e ferramentas de divulgação | 2026-08-03/04 | Perfil só aparece publicamente quando `aprovado` (item 3) e `visivel_diretorio = true`; fluxo de convite do item 3 ainda não verificado ponta a ponta em produção. Redesenho visual (marketplace, cards de perfil, hero) em 2026-08-13 |
 | 5 | Importar pacientes via planilha Excel, com tela de mapeamento de colunas | 2026-08-04 | Inclui também o campo "Precisa de recibo" no cadastro de paciente (fora do escopo original do item, surgiu na mesma sessão) e o filtro correspondente em `/recibos`. Estendido em 2026-08-11 pra aceitar CPF/RG |
 | 1b | Papel de "criador de conteúdo" separado de admin (evolução pedida do item 1) | 2026-08-06 | — |
+| 11 (metade 1) | Planos do produto (Psi Gestão / Psi Gestão + Marketing / Psi Marketing) — modelo de plano e controle de acesso, atribuição manual pelo admin em `/admin/profissionais` | 2026-08-13 | Sem cobrança/gateway (fora de escopo, ver item 11 completo abaixo). Código mesclado e pushado; verificação end-to-end no navegador ainda pendente (ferramentas de browser desconectadas na sessão) |
 
 ## A realizar
 
@@ -26,7 +27,7 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 8 | Gerar arquivo TXT do movimento de atendimentos "Recibo" pro Carnê-Leão (layout a apresentar) | 6 |
 | 9 | Rotina periódica (semanal/quinzenal/mensal) de envio automático do TXT do Carnê-Leão por e-mail | 8 |
 | 10 | Marcar atendimento como "já gerado em TXT", avisando o operador e excluindo das gerações automáticas seguintes | 8, 9 |
-| 11 | Planos do produto (Psi Gestão / Psi Gestão + Marketing / Psi Marketing) — diferencia acesso ao sistema de gestão e à divulgação no diretório público | 2 |
+| 11 (metade 2) | Cobrança/gateway de pagamento dos planos (preço, assinatura, inadimplência) | 11 (metade 1) |
 
 Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também
 `docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original
