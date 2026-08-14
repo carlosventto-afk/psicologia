@@ -4,11 +4,25 @@ import { useActionState } from "react";
 
 const estadoInicial = {};
 
-export default function PagamentoSessaoForm({ action, valorInicial, contas }) {
+export default function PagamentoSessaoForm({ action, valorInicial, contas, dataInicial }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
 
   return (
     <form action={formAction} className="max-w-md space-y-4 card p-6">
+      <div>
+        <label htmlFor="data_pagamento" className="block text-sm font-semibold text-navy">
+          Data do pagamento
+        </label>
+        <input
+          id="data_pagamento"
+          name="data_pagamento"
+          type="date"
+          required
+          defaultValue={dataInicial}
+          className="field"
+        />
+      </div>
+
       <div>
         <label htmlFor="valor" className="block text-sm font-semibold text-navy">
           Valor

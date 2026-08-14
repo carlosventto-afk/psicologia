@@ -2,6 +2,7 @@ import PagamentoSessaoForm from "@/components/PagamentoSessaoForm";
 import { buscarSessao } from "@/lib/data/sessoes";
 import { listarContas } from "@/lib/data/contas";
 import { registrarPagamentoSessao } from "@/lib/actions/pagamentos";
+import { hojeISO } from "@/lib/periodo-agenda";
 
 export default async function PaginaPagamentoSessao({ params }) {
   const { id } = await params;
@@ -18,7 +19,12 @@ export default async function PaginaPagamentoSessao({ params }) {
           Sessão de {sessao.data} {sessao.horario}
         </p>
       </div>
-      <PagamentoSessaoForm action={acaoComId} valorInicial={sessao.valor_sessao} contas={contas} />
+      <PagamentoSessaoForm
+        action={acaoComId}
+        valorInicial={sessao.valor_sessao}
+        contas={contas}
+        dataInicial={hojeISO()}
+      />
     </div>
   );
 }
