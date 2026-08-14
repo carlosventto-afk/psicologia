@@ -26,7 +26,16 @@ function resolverPagamento(p) {
   };
 }
 
+// opcoes.supabase é um client service-role que ignora RLS — por isso
+// ownerId é obrigatório junto dele, pra nunca rodar uma query sem escopo
+// de profissional.
 export async function listarPagamentosElegiveis({ dataInicio, dataFim }, opcoes = {}) {
+  if (opcoes.supabase && !opcoes.ownerId) {
+    throw new Error(
+      "listarPagamentosElegiveis: ownerId é obrigatório ao passar um client service-role (supabase bypassa RLS)."
+    );
+  }
+
   const supabase = opcoes.supabase ?? (await createClient());
 
   let query = supabase
