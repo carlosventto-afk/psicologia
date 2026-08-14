@@ -1,12 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import { criarLancamento } from "@/lib/actions/lancamentos";
 
 const estadoInicial = {};
 
-export default function LancamentoForm({ contas }) {
-  const [state, formAction, pending] = useActionState(criarLancamento, estadoInicial);
+export default function LancamentoForm({ action, contas, valoresIniciais = {} }) {
+  const [state, formAction, pending] = useActionState(action, estadoInicial);
 
   return (
     <form action={formAction} className="max-w-md space-y-4 card p-6">
@@ -19,6 +18,7 @@ export default function LancamentoForm({ contas }) {
           name="data"
           type="date"
           required
+          defaultValue={valoresIniciais.data}
           className="field"
         />
       </div>
@@ -32,6 +32,7 @@ export default function LancamentoForm({ contas }) {
           name="descricao"
           type="text"
           required
+          defaultValue={valoresIniciais.descricao}
           className="field"
         />
       </div>
@@ -47,6 +48,7 @@ export default function LancamentoForm({ contas }) {
           step="0.01"
           min="0"
           required
+          defaultValue={valoresIniciais.valor}
           className="field"
         />
       </div>
@@ -55,7 +57,7 @@ export default function LancamentoForm({ contas }) {
         <label htmlFor="tipo" className="block text-sm font-semibold text-navy">
           Tipo
         </label>
-        <select id="tipo" name="tipo" required className="field">
+        <select id="tipo" name="tipo" required defaultValue={valoresIniciais.tipo ?? "Receita"} className="field">
           <option value="Receita">Receita</option>
           <option value="Despesa">Despesa</option>
         </select>
@@ -65,7 +67,7 @@ export default function LancamentoForm({ contas }) {
         <label htmlFor="conta" className="block text-sm font-semibold text-navy">
           Conta
         </label>
-        <select id="conta" name="conta" className="field">
+        <select id="conta" name="conta" defaultValue={valoresIniciais.conta ?? ""} className="field">
           <option value="">Nenhuma</option>
           {contas.map((c) => (
             <option key={c.id} value={c.id}>

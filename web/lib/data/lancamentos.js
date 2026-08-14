@@ -19,3 +19,17 @@ export async function listarLancamentos({ contaId, tipo, dataInicio, dataFim } =
 
   return data.map((l) => normalizarIds({ ...l, conta_nome: l.ContaFinanceira?.nome ?? "—" }, ["id", "conta"]));
 }
+
+export async function buscarLancamento(id) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("LancamentoFinanceiro")
+    .select("id, data, descricao, valor, tipo, conta")
+    .eq("id", id)
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return normalizarIds({ ...data, data: String(data.data).slice(0, 10) }, ["id", "conta"]);
+}

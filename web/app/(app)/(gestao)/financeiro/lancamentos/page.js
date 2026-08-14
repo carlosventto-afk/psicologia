@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { listarLancamentos } from "@/lib/data/lancamentos";
 import { listarContas } from "@/lib/data/contas";
+import { excluirLancamento } from "@/lib/actions/lancamentos";
+import ExcluirLancamentoBotao from "@/components/ExcluirLancamentoBotao";
 
 export default async function PaginaLancamentos({ searchParams }) {
   const { conta = "", tipo = "", inicio = "", fim = "" } = await searchParams;
@@ -71,9 +73,15 @@ export default async function PaginaLancamentos({ searchParams }) {
                   {String(l.data).slice(0, 10)} · {l.conta_nome} · {l.tipo}
                 </p>
               </div>
-              <span className={l.tipo === "Despesa" ? "text-red-600" : "text-green-700"}>
-                R$ {l.valor}
-              </span>
+              <div className="flex items-center gap-4">
+                <span className={l.tipo === "Despesa" ? "text-red-600" : "text-green-700"}>
+                  R$ {l.valor}
+                </span>
+                <Link href={`/financeiro/lancamentos/${l.id}/editar`} className="text-sm text-blue-600 hover:underline">
+                  Editar
+                </Link>
+                <ExcluirLancamentoBotao action={excluirLancamento.bind(null, l.id)} />
+              </div>
             </div>
           ))}
         </div>
