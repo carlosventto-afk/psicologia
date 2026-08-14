@@ -180,9 +180,14 @@ reciclado** — o padrão fiscal aceita buracos na sequência.
   **síncrona** (uma nota por clique) — não precisa de fila/job em lote
   nesta v1, diferente do Carnê-Leão (que processa muitos pagamentos de
   uma vez).
-- Ao autorizar: e-mail automático pro paciente (reaproveitando a mesma
-  infra de envio já usada no item 9 — Carnê-Leão), com o XML anexado
-  (documento fiscal válido) e o PDF quando disponível na hora.
+- Ao autorizar: e-mail automático pro paciente. **Correção em relação à
+  primeira versão desta spec**: o item 9 (Carnê-Leão) não tem nenhum envio
+  de e-mail dentro do app — quem manda lá é um n8n externo, que ainda nem
+  está implantado em produção. Não há infra de e-mail reaproveitável.
+  Este item introduz a primeira: um helper `sendEmail` no próprio Next.js
+  chamando a API HTTP do **Resend** (nova env var `RESEND_API_KEY`),
+  mandando o XML anexado (documento fiscal válido) e o PDF quando
+  disponível na hora — sem depender do n8n, que segue fora de escopo.
 - **Cancelamento**: botão "Cancelar nota" na lista de notas emitidas,
   chama `/cancelar` no microserviço. Sujeito ao prazo/regras do
   município — se a SEFIN rejeitar por prazo vencido, o erro traduzido
@@ -223,6 +228,8 @@ contra o manual oficial (`gov.br/nfse`) e/ou a produção restrita:
   (`NFSE_SERVICE_SECRET` sugerido, mesmo padrão de
   `CARNE_LEAO_CRON_SECRET`) e da chave de cifra do certificado
   (`NFSE_CERT_ENCRYPTION_KEY`), ambas só no microserviço Python.
+- `RESEND_API_KEY` (Next.js) — conta Resend nova a criar; remetente
+  (domínio verificado) a definir na hora da implementação.
 - Implantação do serviço `psiagente-nfse` no EasyPanel (novo Dockerfile,
   novo container) é trabalho de infraestrutura que acontece junto da
   implementação, não antes — diferente do item 9, aqui o serviço faz
