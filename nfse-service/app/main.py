@@ -1,4 +1,6 @@
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from app.auth import verificar_segredo
 from app.crypto import cifrar
@@ -6,6 +8,16 @@ from app.schemas import CertificadoRequest, CertificadoResponse
 from nfse_core import CertificateError, conferir_titularidade, inspecionar
 
 app = FastAPI(title="PsiAgente NFS-e Service")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    """Sanitizar erros de validação para não ecoar dados sensíveis (senha, PFX).
+    Retorna apenas uma mensagem genérica sem detalhe por campo."""
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "Requisicao invalida."},
+    )
 
 
 @app.get("/health")
