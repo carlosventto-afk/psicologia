@@ -1,4 +1,5 @@
 .env
+.venv/
 *.pfx
 *.pem
 *.b64.txt
