@@ -31,3 +31,42 @@ class ErroTraduzido(BaseModel):
     acao_sugerida: str
     descricao_original: str = ""
     complemento: str | None = None
+
+
+class PrestadorData(BaseModel):
+    documento: str
+    inscricao_municipal: str | None = None
+    municipio_ibge: str
+    optante_simples_nacional: int
+    regime_apuracao_sn: int | None = None
+    codigo_tributacao_nacional: str
+
+
+class TomadorData(BaseModel):
+    documento: str
+    nome: str
+    email: str | None = None
+
+
+class EmitirRequest(BaseModel):
+    ambiente: str
+    certificado_pfx_cifrado: str
+    certificado_senha_cifrada: str
+    serie: str
+    numero: int
+    competencia: date
+    prestador: PrestadorData
+    tomador: TomadorData
+    descricao_servico: str
+    valor: float
+
+
+class EmitirResponse(BaseModel):
+    autorizada: bool
+    dps_id: str
+    chave_acesso: str | None = None
+    numero_nfse: str | None = None
+    xml_dps_base64: str
+    xml_nfse_base64: str | None = None
+    pdf_base64: str | None = None
+    erros: list[ErroTraduzido] = []

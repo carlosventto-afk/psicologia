@@ -1,13 +1,39 @@
+import base64
+from datetime import datetime, timezone
+from decimal import Decimal
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.auth import verificar_segredo
-from app.crypto import cifrar
-from app.schemas import CertificadoRequest, CertificadoResponse
-from nfse_core import CertificateError, conferir_titularidade, inspecionar
+from app.crypto import cifrar, decifrar
+from app.schemas import (
+    CertificadoRequest,
+    CertificadoResponse,
+    EmitirRequest,
+    EmitirResponse,
+)
+from nfse_core import (
+    CertificateError,
+    conferir_titularidade,
+    inspecionar,
+    DpsData,
+    build_dps_xml,
+    sign_dps,
+    SefinClient,
+    SefinError,
+    ler_resposta_emissao,
+    erros_de_falha,
+)
 
 app = FastAPI(title="PsiAgente NFS-e Service")
+
+AMBIENTE_TP = {"homologacao": 2, "producao": 1}
+
+
+def _b64(dados: bytes) -> str:
+    return base64.b64encode(dados).decode()
 
 
 @app.exception_handler(RequestValidationError)
@@ -49,4 +75,78 @@ async def validar_certificado(req: CertificadoRequest) -> CertificadoResponse:
         alerta_titularidade=alerta_titularidade,
         pfx_cifrado=cifrar(req.pfx_base64),
         senha_cifrada=cifrar(req.senha or ""),
+    )
+
+
+@app.post("/emitir", response_model=EmitirResponse, dependencies=[Depends(verificar_segredo)])
+async def emitir(req: EmitirRequest) -> EmitirResponse:
+    if req.ambiente not in AMBIENTE_TP:
+        raise HTTPException(status_code=400, detail="Ambiente invalido.")
+
+    pfx = decifrar(req.certificado_pfx_cifrado)
+    senha = decifrar(req.certificado_senha_cifrada)
+
+    dados = DpsData(
+        tp_amb=AMBIENTE_TP[req.ambiente],
+        dh_emi=datetime.now(timezone.utc),
+        serie=req.serie,
+        numero=req.numero,
+        competencia=req.competencia,
+        prest_cnpj=req.prestador.documento,
+        prest_im=req.prestador.inscricao_municipal,
+        c_loc_emi=req.prestador.municipio_ibge,
+        op_simp_nac=req.prestador.optante_simples_nacional,
+        reg_ap_trib_sn=req.prestador.regime_apuracao_sn,
+        toma_cpf_cnpj=req.tomador.documento,
+        toma_nome=req.tomador.nome,
+        toma_email=req.tomador.email,
+        c_trib_nac=req.prestador.codigo_tributacao_nacional,
+        x_desc_serv=req.descricao_servico,
+        v_serv=Decimal(str(req.valor)),
+    )
+
+    try:
+        xml = build_dps_xml(dados)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    assinado = sign_dps(xml, pfx, senha)
+
+    cliente = SefinClient(req.ambiente, pfx, senha)
+    try:
+        try:
+            bruta = await cliente.emitir_dps(assinado)
+        except SefinError as exc:
+            erros = erros_de_falha(exc) or [{
+                "codigo": "?",
+                "descricao_original": str(exc),
+                "titulo": "Falha de comunicacao com a SEFIN",
+                "explicacao": str(exc),
+                "acao_sugerida": "Tente novamente em instantes.",
+            }]
+            return EmitirResponse(
+                autorizada=False,
+                dps_id=dados.dps_id,
+                xml_dps_base64=_b64(assinado),
+                erros=erros,
+            )
+        resultado = ler_resposta_emissao(bruta)
+    finally:
+        await cliente.close()
+
+    pdf_base64 = None
+    if resultado.autorizada and resultado.chave_acesso:
+        pdf_bytes = await SefinClient.fetch_danfse_pdf(req.ambiente, pfx, senha, resultado.chave_acesso)
+        if pdf_bytes:
+            pdf_base64 = _b64(pdf_bytes)
+
+    return EmitirResponse(
+        autorizada=resultado.autorizada,
+        dps_id=dados.dps_id,
+        chave_acesso=resultado.chave_acesso,
+        numero_nfse=resultado.numero_nfse,
+        xml_dps_base64=_b64(assinado),
+        xml_nfse_base64=_b64(resultado.xml_nfse) if resultado.xml_nfse else None,
+        pdf_base64=pdf_base64,
+        erros=resultado.erros,
     )
