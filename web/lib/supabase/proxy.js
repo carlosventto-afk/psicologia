@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   "/sitemap.xml",
   "/robots.txt",
   "/termos",
+  "/carne-leao-automatico",
 ];
 
 export async function updateSession(request) {
