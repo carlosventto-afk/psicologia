@@ -70,3 +70,24 @@ class EmitirResponse(BaseModel):
     xml_nfse_base64: str | None = None
     pdf_base64: str | None = None
     erros: list[ErroTraduzido] = []
+
+
+class CancelarRequest(BaseModel):
+    ambiente: str
+    certificado_pfx_cifrado: str
+    certificado_senha_cifrada: str
+    chave_acesso: str
+    autor_documento: str
+    motivo_codigo: str | None = None
+    motivo_texto: str | None = None
+
+
+class CancelarResponse(BaseModel):
+    registrado: bool
+    xml_evento_base64: str | None = None
+    erros: list[ErroTraduzido] = []
+
+
+class ConsultarResponse(BaseModel):
+    encontrada: bool
+    bruta: dict

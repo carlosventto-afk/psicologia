@@ -9,8 +9,11 @@ from fastapi.responses import JSONResponse
 from app.auth import verificar_segredo
 from app.crypto import cifrar, decifrar
 from app.schemas import (
+    CancelarRequest,
+    CancelarResponse,
     CertificadoRequest,
     CertificadoResponse,
+    ConsultarResponse,
     EmitirRequest,
     EmitirResponse,
 )
@@ -21,9 +24,13 @@ from nfse_core import (
     DpsData,
     build_dps_xml,
     sign_dps,
+    EventoCancelamentoData,
+    build_evento_cancelamento_xml,
+    sign_evento,
     SefinClient,
     SefinError,
     ler_resposta_emissao,
+    ler_resposta_evento,
     erros_de_falha,
 )
 
@@ -150,3 +157,76 @@ async def emitir(req: EmitirRequest) -> EmitirResponse:
         pdf_base64=pdf_base64,
         erros=resultado.erros,
     )
+
+
+@app.post("/cancelar", response_model=CancelarResponse, dependencies=[Depends(verificar_segredo)])
+async def cancelar(req: CancelarRequest) -> CancelarResponse:
+    if req.ambiente not in AMBIENTE_TP:
+        raise HTTPException(status_code=400, detail="Ambiente invalido.")
+
+    pfx = decifrar(req.certificado_pfx_cifrado)
+    senha = decifrar(req.certificado_senha_cifrada)
+
+    dados = EventoCancelamentoData(
+        chave_nfse=req.chave_acesso,
+        tp_amb=AMBIENTE_TP[req.ambiente],
+        dh_evento=datetime.now(timezone.utc),
+        autor_cpf_cnpj=req.autor_documento,
+        c_motivo=req.motivo_codigo or "1",
+        x_motivo=req.motivo_texto or "Cancelamento solicitado pelo prestador",
+    )
+
+    try:
+        xml = build_evento_cancelamento_xml(dados)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    assinado = sign_evento(xml, pfx, senha)
+
+    cliente = SefinClient(req.ambiente, pfx, senha)
+    try:
+        try:
+            bruta = await cliente.registrar_evento(req.chave_acesso, assinado)
+        except SefinError as exc:
+            erros = erros_de_falha(exc) or [{
+                "codigo": "?",
+                "descricao_original": str(exc),
+                "titulo": "Falha de comunicacao com a SEFIN",
+                "explicacao": str(exc),
+                "acao_sugerida": "Tente novamente em instantes.",
+            }]
+            return CancelarResponse(registrado=False, erros=erros)
+        resultado = ler_resposta_evento(bruta)
+    finally:
+        await cliente.close()
+
+    return CancelarResponse(
+        registrado=resultado.registrado,
+        xml_evento_base64=_b64(resultado.xml_evento) if resultado.xml_evento else None,
+        erros=resultado.erros,
+    )
+
+
+@app.get("/consultar", response_model=ConsultarResponse, dependencies=[Depends(verificar_segredo)])
+async def consultar(
+    ambiente: str,
+    chave_acesso: str,
+    certificado_pfx_cifrado: str,
+    certificado_senha_cifrada: str,
+) -> ConsultarResponse:
+    if ambiente not in AMBIENTE_TP:
+        raise HTTPException(status_code=400, detail="Ambiente invalido.")
+
+    pfx = decifrar(certificado_pfx_cifrado)
+    senha = decifrar(certificado_senha_cifrada)
+
+    cliente = SefinClient(ambiente, pfx, senha)
+    try:
+        try:
+            bruta = await cliente.consultar_nfse(chave_acesso)
+        except SefinError:
+            return ConsultarResponse(encontrada=False, bruta={})
+    finally:
+        await cliente.close()
+
+    return ConsultarResponse(encontrada=True, bruta=bruta)
