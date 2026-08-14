@@ -49,14 +49,49 @@ export async function POST(request) {
         hoje
       );
 
+      // Mensal sempre cobre o mês anterior inteiro (periodoParaEnvio
+      // ignora carne_leao_ultimo_envio pra essa frequência) — por isso o
+      // valor gravado aqui precisa ser "hoje" (quando o envio aconteceu),
+      // não "dataFim" (que seria sempre o mês passado, deixando
+      // estaNaData permanentemente "no mês errado" e reenviando todo dia
+      // pelo resto do mês). Semanal/quinzenal continuam gravando dataFim,
+      // que é o dado real que o delta do próximo ciclo precisa.
+      const proximoUltimoEnvio = usuario.carne_leao_frequencia === "mensal" ? hoje : dataFim;
+
       const { elegiveis } = await listarPagamentosElegiveis(
         { dataInicio, dataFim },
         { supabase: admin, ownerId: usuario.id_user }
       );
 
       if (elegiveis.length === 0) {
-        // Nada novo desde o último envio — não conta como enviado, não
-        // atualiza carne_leao_ultimo_envio nem gera e-mail vazio.
+        if (dataFim < hoje) {
+          // Janela PERMANENTEMENTE FECHADA: o período terminou num mês já
+          // encerrado, então nunca mais vai ganhar pagamento novo (semanal
+          // e quinzenal batem nisso em toda virada de mês, com a sobra de
+          // 1 a 6 dias do mês anterior). Se não avançássemos
+          // carne_leao_ultimo_envio aqui, o próximo ciclo recalcularia
+          // exatamente a mesma janela vazia, pra sempre — a automação do
+          // profissional pararia em silêncio, sem e-mail, sem erro e sem
+          // linha de auditoria. Avança o marcador, mas sem e-mail e sem
+          // linha de sucesso: não houve envio de verdade, só um período
+          // vazio que ficou pra trás.
+          const { error: erroUpdateVazio } = await admin
+            .from("Usuarios")
+            .update({ carne_leao_ultimo_envio: proximoUltimoEnvio })
+            .eq("id", usuario.id);
+
+          if (erroUpdateVazio) {
+            await admin.from("EnvioAutomaticoCarneLeao").insert({
+              usuario: usuario.id,
+              sucesso: false,
+              mensagem_erro: `Período sem pagamentos elegíveis, mas falha ao avançar carne_leao_ultimo_envio: ${erroUpdateVazio.message}`,
+              quantidade_linhas: 0,
+            });
+          }
+        }
+        // Janela ainda ABERTA (dataFim === hoje): pode ganhar pagamento
+        // novo até o próximo ciclo, então não conta como enviado, não
+        // avança carne_leao_ultimo_envio nem gera e-mail vazio.
         continue;
       }
 
@@ -92,15 +127,6 @@ export async function POST(request) {
         nomeArquivo,
         conteudoBase64: Buffer.from(conteudo, "utf-8").toString("base64"),
       });
-
-      // Mensal sempre cobre o mês anterior inteiro (periodoParaEnvio
-      // ignora carne_leao_ultimo_envio pra essa frequência) — por isso o
-      // valor gravado aqui precisa ser "hoje" (quando o envio aconteceu),
-      // não "dataFim" (que seria sempre o mês passado, deixando
-      // estaNaData permanentemente "no mês errado" e reenviando todo dia
-      // pelo resto do mês). Semanal/quinzenal continuam gravando dataFim,
-      // que é o dado real que o delta do próximo ciclo precisa.
-      const proximoUltimoEnvio = usuario.carne_leao_frequencia === "mensal" ? hoje : dataFim;
 
       const { error: erroUpdate } = await admin
         .from("Usuarios")
