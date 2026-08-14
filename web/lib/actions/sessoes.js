@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { gerarSessoesAteHorizonte, horizonteAtual } from "@/lib/recorrencia";
+import { criarPagamentoSessao } from "@/lib/pagamento-sessao";
 
 export async function criarSessao(prevState, formData) {
   const supabase = await createClient();
@@ -122,7 +123,22 @@ export async function marcarAtendimentoRealizado(sessaoId, prevState, formData) 
     return { error: "Não foi possível registrar o atendimento." };
   }
 
+  if (formData.get("pagou") === "on") {
+    const { error: erroPagamento } = await criarPagamentoSessao(supabase, {
+      sessaoId,
+      valor: Number(formData.get("valor")),
+      contaId: Number(formData.get("conta")),
+      formaPagamento: formData.get("forma_pagamento"),
+      dataPagamento: formData.get("data_pagamento"),
+    });
+
+    if (erroPagamento) {
+      return { error: erroPagamento };
+    }
+  }
+
   revalidatePath("/agenda");
+  revalidatePath("/financeiro");
   revalidatePath("/");
   redirect("/agenda?registrado=1");
 }

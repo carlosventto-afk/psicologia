@@ -1,11 +1,13 @@
 import RegistroAtendimentoForm from "@/components/RegistroAtendimentoForm";
 import { buscarSessao } from "@/lib/data/sessoes";
+import { listarContas } from "@/lib/data/contas";
 import { marcarAtendimentoRealizado } from "@/lib/actions/sessoes";
+import { hojeISO } from "@/lib/periodo-agenda";
 
 export default async function PaginaRegistrarAtendimento({ params }) {
   const { id } = await params;
   const sessaoId = Number(id);
-  const sessao = await buscarSessao(sessaoId);
+  const [sessao, contas] = await Promise.all([buscarSessao(sessaoId), listarContas()]);
   const acaoComId = marcarAtendimentoRealizado.bind(null, sessaoId);
 
   return (
@@ -17,7 +19,12 @@ export default async function PaginaRegistrarAtendimento({ params }) {
           {sessao.data} {sessao.horario}
         </p>
       </div>
-      <RegistroAtendimentoForm action={acaoComId} />
+      <RegistroAtendimentoForm
+        action={acaoComId}
+        contas={contas}
+        valorInicial={sessao.valor_sessao}
+        dataInicial={hojeISO()}
+      />
     </div>
   );
 }
