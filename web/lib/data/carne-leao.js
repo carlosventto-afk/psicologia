@@ -26,15 +26,22 @@ function resolverPagamento(p) {
   };
 }
 
-export async function listarPagamentosElegiveis({ dataInicio, dataFim }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+export async function listarPagamentosElegiveis({ dataInicio, dataFim }, opcoes = {}) {
+  const supabase = opcoes.supabase ?? (await createClient());
+
+  let query = supabase
     .from("PagamentoSessao")
     .select(SELECT_PAGAMENTO)
     .eq("Sessao.Paciente.documento", "recibo")
     .gte("data_pagamento", dataInicio)
     .lte("data_pagamento", dataFim)
     .order("data_pagamento");
+
+  if (opcoes.ownerId) {
+    query = query.eq("Sessao.owner", opcoes.ownerId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw new Error(error.message);
 
