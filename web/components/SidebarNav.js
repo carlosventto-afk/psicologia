@@ -18,6 +18,7 @@ import {
   IconeDiretorio,
   IconeContaUsuario,
   IconeWhatsapp,
+  IconeNotaFiscal,
   IconeAdmin,
   IconeSair,
   IconeMenu,
@@ -37,6 +38,7 @@ const ITENS_NAV = [
   { href: "/diretorio", label: "Diretório", Icone: IconeDiretorio },
   { href: "/configuracoes/conta", label: "Meus Dados", Icone: IconeContaUsuario },
   { href: "/configuracoes/whatsapp", label: "WhatsApp", Icone: IconeWhatsapp },
+  { href: "/configuracoes/nfse", label: "NFS-e", Icone: IconeNotaFiscal },
 ];
 
 const CHAVE_RECOLHIDA = "psiagente-sidebar-recolhida";

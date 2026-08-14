@@ -148,6 +148,16 @@ export function IconeCarneLeao(props) {
   );
 }
 
+export function IconeNotaFiscal(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M6 3h6l3 3v11H6z" />
+      <path d="M12 3v3h3" />
+      <path d="M8.5 12.5 12.5 8.5M9 8.5h.01M12 12.5h.01" />
+    </svg>
+  );
+}
+
 export function IconeContaUsuario(props) {
   return (
     <svg {...base} {...props}>
