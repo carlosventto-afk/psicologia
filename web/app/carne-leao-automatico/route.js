@@ -11,6 +11,11 @@ export async function POST(request) {
   }
 
   const admin = createAdminClient();
+  // hojeISO() calcula "hoje" em UTC (mesma convenção do resto do app,
+  // ver web/lib/periodo-agenda.js) — o n8n precisa disparar esse endpoint
+  // de manhã (horário de Brasília), nunca perto da meia-noite UTC (21h em
+  // Brasília), senão "hoje" pode virar o dia seguinte por engano perto de
+  // viradas de mês.
   const hoje = hojeISO();
 
   const { data: usuarios, error } = await admin
@@ -77,21 +82,45 @@ export async function POST(request) {
       const mesAno = dataFim.slice(0, 7).split("-").reverse().join("-"); // "AAAA-MM" -> "MM-AAAA"
       const nomeArquivo = `carne-leao-${mesAno}.txt`;
 
-      await admin
+      // Empurra pro array de envio ANTES das escritas no banco — se algo
+      // falhar a partir daqui, preferimos correr o risco de reenviar o
+      // mesmo período no próximo ciclo (duplicado, visível) a perder o
+      // conteúdo já gerado silenciosamente (o profissional nunca saberia
+      // que um período ficou de fora).
+      enviar.push({
+        email,
+        nomeArquivo,
+        conteudoBase64: Buffer.from(conteudo, "utf-8").toString("base64"),
+      });
+
+      // Mensal sempre cobre o mês anterior inteiro (periodoParaEnvio
+      // ignora carne_leao_ultimo_envio pra essa frequência) — por isso o
+      // valor gravado aqui precisa ser "hoje" (quando o envio aconteceu),
+      // não "dataFim" (que seria sempre o mês passado, deixando
+      // estaNaData permanentemente "no mês errado" e reenviando todo dia
+      // pelo resto do mês). Semanal/quinzenal continuam gravando dataFim,
+      // que é o dado real que o delta do próximo ciclo precisa.
+      const proximoUltimoEnvio = usuario.carne_leao_frequencia === "mensal" ? hoje : dataFim;
+
+      const { error: erroUpdate } = await admin
         .from("Usuarios")
-        .update({ carne_leao_ultimo_envio: dataFim })
+        .update({ carne_leao_ultimo_envio: proximoUltimoEnvio })
         .eq("id", usuario.id);
+
+      if (erroUpdate) {
+        await admin.from("EnvioAutomaticoCarneLeao").insert({
+          usuario: usuario.id,
+          sucesso: false,
+          mensagem_erro: `Envio gerado mas falha ao atualizar carne_leao_ultimo_envio: ${erroUpdate.message}`,
+          quantidade_linhas: linhas.length,
+        });
+        continue;
+      }
 
       await admin.from("EnvioAutomaticoCarneLeao").insert({
         usuario: usuario.id,
         sucesso: true,
         quantidade_linhas: linhas.length,
-      });
-
-      enviar.push({
-        email,
-        nomeArquivo,
-        conteudoBase64: Buffer.from(conteudo, "utf-8").toString("base64"),
       });
     } catch (erro) {
       // Erro inesperado (ex.: falha transitória de rede/DB) em UM

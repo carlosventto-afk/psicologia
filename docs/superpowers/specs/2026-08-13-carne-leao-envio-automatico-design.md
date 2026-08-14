@@ -160,6 +160,12 @@ período de forma diferente:
   segunda-feira) — a rota decide profissional a profissional se já se
   passaram 7 (semanal) ou 14+ (quinzenal) dias desde
   `carne_leao_ultimo_envio`.
+- **Horário do disparo (vale pras duas frequências)**: a rota calcula
+  "hoje" em UTC (mesma convenção do resto do app, ver
+  `web/lib/periodo-agenda.js`), então o cron do n8n precisa rodar de manhã
+  no horário de Brasília — nunca perto da meia-noite UTC (21h em Brasília),
+  senão "hoje" pode virar o dia seguinte por engano justamente perto das
+  viradas de mês, que é onde o cálculo de período é mais sensível.
 
 ## Fora de escopo
 

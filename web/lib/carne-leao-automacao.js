@@ -35,9 +35,14 @@ export function estaNaData(frequencia, ultimoEnvio, hojeISO) {
 // Calcula o período (inicio/fim, yyyy-mm-dd) a ser coberto por um envio
 // automático. Mensal sempre cobre o mês anterior completo. Semanal e
 // quinzenal cobrem o delta desde o último envio, nunca cruzando virada de
-// mês (capado no início/fim do mês corrente) — é assim que evitamos
-// duplicidade entre envios automáticos sem depender de marcar pagamento
-// como "já exportado" (item 10 do backlog, ainda não implementado).
+// mês: o período fica sempre dentro do mês de "inicio" (nunca estende pro
+// mês corrente se "inicio" ainda está no mês anterior) — é assim que
+// evitamos duplicidade E evitamos perder silenciosamente os últimos dias
+// de um mês, sem depender de marcar pagamento como "já exportado" (item
+// 10 do backlog, ainda não implementado). Se o delta cobrir só o final do
+// mês anterior, o pedaço do mês corrente fica pro próximo ciclo
+// automaticamente (a próxima chamada calcula um novo "inicio" a partir do
+// "fim" deste envio).
 export function periodoParaEnvio(frequencia, ultimoEnvio, hojeISO) {
   if (frequencia === "mensal") {
     const primeiroDiaMesCorrente = calcularPeriodo("mes", hojeISO).inicio;
@@ -45,9 +50,8 @@ export function periodoParaEnvio(frequencia, ultimoEnvio, hojeISO) {
     return calcularPeriodo("mes", mesAnteriorBase);
   }
 
-  const mesCorrente = calcularPeriodo("mes", hojeISO);
-  const inicioDelta = ultimoEnvio ? diaSeguinte(ultimoEnvio) : mesCorrente.inicio;
-  const inicio = inicioDelta > mesCorrente.inicio ? inicioDelta : mesCorrente.inicio;
-  const fim = hojeISO < mesCorrente.fim ? hojeISO : mesCorrente.fim;
+  const inicio = ultimoEnvio ? diaSeguinte(ultimoEnvio) : calcularPeriodo("mes", hojeISO).inicio;
+  const fimDoMesDoInicio = calcularPeriodo("mes", inicio).fim;
+  const fim = hojeISO < fimDoMesDoInicio ? hojeISO : fimDoMesDoInicio;
   return { inicio, fim };
 }

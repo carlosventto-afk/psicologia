@@ -1,6 +1,38 @@
 # Status da implementação
 
-Última atualização: 2026-08-04.
+Última atualização: 2026-08-14.
+
+## Envio automático do Carnê-Leão (2026-08-13, item 9 do backlog)
+
+Rota `POST /carne-leao-automatico` que o n8n chama periodicamente: pra cada
+profissional com `carne_leao_frequencia` configurada (semanal/quinzenal/
+mensal), gera o TXT do Carnê-Leão do período devido e devolve a lista
+`enviar` (e-mail + arquivo em base64) pro n8n despachar por SMTP. Auditoria
+de cada execução na tabela nova `EnvioAutomaticoCarneLeao` (service-role
+only: sem grants pra anon/authenticated e com RLS sem policies, migration
+`20260814000001_lockdown_envio_automatico_carne_leao.sql`).
+
+- **Env var nova `CARNE_LEAO_CRON_SECRET`** — autentica a chamada do n8n pro
+  app: a rota compara o header `x-cron-secret` com essa variável e devolve
+  401 se não bater (é o único controle de acesso do endpoint, que não usa
+  sessão de usuário). Precisa estar presente em **três lugares**, e só o
+  primeiro é código:
+  - `web/.env.local` — **já feito** (valor gerado na Task 6 desta branch);
+  - **EasyPanel (produção)**, serviço do app Next.js — **pendente, manual**,
+    mesmo procedimento já usado pra `SUPABASE_SERVICE_ROLE_KEY` (lida só em
+    runtime, não entra no Dockerfile/build; exige restart do container);
+  - **nó HTTP do workflow do n8n** — **pendente, manual**, como header
+    `x-cron-secret` da requisição.
+
+  Os três valores têm que ser idênticos; se o do n8n divergir do de
+  produção, todo disparo vira 401 silencioso (nenhum e-mail sai e nada é
+  registrado em `EnvioAutomaticoCarneLeao`, porque a rota rejeita antes de
+  chegar no loop).
+- **Horário do gatilho no n8n**: a rota calcula "hoje" em UTC (convenção do
+  resto do app, ver `web/lib/periodo-agenda.js`), então o cron precisa
+  disparar de manhã no horário de Brasília — nunca perto da meia-noite UTC
+  (21h em Brasília), senão "hoje" pode virar o dia seguinte por engano perto
+  de viradas de mês.
 
 ## Importação de pacientes via planilha + campo "Precisa de recibo" (2026-08-04)
 

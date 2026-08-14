@@ -563,10 +563,12 @@ console.assert(mensal.inicio === "2026-07-01" && mensal.fim === "2026-07-31", "m
 const semanalMeioDoMes = periodoParaEnvio("semanal", "2026-08-06", "2026-08-13");
 console.assert(semanalMeioDoMes.inicio === "2026-08-07" && semanalMeioDoMes.fim === "2026-08-13", "semanal deveria ser o delta desde o dia seguinte ao ultimo envio");
 
-// caso crítico: último envio no mês anterior, não pode vazar pro mês
-// anterior nem incluir o mês anterior inteiro por engano
-const cruzaMes = periodoParaEnvio("semanal", "2026-07-28", "2026-08-03");
-console.assert(cruzaMes.inicio === "2026-08-01" && cruzaMes.fim === "2026-08-03", "delta nao pode cruzar virada de mes");
+// caso crítico: último envio no mês anterior. O período NÃO cruza a virada
+// de mês, mas também não pode pular a sobra do mês anterior — ele cobre
+// justamente esse rabicho (29 a 31/07) e deixa o pedaço de agosto pro
+// próximo ciclo, que começa a partir deste `fim`.
+const sobraDoMesAnterior = periodoParaEnvio("semanal", "2026-07-28", "2026-08-03");
+console.assert(sobraDoMesAnterior.inicio === "2026-07-29" && sobraDoMesAnterior.fim === "2026-07-31", "delta deve cobrir a sobra do mes anterior, sem cruzar a virada de mes");
 
 console.log("OK: todas as asserções de carne-leao-automacao passaram.");
 ```
