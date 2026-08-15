@@ -22,6 +22,7 @@ function dadosDoFormulario(formData) {
     optante_simples_nacional: Number(formData.get("optante_simples_nacional")),
     regime_apuracao_sn: formData.get("regime_apuracao_sn") ? Number(formData.get("regime_apuracao_sn")) : null,
     codigo_tributacao_nacional: formData.get("codigo_tributacao_nacional"),
+    codigo_tributacao_municipal: formData.get("codigo_tributacao_municipal") || null,
   };
 }
 

@@ -40,6 +40,7 @@ class PrestadorData(BaseModel):
     optante_simples_nacional: int
     regime_apuracao_sn: int | None = None
     codigo_tributacao_nacional: str
+    codigo_tributacao_municipal: str | None = None
 
 
 class TomadorData(BaseModel):

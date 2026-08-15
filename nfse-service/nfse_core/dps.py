@@ -75,6 +75,12 @@ class DpsData:
 
     # Serviço
     c_trib_nac: str = "080101"     # código de tributação nacional (LC116 item+desdobro)
+    c_trib_mun: str | None = None  # desdobro municipal do cTribNac -- alguns municipios (ex.: Rio de
+                                    # Janeiro) rejeitam com E0312 ("nao administrado") sem esse campo,
+                                    # mesmo com cTribNac correto -- confirmado contra nota real emitida
+                                    # pelo EmissorWeb oficial em 15/08/2026
+    c_nbs: str | None = None       # Nomenclatura Brasileira de Servicos -- opcional no leiaute, mas
+                                    # presente na mesma nota real de referencia
     x_desc_serv: str = ""
     c_loc_prestacao: str = ""      # IBGE do local da prestação (padrão: mesmo do emissor)
 
@@ -158,7 +164,11 @@ def build_dps_xml(data: DpsData) -> bytes:
     _el(loc, "cLocPrestacao", _digits(data.c_loc_prestacao or data.c_loc_emi))
     cserv = _el(serv, "cServ")
     _el(cserv, "cTribNac", _digits(data.c_trib_nac).zfill(6))
+    if data.c_trib_mun:
+        _el(cserv, "cTribMun", _digits(data.c_trib_mun))
     _el(cserv, "xDescServ", _sanitize_text(data.x_desc_serv)[:2000] or "Servicos educacionais")
+    if data.c_nbs:
+        _el(cserv, "cNBS", _digits(data.c_nbs))
 
     valores = _el(inf, "valores")
     vsp = _el(valores, "vServPrest")

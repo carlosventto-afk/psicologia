@@ -118,6 +118,7 @@ async def emitir(req: EmitirRequest) -> EmitirResponse:
         toma_nome=req.tomador.nome,
         toma_email=req.tomador.email,
         c_trib_nac=req.prestador.codigo_tributacao_nacional,
+        c_trib_mun=req.prestador.codigo_tributacao_municipal,
         x_desc_serv=req.descricao_servico,
         v_serv=Decimal(str(req.valor)),
     )

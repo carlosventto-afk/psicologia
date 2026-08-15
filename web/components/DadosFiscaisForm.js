@@ -194,6 +194,23 @@ export default function DadosFiscaisForm({ action, dadosFiscais }) {
         <p className="text-xs text-muted mt-1">Confirme o código certo com seu contador antes de emitir a primeira nota.</p>
       </div>
 
+      <div>
+        <label htmlFor="codigo_tributacao_municipal" className="block text-sm font-semibold text-navy">
+          Código de Tributação Municipal
+        </label>
+        <input
+          id="codigo_tributacao_municipal"
+          name="codigo_tributacao_municipal"
+          type="text"
+          defaultValue={dadosFiscais?.codigo_tributacao_municipal ?? ""}
+          className="field"
+        />
+        <p className="text-xs text-muted mt-1">
+          Desdobro municipal do código acima — alguns municípios (ex.: Rio de Janeiro) exigem esse código além do
+          nacional. Confirme com seu contador ou com a prefeitura se o seu município exige.
+        </p>
+      </div>
+
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.sucesso && <p className="text-sm text-green-700">Dados fiscais salvos.</p>}
 

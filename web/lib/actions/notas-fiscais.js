@@ -68,6 +68,7 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
         optante_simples_nacional: fiscal.optante_simples_nacional,
         regime_apuracao_sn: fiscal.regime_apuracao_sn,
         codigo_tributacao_nacional: fiscal.codigo_tributacao_nacional,
+        codigo_tributacao_municipal: fiscal.codigo_tributacao_municipal,
       },
       tomador: {
         documento: pagamento.Sessao.Paciente.cpf,
