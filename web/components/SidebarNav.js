@@ -33,6 +33,7 @@ const ITENS_NAV = [
   { href: "/pacientes", label: "Pacientes", Icone: IconePaciente },
   { href: "/financeiro", label: "Financeiro", Icone: IconeFinanceiro },
   { href: "/recibos", label: "Recibos", Icone: IconeRecibo },
+  { href: "/notas-fiscais", label: "Notas Fiscais", Icone: IconeNotaFiscal },
   { href: "/carne-leao", label: "Carnê-Leão", Icone: IconeCarneLeao },
   { href: "/consultorios", label: "Consultórios", Icone: IconeConsultorio },
   { href: "/diretorio", label: "Diretório", Icone: IconeDiretorio },
