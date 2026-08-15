@@ -508,3 +508,53 @@ pagamento (integração nova, ainda inexistente no projeto), um tipo de
 usuário com acesso parcial que hoje não existe, e várias decisões de
 negócio (preço, inadimplência, migração dos usuários atuais) que precisam
 ser fechadas antes de desenhar a implementação.
+
+---
+
+## 12. Segmento "Anamnese" no cadastro do paciente
+
+**Status: a realizar** — pedido do usuário em 2026-08-15.
+
+**Objetivo:** hoje o cadastro do paciente (`Paciente`, telas
+`/pacientes/novo`, `/pacientes/[id]`, `/pacientes/[id]/editar`) só tem dados
+cadastrais/financeiros (contato, CPF/RG, valor da sessão, responsável
+financeiro). Não existe nenhum campo clínico. Este item adiciona um novo
+segmento "Anamnese" dedicado a registrar dados clínicos relevantes pra
+prática da psicologia — hoje o profissional não tem onde guardar isso
+dentro do sistema.
+
+**Escopo provável:**
+- Novo segmento/seção "Anamnese" nas telas de cadastro e edição de paciente
+  (`/pacientes/novo`, `/pacientes/[id]/editar`) e exibido na página de
+  detalhe (`/pacientes/[id]`), separado do bloco de dados cadastrais atual.
+- Campos sugeridos pelo usuário e típicos de prontuário de psicologia:
+  - Medicação em uso (nome do medicamento, dosagem opcional).
+  - Nome do médico responsável (psiquiatra/clínico).
+  - Desde quando o paciente faz terapia (em geral, histórico prévio).
+  - Desde quando é atendido por este profissional especificamente.
+  - Queixa(s) inicial(is).
+  - Desenvolvimento/evolução da(s) queixa(s) ao longo do acompanhamento.
+  - Outros pontos comuns de anamnese em psicologia a avaliar com o usuário:
+    histórico familiar relevante, antecedentes de tratamento
+    psicológico/psiquiátrico anterior, uso de substâncias, comorbidades/
+    diagnósticos já recebidos, hipótese diagnóstica, expectativas do
+    paciente com o processo terapêutico.
+- Modelo de dados: provavelmente uma tabela nova `Anamnese` (1:1 com
+  `Paciente`, `paciente_id` único) em vez de colunas soltas em `Paciente`,
+  já que é um bloco de informação distinto (clínico vs. cadastral) que pode
+  crescer em campos com o tempo — mas cabe decidir com o usuário se um
+  registro único por paciente basta ou se precisa de histórico versionado
+  (ex: reavaliações da anamnese ao longo do tempo).
+- RLS seguindo o mesmo padrão já usado em `Paciente` (acesso só do
+  `owner`/psicólogo responsável).
+
+**Decisões em aberto:** lista final de campos (a validar com o usuário —
+"outros pontos" ficou em aberto no pedido original); se a anamnese é um
+registro único editável ou precisa manter histórico de alterações; se
+algum campo é obrigatório para cadastrar o paciente ou tudo é opcional
+(mais provável: tudo opcional, já que nem todo paciente novo terá esses
+dados no primeiro atendimento).
+
+**Tamanho estimado:** M — campo novo de UI + tabela nova (se for o modelo
+1:1) e RLS correspondente; não mexe em nenhuma feature existente
+(financeiro, agenda, diretório), é aditivo ao cadastro do paciente.
