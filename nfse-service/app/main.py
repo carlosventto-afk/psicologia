@@ -1,5 +1,5 @@
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -95,7 +95,12 @@ async def emitir(req: EmitirRequest) -> EmitirResponse:
 
     dados = DpsData(
         tp_amb=AMBIENTE_TP[req.ambiente],
-        dh_emi=datetime.now(timezone.utc),
+        # Folga pequena p/ cobrir a latencia entre construir o DPS e a SEFIN
+        # processar. NAO e fix para o E0008 visto em teste real (15/08/2026,
+        # homologacao): buffers ate 2h nao resolveram, entao aquele caso e
+        # instabilidade do ambiente da SEFIN, nao skew do nosso relogio --
+        # ver docs/superpowers/plans/2026-08-14-nfse-emissao.md notas de teste.
+        dh_emi=datetime.now(timezone.utc) - timedelta(seconds=30),
         serie=req.serie,
         numero=req.numero,
         competencia=req.competencia,
