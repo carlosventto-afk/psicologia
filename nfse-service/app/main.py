@@ -2,6 +2,10 @@ import base64
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+# Brasil nao observa horario de verao desde 2019 -- offset fixo, sem
+# precisar de banco de fusos horarios (zoneinfo) so por causa disso.
+BRASILIA_TZ = timezone(timedelta(hours=-3))
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -95,12 +99,13 @@ async def emitir(req: EmitirRequest) -> EmitirResponse:
 
     dados = DpsData(
         tp_amb=AMBIENTE_TP[req.ambiente],
-        # Folga pequena p/ cobrir a latencia entre construir o DPS e a SEFIN
-        # processar. NAO e fix para o E0008 visto em teste real (15/08/2026,
-        # homologacao): buffers ate 2h nao resolveram, entao aquele caso e
-        # instabilidade do ambiente da SEFIN, nao skew do nosso relogio --
-        # ver docs/superpowers/plans/2026-08-14-nfse-emissao.md notas de teste.
-        dh_emi=datetime.now(timezone.utc) - timedelta(seconds=30),
+        # dhEmi em horario de Brasilia (-03:00), nao UTC: testado em
+        # 15/08/2026 contra a SEFIN homologacao real e o erro E0008 ("data
+        # no futuro") persistiu identico com ate 2h de folga em UTC --
+        # hipotese e que o validador da SEFIN compara os digitos do horario
+        # de forma ingenua (sem respeitar o offset do ISO8601), entao UTC
+        # sempre parece 3h no futuro em relacao ao horario local deles.
+        dh_emi=datetime.now(BRASILIA_TZ) - timedelta(seconds=30),
         serie=req.serie,
         numero=req.numero,
         competencia=req.competencia,
