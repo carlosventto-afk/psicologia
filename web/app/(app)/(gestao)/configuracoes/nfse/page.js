@@ -1,6 +1,7 @@
 import DadosFiscaisForm from "@/components/DadosFiscaisForm";
 import CertificadoForm from "@/components/CertificadoForm";
-import { salvarDadosFiscais, enviarCertificado } from "@/lib/actions/dados-fiscais";
+import AmbienteNfseForm from "@/components/AmbienteNfseForm";
+import { salvarDadosFiscais, enviarCertificado, trocarParaProducao } from "@/lib/actions/dados-fiscais";
 import { buscarDadosFiscais } from "@/lib/data/dados-fiscais";
 
 export default async function PaginaNfseConfig() {
@@ -19,6 +20,7 @@ export default async function PaginaNfseConfig() {
 
       <DadosFiscaisForm action={salvarDadosFiscais} dadosFiscais={dadosFiscais} />
       <CertificadoForm action={enviarCertificado} dadosFiscais={dadosFiscais} />
+      {dadosFiscais && <AmbienteNfseForm action={trocarParaProducao} ambiente={dadosFiscais.ambiente} />}
     </div>
   );
 }

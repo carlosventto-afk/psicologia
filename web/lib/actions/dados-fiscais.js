@@ -95,3 +95,22 @@ export async function enviarCertificado(prevState, formData) {
   revalidatePath("/configuracoes/nfse");
   return { sucesso: true, avisoTitularidade: resultado.alerta_titularidade };
 }
+
+export async function trocarParaProducao(prevState, formData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { error } = await supabase
+    .from("DadosFiscaisProfissional")
+    .update({ ambiente: "producao" })
+    .eq("owner", user.id)
+    .eq("ambiente", "homologacao");
+
+  if (error) return { error: "Não foi possível trocar de ambiente: " + error.message };
+
+  revalidatePath("/configuracoes/nfse");
+  return { sucesso: true };
+}
