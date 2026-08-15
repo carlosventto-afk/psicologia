@@ -9,7 +9,12 @@ export async function buscarDadosFiscais() {
 
   const { data, error } = await supabase
     .from("DadosFiscaisProfissional")
-    .select("*")
+    .select(
+      "id, owner, tipo_documento, documento, inscricao_municipal, nome_empresarial, email_nfse, telefone_nfse, " +
+        "logradouro, numero, complemento, bairro, municipio_ibge, uf, cep, optante_simples_nacional, " +
+        "regime_apuracao_sn, codigo_tributacao_nacional, certificado_titular, certificado_validade, ambiente, " +
+        "serie, proximo_numero, created_at"
+    )
     .eq("owner", user.id)
     .maybeSingle();
 
