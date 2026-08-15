@@ -9,7 +9,8 @@ import { CAMPOS_ANAMNESE } from "@/lib/anamnese-campos";
 function dadosDoFormulario(formData) {
   const dados = {};
   for (const { chave } of CAMPOS_ANAMNESE) {
-    dados[chave] = formData.get(chave) || null;
+    const valor = formData.get(chave);
+    dados[chave] = valor?.trim() || null;
   }
   return dados;
 }
@@ -30,7 +31,11 @@ export async function salvarAnamnese(pacienteId, prevState, formData) {
   const anamneseAtual = await buscarAnamnese(pacienteId);
   const novosValores = dadosDoFormulario(formData);
   const alteracoes = calcularAlteracoes(anamneseAtual, novosValores);
-  const observacao = formData.get("observacao") || null;
+  const observacao = formData.get("observacao")?.trim() || null;
+
+  if (!anamneseAtual && alteracoes.length === 0 && !observacao) {
+    redirect(`/pacientes/${pacienteId}?aba=anamnese`);
+  }
 
   const supabase = await createClient();
 

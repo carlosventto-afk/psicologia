@@ -27,6 +27,9 @@ export default function AnamneseForm({ action, anamnese }) {
 
       <fieldset className="space-y-3 border-t border-border pt-4">
         <legend className="text-sm font-semibold text-navy px-0">Observação desta atualização</legend>
+        <label htmlFor="observacao" className="sr-only">
+          Observação desta atualização
+        </label>
         <textarea
           id="observacao"
           name="observacao"

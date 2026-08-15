@@ -18,7 +18,8 @@ function rotuloCampo(chave) {
 
 export default async function PaginaDetalhePaciente({ params, searchParams }) {
   const { id } = await params;
-  const { aba = "dados" } = await searchParams;
+  const { aba: abaParam } = await searchParams;
+  const aba = ABAS.some((a) => a.chave === abaParam) ? abaParam : "dados";
   const pacienteId = Number(id);
   const [paciente, sessoes, anamnese, followups] = await Promise.all([
     buscarPaciente(pacienteId),
@@ -135,7 +136,7 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
               {CAMPOS_ANAMNESE.map((c) => (
                 <div key={c.chave}>
                   <p className="text-muted">{c.rotulo}</p>
-                  <p>{anamnese[c.chave] || "—"}</p>
+                  <p className="whitespace-pre-line">{anamnese[c.chave] || "—"}</p>
                 </div>
               ))}
             </div>
@@ -147,12 +148,14 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
               <div className="space-y-3">
                 {followups.map((f) => (
                   <div key={f.id} className="card p-4 text-sm space-y-2">
-                    <p className="text-muted">{new Date(f.criado_em).toLocaleString("pt-BR")}</p>
-                    {f.observacao && <p>{f.observacao}</p>}
+                    <p className="text-muted">
+                      {new Date(f.criado_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+                    </p>
+                    {f.observacao && <p className="whitespace-pre-line">{f.observacao}</p>}
                     {f.alteracoes.length > 0 && (
                       <ul className="space-y-1">
                         {f.alteracoes.map((alt, i) => (
-                          <li key={i}>
+                          <li key={i} className="whitespace-pre-line">
                             <span className="font-semibold">{rotuloCampo(alt.campo)}:</span>{" "}
                             {alt.valor_anterior || "—"} → {alt.valor_novo || "—"}
                           </li>
