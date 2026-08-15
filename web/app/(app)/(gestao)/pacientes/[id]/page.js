@@ -1,15 +1,30 @@
 import Link from "next/link";
 import { buscarPaciente, listarSessoesDoPaciente } from "@/lib/data/pacientes";
+import { buscarAnamnese, listarFollowupsAnamnese } from "@/lib/data/anamnese";
+import { CAMPOS_ANAMNESE } from "@/lib/anamnese-campos";
 import { diaDaSemanaAbreviado } from "@/lib/periodo-agenda";
 import { desativarPaciente, reativarPaciente } from "@/lib/actions/pacientes";
 import ExcluirPacienteBotao from "@/components/ExcluirPacienteBotao";
 
-export default async function PaginaDetalhePaciente({ params }) {
+const ABAS = [
+  { chave: "dados", rotulo: "Dados" },
+  { chave: "anamnese", rotulo: "Anamnese" },
+  { chave: "sessoes", rotulo: "Sessões" },
+];
+
+function rotuloCampo(chave) {
+  return CAMPOS_ANAMNESE.find((c) => c.chave === chave)?.rotulo ?? chave;
+}
+
+export default async function PaginaDetalhePaciente({ params, searchParams }) {
   const { id } = await params;
+  const { aba = "dados" } = await searchParams;
   const pacienteId = Number(id);
-  const [paciente, sessoes] = await Promise.all([
+  const [paciente, sessoes, anamnese, followups] = await Promise.all([
     buscarPaciente(pacienteId),
     listarSessoesDoPaciente(pacienteId),
+    buscarAnamnese(pacienteId),
+    listarFollowupsAnamnese(pacienteId),
   ]);
 
   return (
@@ -45,67 +60,132 @@ export default async function PaginaDetalhePaciente({ params }) {
         </div>
       </div>
 
-      <div className="card p-5 grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <p className="text-muted">Telefone</p>
-          <p>{paciente.telefone || "—"}</p>
-        </div>
-        <div>
-          <p className="text-muted">E-mail</p>
-          <p>{paciente.email || "—"}</p>
-        </div>
-        <div>
-          <p className="text-muted">Data de nascimento</p>
-          <p>{paciente.data_nascimento || "—"}</p>
-        </div>
-        <div>
-          <p className="text-muted">Valor da sessão</p>
-          <p>R$ {paciente.valor_sessao}</p>
-        </div>
-        <div>
-          <p className="text-muted">CPF</p>
-          <p>{paciente.cpf || "—"}</p>
-        </div>
-        <div>
-          <p className="text-muted">RG</p>
-          <p>
-            {paciente.rg_numero || "—"}
-            {paciente.rg_orgao_emissor && ` · ${paciente.rg_orgao_emissor}`}
-            {paciente.rg_data_expedicao && ` · exp. ${paciente.rg_data_expedicao}`}
-          </p>
-        </div>
-        {paciente.dependente && (
-          <div className="col-span-2">
-            <p className="text-muted">Responsável financeiro</p>
-            <p>{paciente.responsavel_nome || "—"}</p>
-          </div>
-        )}
-        {paciente.observacoes && (
-          <div className="col-span-2">
-            <p className="text-muted">Observações</p>
-            <p>{paciente.observacoes}</p>
-          </div>
-        )}
+      <div className="flex gap-4 border-b border-border text-sm">
+        {ABAS.map((a) => (
+          <Link
+            key={a.chave}
+            href={`/pacientes/${pacienteId}?aba=${a.chave}`}
+            className={`pb-2 -mb-px border-b-2 font-semibold ${
+              aba === a.chave ? "border-primary text-navy" : "border-transparent text-muted"
+            }`}
+          >
+            {a.rotulo}
+          </Link>
+        ))}
       </div>
 
-      <div>
-        <h2 className="text-lg font-bold text-navy mb-2">Sessões</h2>
-        {sessoes.length === 0 ? (
-          <p className="empty-state">Nenhuma sessão registrada.</p>
-        ) : (
-          <div className="space-y-3">
-            {sessoes.map((s) => (
-              <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
-                <span>
-                  {s.data} ({diaDaSemanaAbreviado(s.data)}) {s.horario?.slice(0, 5)}
-                </span>
-                <span className="text-muted">{s.tipo_sessao}</span>
-                <span>{s.status ?? "Marcada"}</span>
-              </div>
-            ))}
+      {aba === "dados" && (
+        <div className="card p-5 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-muted">Telefone</p>
+            <p>{paciente.telefone || "—"}</p>
           </div>
-        )}
-      </div>
+          <div>
+            <p className="text-muted">E-mail</p>
+            <p>{paciente.email || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted">Data de nascimento</p>
+            <p>{paciente.data_nascimento || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted">Valor da sessão</p>
+            <p>R$ {paciente.valor_sessao}</p>
+          </div>
+          <div>
+            <p className="text-muted">CPF</p>
+            <p>{paciente.cpf || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted">RG</p>
+            <p>
+              {paciente.rg_numero || "—"}
+              {paciente.rg_orgao_emissor && ` · ${paciente.rg_orgao_emissor}`}
+              {paciente.rg_data_expedicao && ` · exp. ${paciente.rg_data_expedicao}`}
+            </p>
+          </div>
+          {paciente.dependente && (
+            <div className="col-span-2">
+              <p className="text-muted">Responsável financeiro</p>
+              <p>{paciente.responsavel_nome || "—"}</p>
+            </div>
+          )}
+          {paciente.observacoes && (
+            <div className="col-span-2">
+              <p className="text-muted">Observações</p>
+              <p>{paciente.observacoes}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {aba === "anamnese" && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-navy">Anamnese</h2>
+            <Link href={`/pacientes/${pacienteId}/anamnese/editar`} className="link">
+              {anamnese ? "Editar anamnese" : "Registrar anamnese"}
+            </Link>
+          </div>
+
+          {!anamnese ? (
+            <p className="empty-state">Nenhuma anamnese registrada ainda.</p>
+          ) : (
+            <div className="card p-5 grid grid-cols-2 gap-4 text-sm">
+              {CAMPOS_ANAMNESE.map((c) => (
+                <div key={c.chave}>
+                  <p className="text-muted">{c.rotulo}</p>
+                  <p>{anamnese[c.chave] || "—"}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {followups.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-navy mb-2">Histórico de atualizações</h3>
+              <div className="space-y-3">
+                {followups.map((f) => (
+                  <div key={f.id} className="card p-4 text-sm space-y-2">
+                    <p className="text-muted">{new Date(f.criado_em).toLocaleString("pt-BR")}</p>
+                    {f.observacao && <p>{f.observacao}</p>}
+                    {f.alteracoes.length > 0 && (
+                      <ul className="space-y-1">
+                        {f.alteracoes.map((alt, i) => (
+                          <li key={i}>
+                            <span className="font-semibold">{rotuloCampo(alt.campo)}:</span>{" "}
+                            {alt.valor_anterior || "—"} → {alt.valor_novo || "—"}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {aba === "sessoes" && (
+        <div>
+          {sessoes.length === 0 ? (
+            <p className="empty-state">Nenhuma sessão registrada.</p>
+          ) : (
+            <div className="space-y-3">
+              {sessoes.map((s) => (
+                <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
+                  <span>
+                    {s.data} ({diaDaSemanaAbreviado(s.data)}) {s.horario?.slice(0, 5)}
+                  </span>
+                  <span className="text-muted">{s.tipo_sessao}</span>
+                  <span>{s.status ?? "Marcada"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
