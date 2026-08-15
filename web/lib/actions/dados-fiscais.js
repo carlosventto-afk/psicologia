@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { chamarServicoNfse } from "@/lib/nfse-client";
 
 function dadosDoFormulario(formData) {
   return {
@@ -41,4 +42,56 @@ export async function salvarDadosFiscais(prevState, formData) {
 
   revalidatePath("/configuracoes/nfse");
   return { sucesso: true };
+}
+
+export async function enviarCertificado(prevState, formData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const arquivo = formData.get("certificado");
+  const senha = formData.get("senha_certificado");
+  if (!(arquivo instanceof File) || arquivo.size === 0) {
+    return { error: "Selecione o arquivo .pfx do certificado." };
+  }
+
+  const { data: fiscal } = await supabase
+    .from("DadosFiscaisProfissional")
+    .select("documento")
+    .eq("owner", user.id)
+    .maybeSingle();
+
+  if (!fiscal) {
+    return { error: "Preencha e salve os dados fiscais antes de enviar o certificado." };
+  }
+
+  const pfxBase64 = Buffer.from(await arquivo.arrayBuffer()).toString("base64");
+
+  let resultado;
+  try {
+    resultado = await chamarServicoNfse("/certificado/validar", {
+      pfx_base64: pfxBase64,
+      senha,
+      documento_esperado: fiscal.documento,
+    });
+  } catch (erro) {
+    return { error: erro.message };
+  }
+
+  const { error } = await supabase
+    .from("DadosFiscaisProfissional")
+    .update({
+      certificado_pfx_cifrado: resultado.pfx_cifrado,
+      certificado_senha_cifrada: resultado.senha_cifrada,
+      certificado_titular: resultado.titular,
+      certificado_validade: resultado.valido_ate,
+    })
+    .eq("owner", user.id);
+
+  if (error) return { error: "Certificado validado, mas não foi possível salvar: " + error.message };
+
+  revalidatePath("/configuracoes/nfse");
+  return { sucesso: true, avisoTitularidade: resultado.alerta_titularidade };
 }
