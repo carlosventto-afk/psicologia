@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizarIdsLista } from "@/lib/normalizar-ids";
 
 const SELECT_PAGAMENTO =
-  "id, valor, data_pagamento, Sessao!inner(id, data, Paciente!inner(id, nome, email, cpf, documento)), NotaFiscal(id)";
+  "id, valor, data_pagamento, Sessao!inner(id, data, Paciente!inner(id, nome, email, cpf, documento)), NotaFiscal(id, status)";
 
 export async function listarPagamentosElegiveisParaNotaFiscal() {
   const supabase = await createClient();
@@ -15,7 +15,7 @@ export async function listarPagamentosElegiveisParaNotaFiscal() {
   if (error) throw new Error(error.message);
 
   return normalizarIdsLista(data, ["id"])
-    .filter((p) => (p.NotaFiscal?.length ?? 0) === 0)
+    .filter((p) => !(p.NotaFiscal ?? []).some((n) => n.status === "pendente" || n.status === "autorizada"))
     .map((p) => ({
       pagamentoId: p.id,
       valor: p.valor,
