@@ -141,6 +141,19 @@ Não há tratamento de concorrência (dois salvamentos simultâneos do mesmo
 paciente) — não é um risco relevante nesse app (um profissional edita o
 próprio paciente, não há edição colaborativa).
 
+**Falha parcial (upsert ok, insert do followup falha):** o `upsert` em `Anamnese`
+e o `insert` em `AnamneseFollowup` são duas chamadas independentes, sem
+transação. Se a segunda falhar (ex: timeout de rede — não há como uma policy
+de RLS rejeitar essa segunda chamada já que a mesma sessão acabou de escrever
+a linha pai, nem violar constraint), o usuário recebe o erro genérico e pode
+tentar de novo — mas o retry recalcula o diff contra a `Anamnese` já
+atualizada, então sem uma observação escrita o retry não gera alteracoes
+nenhuma e o evento de histórico se perde silenciosamente, sem sinalizar nada
+a ninguém. Aceito para v1 (baixa probabilidade, sem risco de corrupção de
+dado, só de uma lacuna no histórico) — se isso vier a ser um problema real,
+envolver as duas escritas numa função transacional (mesmo padrão de
+`registrar_nota_fiscal_pendente` pra numeração de NFS-e).
+
 ## Testes
 
 Projeto não tem suíte automatizada (nenhum `*.test.js` fora de

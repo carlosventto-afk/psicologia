@@ -513,7 +513,12 @@ ser fechadas antes de desenhar a implementação.
 
 ## 12. Segmento "Anamnese" no cadastro do paciente
 
-**Status: a realizar** — pedido do usuário em 2026-08-15.
+**Status: implementado** (2026-08-15) — tabela `Anamnese` (1:1 com
+`Paciente`) + `AnamneseFollowup` (histórico append-only por followup, só com
+os campos alterados naquele salvamento + observação livre), nova aba
+"Anamnese" em `/pacientes/[id]`, tela de edição em
+`/pacientes/[id]/anamnese/editar`. Detalhes:
+`docs/superpowers/specs/2026-08-15-anamnese-paciente-design.md`.
 
 **Objetivo:** hoje o cadastro do paciente (`Paciente`, telas
 `/pacientes/novo`, `/pacientes/[id]`, `/pacientes/[id]/editar`) só tem dados
@@ -523,38 +528,23 @@ segmento "Anamnese" dedicado a registrar dados clínicos relevantes pra
 prática da psicologia — hoje o profissional não tem onde guardar isso
 dentro do sistema.
 
-**Escopo provável:**
-- Novo segmento/seção "Anamnese" nas telas de cadastro e edição de paciente
-  (`/pacientes/novo`, `/pacientes/[id]/editar`) e exibido na página de
-  detalhe (`/pacientes/[id]`), separado do bloco de dados cadastrais atual.
-- Campos sugeridos pelo usuário e típicos de prontuário de psicologia:
-  - Medicação em uso (nome do medicamento, dosagem opcional).
-  - Nome do médico responsável (psiquiatra/clínico).
-  - Desde quando o paciente faz terapia (em geral, histórico prévio).
-  - Desde quando é atendido por este profissional especificamente.
-  - Queixa(s) inicial(is).
-  - Desenvolvimento/evolução da(s) queixa(s) ao longo do acompanhamento.
-  - Outros pontos comuns de anamnese em psicologia a avaliar com o usuário:
-    histórico familiar relevante, antecedentes de tratamento
-    psicológico/psiquiátrico anterior, uso de substâncias, comorbidades/
-    diagnósticos já recebidos, hipótese diagnóstica, expectativas do
-    paciente com o processo terapêutico.
-- Modelo de dados: provavelmente uma tabela nova `Anamnese` (1:1 com
-  `Paciente`, `paciente_id` único) em vez de colunas soltas em `Paciente`,
-  já que é um bloco de informação distinto (clínico vs. cadastral) que pode
-  crescer em campos com o tempo — mas cabe decidir com o usuário se um
-  registro único por paciente basta ou se precisa de histórico versionado
-  (ex: reavaliações da anamnese ao longo do tempo).
-- RLS seguindo o mesmo padrão já usado em `Paciente` (acesso só do
-  `owner`/psicólogo responsável).
+**Escopo entregue:**
+- Nova aba "Anamnese" em `/pacientes/[id]` (junto de "Dados" e "Sessões"),
+  separada do bloco de dados cadastrais atual, com tela de edição dedicada
+  em `/pacientes/[id]/anamnese/editar`.
+- 11 campos finais, todos opcionais e texto livre (`web/lib/anamnese-campos.js`):
+  medicação em uso, médico responsável, desde quando faz terapia, desde
+  quando é atendido por este profissional, queixa inicial, desenvolvimento
+  da queixa, histórico familiar relevante, tratamento
+  psicológico/psiquiátrico anterior, uso de substâncias, hipótese
+  diagnóstica/comorbidades, expectativas com o processo terapêutico.
+- Modelo de dados: tabela `Anamnese` (1:1 com `Paciente`, criada só no
+  primeiro salvamento) + `AnamneseFollowup` (histórico append-only,
+  versionamento por followup — cada evento guarda só os campos que mudaram
+  naquele salvamento + observação livre, não uma cópia completa do estado).
+- RLS seguindo o mesmo padrão já usado em `Paciente`/`PagamentoSessao`
+  (acesso escopado ao `owner`/psicólogo responsável via join em cadeia).
 
-**Decisões em aberto:** lista final de campos (a validar com o usuário —
-"outros pontos" ficou em aberto no pedido original); se a anamnese é um
-registro único editável ou precisa manter histórico de alterações; se
-algum campo é obrigatório para cadastrar o paciente ou tudo é opcional
-(mais provável: tudo opcional, já que nem todo paciente novo terá esses
-dados no primeiro atendimento).
-
-**Tamanho estimado:** M — campo novo de UI + tabela nova (se for o modelo
-1:1) e RLS correspondente; não mexe em nenhuma feature existente
-(financeiro, agenda, diretório), é aditivo ao cadastro do paciente.
+**Tamanho estimado:** M — campo novo de UI + tabela nova (modelo 1:1) e RLS
+correspondente; não mexeu em nenhuma feature existente (financeiro, agenda,
+diretório), foi aditivo ao cadastro do paciente.
