@@ -130,3 +130,51 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
     ? { sucesso: true }
     : { error: "Nota rejeitada: " + (resultado.erros?.[0]?.titulo ?? "erro desconhecido") };
 }
+
+export async function cancelarNotaFiscal(notaId, motivoTexto, prevState, formData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: nota, error: erroNota } = await supabase
+    .from("NotaFiscal")
+    .select("id, status, chave_acesso, ambiente")
+    .eq("id", notaId)
+    .single();
+
+  if (erroNota || !nota) return { error: "Nota não encontrada." };
+  if (nota.status !== "autorizada") return { error: "Só é possível cancelar notas autorizadas." };
+
+  const { data: fiscal, error: erroFiscal } = await supabase
+    .from("DadosFiscaisProfissional")
+    .select("documento, certificado_pfx_cifrado, certificado_senha_cifrada")
+    .eq("owner", user.id)
+    .single();
+
+  if (erroFiscal || !fiscal) return { error: "Dados fiscais não encontrados." };
+
+  let resultado;
+  try {
+    resultado = await chamarServicoNfse("/cancelar", {
+      ambiente: nota.ambiente,
+      certificado_pfx_cifrado: fiscal.certificado_pfx_cifrado,
+      certificado_senha_cifrada: fiscal.certificado_senha_cifrada,
+      chave_acesso: nota.chave_acesso,
+      autor_documento: fiscal.documento,
+      motivo_texto: motivoTexto || "Cancelamento solicitado pelo prestador",
+    });
+  } catch (erro) {
+    return { error: "Falha ao cancelar: " + erro.message };
+  }
+
+  if (!resultado.registrado) {
+    return { error: "Cancelamento rejeitado: " + (resultado.erros?.[0]?.titulo ?? "erro desconhecido") };
+  }
+
+  await supabase.from("NotaFiscal").update({ status: "cancelada" }).eq("id", notaId);
+
+  revalidatePath("/notas-fiscais");
+  return { sucesso: true };
+}

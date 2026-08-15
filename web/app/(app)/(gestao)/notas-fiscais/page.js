@@ -1,5 +1,6 @@
 import { listarPagamentosElegiveisParaNotaFiscal, listarNotasFiscaisEmitidas } from "@/lib/data/notas-fiscais";
 import EmitirNotaFiscalBotao from "@/components/EmitirNotaFiscalBotao";
+import CancelarNotaFiscalBotao from "@/components/CancelarNotaFiscalBotao";
 
 export default async function PaginaNotasFiscais() {
   const [elegiveis, emitidas] = await Promise.all([
@@ -54,6 +55,7 @@ export default async function PaginaNotasFiscais() {
                     {n.status === "pendente" && "Pendente"}
                   </p>
                 </div>
+                {n.status === "autorizada" && <CancelarNotaFiscalBotao notaId={n.id} />}
               </div>
             ))}
           </div>
