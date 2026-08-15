@@ -54,6 +54,9 @@ export default async function PaginaNotasFiscais() {
                     {n.status === "cancelada" && "Cancelada"}
                     {n.status === "pendente" && "Pendente"}
                   </p>
+                  {n.status === "autorizada" && n.chaveAcesso && (
+                    <p className="text-xs text-muted">Chave de acesso: {n.chaveAcesso}</p>
+                  )}
                 </div>
                 {n.status === "autorizada" && <CancelarNotaFiscalBotao notaId={n.id} />}
               </div>

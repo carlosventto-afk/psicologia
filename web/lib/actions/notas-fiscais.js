@@ -110,6 +110,7 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
     })
     .eq("id", notaId);
 
+  let avisoEmail;
   if (resultado.autorizada && pagamento.Sessao.Paciente.email) {
     try {
       await enviarEmailNotaFiscal({
@@ -118,16 +119,21 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
         xmlBase64: resultado.xml_nfse_base64,
         pdfBase64: resultado.pdf_base64 ?? null,
       });
-    } catch {
+    } catch (erroEmail) {
       // Nota ja autorizada e persistida -- falha no e-mail nao pode
       // reverter isso nem esconder o sucesso da emissao do operador.
-      // O paciente/operador ainda pode acessar o XML pela tela depois.
+      // Avisamos o operador (avisoEmail) em vez de engolir o erro: a
+      // chave de acesso continua disponivel na lista de notas emitidas.
+      avisoEmail =
+        "A nota foi emitida mas o e-mail para o paciente falhou: " +
+        erroEmail.message +
+        ". A chave de acesso está disponível na lista de notas emitidas.";
     }
   }
 
   revalidatePath("/notas-fiscais");
   return resultado.autorizada
-    ? { sucesso: true }
+    ? { sucesso: true, avisoEmail }
     : { error: "Nota rejeitada: " + (resultado.erros?.[0]?.titulo ?? "erro desconhecido") };
 }
 

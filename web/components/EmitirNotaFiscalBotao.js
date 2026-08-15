@@ -15,6 +15,7 @@ export default function EmitirNotaFiscalBotao({ pagamentoId }) {
         {pending ? "Emitindo..." : "Emitir nota fiscal"}
       </button>
       {state?.error && <p className="text-xs text-red-600 mt-1 max-w-xs">{state.error}</p>}
+      {state?.avisoEmail && <p className="text-xs text-yellow-700 mt-1 max-w-xs">{state.avisoEmail}</p>}
     </form>
   );
 }
