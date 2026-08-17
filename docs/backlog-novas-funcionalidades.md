@@ -548,3 +548,75 @@ dentro do sistema.
 **Tamanho estimado:** M — campo novo de UI + tabela nova (modelo 1:1) e RLS
 correspondente; não mexeu em nenhuma feature existente (financeiro, agenda,
 diretório), foi aditivo ao cadastro do paciente.
+
+---
+
+## 13. Agente de WhatsApp — secretário do profissional
+
+**Status: a realizar** — pedido do usuário em 2026-08-17, retomando um
+projeto já iniciado antes deste backlog numerado existir. Arquitetura
+completa (todas as fases) em
+`C:\Users\Administrador\.claude\plans\preciso-criar-um-ecossistema-tidy-bachman.md`;
+histórico técnico do que já foi feito em `docs/status-implementacao.md`,
+seção "Agente de WhatsApp — Fase A em andamento".
+
+**Objetivo:** um agente programado desde o início do produto — o
+profissional fala com a ferramenta pelo próprio WhatsApp (vinculado em
+`/configuracoes/whatsapp`) e consegue, por conversa: mudar data de um
+atendimento, criar atendimento, consultar financeiro, consultar dados de
+paciente, entre outras ações administrativas do dia a dia — sem precisar
+abrir o app.
+
+**Já existe (schema/infra aplicados em produção):**
+- 11 tools + 1 helper como RPC `security definer`, exclusivas de
+  `service_role` (migration `20260727000002_create_agent_rpc_functions.sql`):
+  `agent_listar_consultorios`, `agent_buscar_paciente`, `agent_get_agenda`,
+  `agent_status_pagamento_paciente`, `agent_listar_debitos_paciente`,
+  `agent_registrar_pagamento_sessao`, `agent_marcar_atendimento_realizado`,
+  `agent_agendar_sessao_avulsa`, `agent_cancelar_sessao`,
+  `agent_gerar_recibo`, `agent_listar_inadimplentes`,
+  `agent_resumo_financeiro`.
+- Tabelas de suporte (`agent_sessions`, `agent_audit_log`,
+  `lembretes_enviados`, `whatsapp_verificacao_codigos`) + RLS/grants
+  fechados (migrations 000001/000003/000004).
+- Tela `/configuracoes/whatsapp` (`VincularWhatsappForm.js`) — profissional
+  gera código de 6 dígitos e vincula o próprio número.
+- Canal: **Evolution API** self-hosted (não WhatsApp Cloud API oficial),
+  rodando no EasyPanel da mesma VPS, já pareado com um número dedicado —
+  decisão tomada cientemente do risco de banimento por violar os Termos de
+  Serviço do WhatsApp (ver `docs/status-implementacao.md` pro incidente já
+  registrado de queda/reconexão). Efeito prático: se o número cair, todo
+  profissional fica sem o agente ao mesmo tempo, não só um.
+
+**Falta pra existir de verdade (nada disso foi começado ainda):**
+- O workflow n8n em si — `WA - Inbound Router` + `WA - Agent Psicólogo` —
+  que liga a mensagem recebida no WhatsApp a um LLM (Claude) com acesso às
+  RPC tools acima. Hoje só a base de dados está pronta pra receber esse
+  trabalho.
+- Transcrição de áudio (Whisper), já que mensagem de voz é um canal comum
+  no WhatsApp.
+- Wrapper de log em `agent_audit_log` (toda ação do agente registrada, pra
+  auditoria/depuração).
+- **Gap identificado agora:** a lista de tools de hoje cobre criar
+  (`agent_agendar_sessao_avulsa`) e cancelar (`agent_cancelar_sessao`) uma
+  sessão, mas não **reagendar/mudar a data de uma sessão existente** — que
+  é explicitamente um dos comandos pedidos ("mudar data de atendimento").
+  Precisa de uma RPC nova (ex: `agent_reagendar_sessao`) ou decidir que
+  reagendar = cancelar + criar de novo (mais simples, mas perde o vínculo
+  com a sessão original e qualquer coisa já registrada nela).
+- Os 3 textos de mensagem já redigidos (`docs/whatsapp-message-templates.md`)
+  não precisam mais de aprovação de template (isso só existe na API oficial
+  da Meta) — com Evolution API são só texto livre, mas vale revisar se
+  ainda refletem o fluxo atual antes de usar.
+
+**Decisões em aberto:** confirmar com o usuário se o escopo desta entrega é
+só o canal do profissional (como pedido no texto de hoje) ou se reabre
+também o canal opcional do paciente já desenhado na arquitetura original
+(consulta + solicitação de reagendamento/cancelamento sujeita a aprovação
+do psicólogo) — são fluxos de conversa e prompts diferentes, mesmo
+reaproveitando canal/infra.
+
+**Tamanho estimado:** G — a parte estrutural (schema/RPCs/RLS/canal) já
+está pronta, mas a peça que falta é a mais complexa do projeto todo: o
+próprio agente (orquestração n8n + LLM + prompt engineering + tratamento de
+erro de tool call + transcrição de áudio), do zero.
