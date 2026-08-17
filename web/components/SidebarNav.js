@@ -19,6 +19,9 @@ import {
   IconeContaUsuario,
   IconeWhatsapp,
   IconeNotaFiscal,
+  IconeDocumentos,
+  IconeConfiguracoes,
+  IconeChevron,
   IconeAdmin,
   IconeSair,
   IconeMenu,
@@ -32,17 +35,36 @@ const ITENS_NAV = [
   { href: "/recorrencias", label: "Recorrências", Icone: IconeRecorrencia },
   { href: "/pacientes", label: "Pacientes", Icone: IconePaciente },
   { href: "/financeiro", label: "Financeiro", Icone: IconeFinanceiro },
-  { href: "/recibos", label: "Recibos", Icone: IconeRecibo },
-  { href: "/notas-fiscais", label: "Notas Fiscais", Icone: IconeNotaFiscal },
-  { href: "/carne-leao", label: "Carnê-Leão", Icone: IconeCarneLeao },
+  {
+    grupo: "documentos",
+    label: "Documentos",
+    Icone: IconeDocumentos,
+    itens: [
+      { href: "/recibos", label: "Recibos", Icone: IconeRecibo },
+      { href: "/notas-fiscais", label: "Notas Fiscais", Icone: IconeNotaFiscal },
+      { href: "/carne-leao", label: "Carnê-Leão", Icone: IconeCarneLeao },
+    ],
+  },
   { href: "/consultorios", label: "Consultórios", Icone: IconeConsultorio },
-  { href: "/diretorio", label: "Diretório", Icone: IconeDiretorio },
-  { href: "/configuracoes/conta", label: "Meus Dados", Icone: IconeContaUsuario },
-  { href: "/configuracoes/whatsapp", label: "WhatsApp", Icone: IconeWhatsapp },
-  { href: "/configuracoes/nfse", label: "NFS-e", Icone: IconeNotaFiscal },
+  {
+    grupo: "configuracoes",
+    label: "Configurações",
+    Icone: IconeConfiguracoes,
+    itens: [
+      { href: "/diretorio", label: "Diretório", Icone: IconeDiretorio },
+      { href: "/configuracoes/conta", label: "Meus Dados", Icone: IconeContaUsuario },
+      { href: "/configuracoes/whatsapp", label: "WhatsApp", Icone: IconeWhatsapp },
+      { href: "/configuracoes/nfse", label: "NFS-e", Icone: IconeNotaFiscal },
+    ],
+  },
 ];
 
+const ITEM_DIRETORIO = ITENS_NAV.find((item) => item.grupo === "configuracoes").itens.find(
+  (item) => item.href === "/diretorio"
+);
+
 const CHAVE_RECOLHIDA = "psiagente-sidebar-recolhida";
+const chaveGrupoAberto = (grupo) => `psiagente-sidebar-grupo-${grupo}`;
 
 const ROTULOS_PAPEL = {
   admin: "Administrador",
@@ -53,6 +75,7 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
   const pathname = usePathname();
   const [menuAberto, setMenuAberto] = useState(false);
   const [recolhida, setRecolhida] = useState(false);
+  const [gruposAbertos, setGruposAbertos] = useState({});
 
   useEffect(() => {
     setMenuAberto(false);
@@ -62,6 +85,34 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
     if (localStorage.getItem(CHAVE_RECOLHIDA) === "true") setRecolhida(true);
   }, []);
 
+  useEffect(() => {
+    const valoresIniciais = {};
+    for (const item of ITENS_NAV) {
+      if (item.itens) valoresIniciais[item.grupo] = localStorage.getItem(chaveGrupoAberto(item.grupo)) === "true";
+    }
+    setGruposAbertos(valoresIniciais);
+  }, []);
+
+  function estaAtivo(href, exact) {
+    if (exact) return pathname === href;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  useEffect(() => {
+    setGruposAbertos((atual) => {
+      let mudou = false;
+      const novo = { ...atual };
+      for (const item of ITENS_NAV) {
+        if (item.itens && !novo[item.grupo] && item.itens.some((i) => estaAtivo(i.href, i.exact))) {
+          novo[item.grupo] = true;
+          mudou = true;
+        }
+      }
+      return mudou ? novo : atual;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   function alternarRecolhida() {
     setRecolhida((atual) => {
       const novo = !atual;
@@ -70,38 +121,102 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
     });
   }
 
-  function estaAtivo(href, exact) {
-    if (exact) return pathname === href;
-    return pathname === href || pathname.startsWith(`${href}/`);
+  function alternarGrupo(grupo) {
+    setGruposAbertos((atual) => {
+      const novoValor = !atual[grupo];
+      localStorage.setItem(chaveGrupoAberto(grupo), String(novoValor));
+      return { ...atual, [grupo]: novoValor };
+    });
   }
 
   const itens =
     plano === "marketing"
-      ? ITENS_NAV.filter((item) => item.href === "/diretorio")
+      ? [ITEM_DIRETORIO]
       : ehAdmin
         ? [...ITENS_NAV, { href: "/admin/profissionais", label: "Administração", Icone: IconeAdmin }]
         : ITENS_NAV;
 
+  function ItemNav({ item, compacta, onNavegar }) {
+    const { href, label, Icone, exact } = item;
+    const ativo = estaAtivo(href, exact);
+    return (
+      <Link
+        href={href}
+        onClick={onNavegar}
+        title={compacta ? label : undefined}
+        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-navy transition-colors hover:bg-background ${
+          ativo ? "bg-background" : ""
+        } ${compacta ? "justify-center" : ""}`}
+      >
+        <Icone className={ativo ? "shrink-0 text-primary" : "shrink-0 text-muted"} />
+        {!compacta && label}
+      </Link>
+    );
+  }
+
+  function GrupoNav({ grupo, compacta, onNavegar }) {
+    const { grupo: chave, label, Icone, itens: filhos } = grupo;
+    const algumAtivo = filhos.some((i) => estaAtivo(i.href, i.exact));
+
+    if (compacta) {
+      return (
+        <div className="group/flyout relative">
+          <button
+            type="button"
+            title={label}
+            className={`flex w-full items-center justify-center rounded-xl px-3 py-2.5 text-sm font-semibold text-navy transition-colors hover:bg-background ${
+              algumAtivo ? "bg-background" : ""
+            }`}
+          >
+            <Icone className={algumAtivo ? "shrink-0 text-primary" : "shrink-0 text-muted"} />
+          </button>
+          <div className="absolute left-full top-0 z-20 ml-2 w-48 rounded-xl border border-border bg-white p-2 opacity-0 shadow-lg pointer-events-none transition-opacity group-hover/flyout:opacity-100 group-hover/flyout:pointer-events-auto group-focus-within/flyout:opacity-100 group-focus-within/flyout:pointer-events-auto">
+            <p className="px-2 pb-1 text-xs font-semibold text-muted">{label}</p>
+            {filhos.map((filho) => (
+              <ItemNav key={filho.href} item={filho} compacta={false} onNavegar={onNavegar} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    const aberto = Boolean(gruposAbertos[chave]);
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => alternarGrupo(chave)}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-navy transition-colors hover:bg-background ${
+            algumAtivo ? "bg-background" : ""
+          }`}
+        >
+          <Icone className={algumAtivo ? "shrink-0 text-primary" : "shrink-0 text-muted"} />
+          <span className="flex-1 text-left">{label}</span>
+          <IconeChevron
+            className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${aberto ? "rotate-90" : ""}`}
+          />
+        </button>
+        {aberto && (
+          <div className="mt-1 space-y-1 pl-4">
+            {filhos.map((filho) => (
+              <ItemNav key={filho.href} item={filho} compacta={false} onNavegar={onNavegar} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function ListaNav({ compacta, onNavegar }) {
     return (
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-        {itens.map(({ href, label, Icone, exact }) => {
-          const ativo = estaAtivo(href, exact);
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavegar}
-              title={compacta ? label : undefined}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-navy transition-colors hover:bg-background ${
-                ativo ? "bg-background" : ""
-              } ${compacta ? "justify-center" : ""}`}
-            >
-              <Icone className={ativo ? "shrink-0 text-primary" : "shrink-0 text-muted"} />
-              {!compacta && label}
-            </Link>
-          );
-        })}
+      <nav className={`flex-1 space-y-1 px-3 pb-4 ${compacta ? "overflow-visible" : "overflow-y-auto"}`}>
+        {itens.map((item) =>
+          item.itens ? (
+            <GrupoNav key={item.grupo} grupo={item} compacta={compacta} onNavegar={onNavegar} />
+          ) : (
+            <ItemNav key={item.href} item={item} compacta={compacta} onNavegar={onNavegar} />
+          )
+        )}
       </nav>
     );
   }

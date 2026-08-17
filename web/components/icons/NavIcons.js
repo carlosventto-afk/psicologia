@@ -158,6 +158,31 @@ export function IconeNotaFiscal(props) {
   );
 }
 
+export function IconeDocumentos(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3 6.5a1.5 1.5 0 0 1 1.5-1.5h3.4l1.6 2h6a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
+    </svg>
+  );
+}
+
+export function IconeConfiguracoes(props) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="10" cy="10" r="2.6" />
+      <path d="M10 3.5v2M10 14.5v2M16.5 10h-2M5.5 10h-2M14.6 5.4l-1.4 1.4M6.8 13.2l-1.4 1.4M14.6 14.6l-1.4-1.4M6.8 6.8 5.4 5.4" />
+    </svg>
+  );
+}
+
+export function IconeChevron(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M7.5 5.5 12.5 10l-5 4.5" />
+    </svg>
+  );
+}
+
 export function IconeContaUsuario(props) {
   return (
     <svg {...base} {...props}>
