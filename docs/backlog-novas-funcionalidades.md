@@ -597,26 +597,47 @@ abrir o app.
   no WhatsApp.
 - Wrapper de log em `agent_audit_log` (toda ação do agente registrada, pra
   auditoria/depuração).
-- **Gap identificado agora:** a lista de tools de hoje cobre criar
-  (`agent_agendar_sessao_avulsa`) e cancelar (`agent_cancelar_sessao`) uma
-  sessão, mas não **reagendar/mudar a data de uma sessão existente** — que
-  é explicitamente um dos comandos pedidos ("mudar data de atendimento").
-  Precisa de uma RPC nova (ex: `agent_reagendar_sessao`) ou decidir que
-  reagendar = cancelar + criar de novo (mais simples, mas perde o vínculo
-  com a sessão original e qualquer coisa já registrada nela).
+- **Gap identificado, confirmado pelo usuário em 2026-08-17:** a lista de
+  tools de hoje cobre criar (`agent_agendar_sessao_avulsa`) e cancelar
+  (`agent_cancelar_sessao`) uma sessão, mas não **reagendar/mudar a data de
+  uma sessão existente** — que é explicitamente um dos comandos pedidos
+  ("mudar data de atendimento"). O usuário foi explícito: reagendar **não é**
+  cancelar — cancelar não tem substituição, reagendar troca a data/hora do
+  *mesmo* atendimento. Precisa de uma RPC nova (ex: `agent_reagendar_sessao`)
+  que faz `update` na `Sessao` existente (não cria uma nova nem cancela a
+  atual).
+- **Novo requisito, pedido pelo usuário em 2026-08-17:** contador de quantas
+  vezes cada paciente já reagendou, pra servir de alerta pro profissional
+  quando um paciente remarca com frequência incomum. Duas formas de
+  implementar, a decidir na hora do design:
+  - **(a) Coluna contadora** em `Paciente` (ex: `reagendamentos_count int
+    default 0`, incrementada a cada chamada de `agent_reagendar_sessao`) —
+    mais simples, mas só guarda o número, sem histórico de quando/pra
+    quando cada reagendamento foi.
+  - **(b) Tabela de histórico** (ex: `ReagendamentoSessao`: sessao, data
+    anterior, data nova, reagendado_em) — mesmo padrão já usado no item 12
+    (`AnamneseFollowup`) pra esse tipo de "trilha de eventos"; o contador
+    vira só um `count(*)` por paciente, e de brinde já dá pra mostrar
+    *quando* cada remarcação aconteceu, não só quantas. **Recomendo (b)** —
+    mesmo padrão comprovado no código, e "quantas vezes" sozinho tende a
+    gerar a pergunta seguinte ("quando foram essas remarcações?") assim que
+    o profissional vir o número.
 - Os 3 textos de mensagem já redigidos (`docs/whatsapp-message-templates.md`)
   não precisam mais de aprovação de template (isso só existe na API oficial
   da Meta) — com Evolution API são só texto livre, mas vale revisar se
   ainda refletem o fluxo atual antes de usar.
 
-**Decisões em aberto:** confirmar com o usuário se o escopo desta entrega é
-só o canal do profissional (como pedido no texto de hoje) ou se reabre
-também o canal opcional do paciente já desenhado na arquitetura original
-(consulta + solicitação de reagendamento/cancelamento sujeita a aprovação
-do psicólogo) — são fluxos de conversa e prompts diferentes, mesmo
-reaproveitando canal/infra.
+**Decisões já tomadas pelo usuário em 2026-08-17:**
+- **Escopo desta entrega: só o canal do profissional.** O canal opcional do
+  paciente (consulta + solicitação de reagendamento/cancelamento sujeita a
+  aprovação do psicólogo, já desenhado na arquitetura original) fica pra
+  uma entrega futura separada — não faz parte deste item 13.
+- Reagendamento é uma ação própria (não cancelar+criar) e precisa de um
+  contador/histórico de reagendamentos por paciente pra alertar o
+  profissional sobre remarcações frequentes (ver gap acima).
 
 **Tamanho estimado:** G — a parte estrutural (schema/RPCs/RLS/canal) já
 está pronta, mas a peça que falta é a mais complexa do projeto todo: o
 próprio agente (orquestração n8n + LLM + prompt engineering + tratamento de
-erro de tool call + transcrição de áudio), do zero.
+erro de tool call + transcrição de áudio), do zero — mais a RPC nova de
+reagendamento e o contador/histórico associado.
