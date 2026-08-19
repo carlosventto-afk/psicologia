@@ -27,19 +27,30 @@ export async function POST(request) {
     return new Response("Não autorizado.", { status: 401 });
   }
 
-  const { tool_name, whatsapp_number, params } = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ success: false, error_code: "CORPO_INVALIDO" }, { status: 400 });
+  }
+
+  const { tool_name, whatsapp_number, params } = body;
 
   if (!TOOLS_VALIDAS.includes(tool_name)) {
     return Response.json({ success: false, error_code: "TOOL_DESCONHECIDA" }, { status: 400 });
   }
 
+  if (!whatsapp_number) {
+    return Response.json({ success: false, error_code: "WHATSAPP_NUMBER_AUSENTE" }, { status: 400 });
+  }
+
   const admin = createAdminClient();
   const { data, error } = await admin.rpc(tool_name, {
-    p_whatsapp_number: whatsapp_number,
     ...(params ?? {}),
+    p_whatsapp_number: whatsapp_number,
   });
 
-  await admin.from("agent_audit_log").insert({
+  const { error: erroAuditoria } = await admin.from("agent_audit_log").insert({
     whatsapp_number,
     tool_name,
     parametros: params ?? {},
@@ -48,8 +59,15 @@ export async function POST(request) {
     mensagem_erro: error?.message ?? null,
   });
 
+  if (erroAuditoria) {
+    console.error("Falha ao gravar agent_audit_log:", erroAuditoria.message);
+  }
+
   if (error) {
-    return Response.json({ success: false, error_code: error.message }, { status: 200 });
+    return Response.json(
+      { success: false, error_code: error.message, error_pg_code: error.code ?? null },
+      { status: 200 }
+    );
   }
 
   return Response.json({ success: true, data });
