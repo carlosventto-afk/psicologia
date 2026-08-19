@@ -672,24 +672,28 @@ Uma rota nova `/completar-cadastro/[token]` seguiria o mesmo padrão.
 - Botão "Gerar link" na página do paciente (`/pacientes/[id]`), copia o
   link pra área de transferência.
 - Página pública `/completar-cadastro/[token]`: formulário simples,
-  confirma sucesso, token vira inválido depois de usado (ou expira depois
-  de N dias, o que vier primeiro).
+  confirma sucesso, token vira inválido depois de usado.
+- Fluxo de confirmação: o que o paciente envia **não sobrescreve
+  `Paciente` direto** — fica como uma proposta pendente até o profissional
+  aceitar. Precisa de: onde guardar o pendente (mais simples: os mesmos
+  campos como colunas `_pendente` numa tabela `PropostaCompletarCadastro`,
+  ligada ao token usado, do que abrir mão do formato normalizado por um
+  jsonb solto), um jeito de o profissional ver que tem pendência (badge/
+  aviso na página do paciente) e uma ação "Aceitar"/"Rejeitar" por campo ou
+  em bloco (a decidir na hora do design — aceitar tudo de uma vez é mais
+  simples; campo a campo dá mais controle se só uma parte estiver errada).
 
-**Decisões em aberto:**
-- **Quais campos o paciente pode preencher?** Provavelmente os campos de
-  contato/documento (telefone, e-mail, endereço, CPF, RG) que hoje só o
-  profissional cadastra manualmente — **não** parece fazer sentido abrir a
-  Anamnese (item 12) pro próprio paciente editar, já que é registro
-  clínico do profissional, não autodeclarado. A confirmar.
-- Token de uso único ou reutilizável até expirar? Recomendo uso único —
-  reduz superfície de risco se o link vazar.
-- Validade do link (ex: 7 dias)?
-- O que acontece se o paciente preencher um campo que o profissional já
-  tinha preenchido diferente — sobrescreve direto, ou fica pendente de
-  aprovação do profissional antes de valer? Sobrescrever direto é mais
-  simples; exigir aprovação é mais seguro contra erro/má-fé, mas é mais
-  fluxo pra construir.
+**Decisões já tomadas pelo usuário em 2026-08-17:**
+- **Campos que o paciente pode preencher:** só contato/documento —
+  telefone, e-mail, endereço, CPF, RG. Anamnese (item 12) fica de fora —
+  é registro clínico do profissional, não autodeclarado pelo paciente.
+- **Token:** uso único (invalida depois de usado, não é reutilizável até
+  expirar).
+- **Validade do link:** 7 dias.
+- **Confirmação:** fluxo de aprovação — o profissional precisa aceitar as
+  mudanças antes delas valerem (não sobrescreve `Paciente` direto).
 
-**Tamanho estimado:** M — rota pública nova + tabela de token + RPC de
-validação/escrita; não depende do item 13 (o envio manual do link não
+**Tamanho estimado:** M — rota pública nova + tabela de token + tabela/
+fluxo de proposta pendente + RPC de validação/escrita + tela de aprovação
+pro profissional. Não depende do item 13 (o envio manual do link não
 precisa do agente), mas ganha valor se depois for automatizado por ele.
