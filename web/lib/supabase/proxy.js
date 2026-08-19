@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   "/robots.txt",
   "/termos",
   "/carne-leao-automatico",
+  "/api/agent/call-tool",
 ];
 
 export async function updateSession(request) {
