@@ -332,6 +332,29 @@ já existentes), transcrição de áudio (Whisper), wrapper de log em
 (`docs/whatsapp-message-templates.md`) não precisam mais de aprovação de
 template — com Evolution API viram apenas texto livre.
 
+### 5 tools novas + correções da revisão final (2026-08-17)
+
+Implementado o design de `docs/superpowers/specs/2026-08-17-agente-whatsapp-profissional-design.md`
+(item 13 do backlog): 5 tools novas —
+`agent_reagendar_sessao`, `agent_excluir_sessao`, `agent_excluir_pagamento`,
+`agent_registrar_lancamento_despesa`, `agent_registrar_anamnese` — mais a
+tabela `SessaoReagendamento`, elevando o total de 11 pra **16 tools**.
+Migrations `20260817000001` a `20260817000010`: as primeiras seis
+(`...001` a `...006`) implementam schema + as 5 funções; `...007` a
+`...010` são a rodada de correções da revisão final do branch —
+`agent_registrar_anamnese` ganhou guarda contra linha fantasma (chamada
+vazia num paciente sem anamnese não cria mais registro), trim/normalização
+de string vazia pra `null` nos 11 campos, e validação de `p_campos`
+malformado; `agent_excluir_pagamento` passou a capturar violação de FK
+vinda de `NotaFiscal` (item 7/NFS-e) como `PAGAMENTO_TEM_NOTA_FISCAL` em
+vez de erro cru; `agent_reagendar_sessao` corrigiu o guard de
+`"Realizado"` pra tratar `NULL` como reagendável (dado legado) e passou a
+bucketizar o contador mensal em horário de Brasília em vez de UTC, além de
+ganhar índice em `SessaoReagendamento.sessao`. Também removidos 9 registros
+de teste deixados em produção por verificações anteriores (3 `Paciente` +
+3 `Sessao` + `SessaoReagendamento` em cascata, todos com `owner`/`consultorio`
+nulos, portanto inertes mas não deveriam existir).
+
 ## Nova funcionalidade: sessões recorrentes (Semanal/Quinzenal/Mensal)
 
 A pedido do usuário, "Nova Sessão" agora suporta recorrência: ao escolher **Tipo de Atendimento** = Semanal/Quinzenal/Mensal (em vez de Avulso), o sistema cria a sessão + uma série (`Recorrencia`) + todas as próximas ocorrências até ~3 meses à frente. Não existe uma "data final" escolhida pelo usuário — a recorrência é indefinida até ser cancelada, e o sistema sempre mantém ~3 meses de sessões futuras geradas.

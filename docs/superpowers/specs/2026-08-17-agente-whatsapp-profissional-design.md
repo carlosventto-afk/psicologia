@@ -124,11 +124,14 @@ e `grant execute` só pra `service_role`.
 
 Espelha `excluirLancamento` (`web/lib/actions/lancamentos.js`): resolve
 consultório, valida que o pagamento pertence a uma sessão de um paciente
-desse consultório, apaga o `LancamentoFinanceiro` vinculado (via
-`PagamentoSessao.lancamento`) e depois o próprio `PagamentoSessao`. Isso
-"desfaz" o pagamento por completo — a sessão volta a aparecer como não paga
-(o status pago é derivado só da existência de `PagamentoSessao`, não muda
-`Sessao.status`/`Realizado` sozinho, mesmo comportamento do app).
+desse consultório, apaga primeiro o próprio `PagamentoSessao` e só depois
+o `LancamentoFinanceiro` vinculado (via `PagamentoSessao.lancamento`) —
+nessa ordem porque `PagamentoSessao.lancamento` referencia
+`LancamentoFinanceiro.id`, então apagar o lançamento primeiro levantaria
+violação de FK. Isso "desfaz" o pagamento por completo — a sessão volta a
+aparecer como não paga (o status pago é derivado só da existência de
+`PagamentoSessao`, não muda `Sessao.status`/`Realizado` sozinho, mesmo
+comportamento do app).
 
 ### 4. `agent_registrar_lancamento_despesa`
 
@@ -162,8 +165,14 @@ não precisar de `EXECUTE format(...)` acessando coluna por nome):
    `calcularAlteracoes` do app (primeira gravação = `valor_anterior: null`
    pros campos preenchidos).
 4. `upsert` na `Anamnese` (por `paciente`), cada coluna =
-   `coalesce(p_campos->>'coluna', valor_atual_da_coluna)` — só sobrescreve
-   o que veio em `p_campos`, mantém o resto.
+   `case when p_campos ? 'coluna' then nullif(trim(p_campos->>'coluna'), '')
+   else valor_atual_da_coluna end` — só sobrescreve o que veio em
+   `p_campos` (usando a checagem de existência de chave `?`, não
+   `coalesce`, pra distinguir corretamente "chave ausente" de "chave
+   presente como null"), mantém o resto. Valores string passam por
+   `trim`/vazio-vira-`null` (mesma normalização de
+   `web/lib/actions/anamnese.js`), pra edições só-com-espaço não gerarem
+   diff espúrio e vazio funcionar como "limpar o campo".
 5. Insere em `AnamneseFollowup` **se** `alteracoes` não for vazio **ou**
    `p_observacao` foi informado — mesma regra do app (sem followup se nada
    mudou e não veio observação).
@@ -291,3 +300,26 @@ usado nos itens anteriores:
    tiver mais de um) e uma mensagem de áudio (transcrição).
 3. **`agent_audit_log`:** confirmar que cada interação de teste do item 2
    gerou uma linha correspondente.
+
+## Catálogo de códigos de erro
+
+Todo código é levantado com `raise exception '<CODIGO>' using errcode =
+'P0001'` — o workflow n8n captura pela mensagem do erro (`<CODIGO>`), não
+pelo `errcode` (todos usam o mesmo `P0001`). Cobre as 16 tools (11
+pré-existentes + 5 desta entrega).
+
+| Código | Função(ões) | Significado |
+| --- | --- | --- |
+| `WHATSAPP_NAO_VINCULADO` | `_agent_resolve_consultorio`/`_agent_get_owner_uuid` (todas as tools) | Número de WhatsApp não vinculado a nenhum profissional. |
+| `CONSULTORIO_INVALIDO` | `_agent_resolve_consultorio` | `p_consultorio_id` informado não pertence ao profissional. |
+| `CONSULTORIO_AMBIGUO` | `_agent_resolve_consultorio` | Profissional tem mais de um consultório e nenhum foi especificado. |
+| `SEM_CONSULTORIO_CADASTRADO` | `_agent_resolve_consultorio` | Profissional não tem nenhum consultório cadastrado. |
+| `SESSAO_NAO_ENCONTRADA` | `agent_cancelar_sessao`, `agent_marcar_atendimento_realizado`, `agent_excluir_sessao` | Sessão não existe ou não pertence ao consultório resolvido. |
+| `PACIENTE_INVALIDO` | `agent_agendar_sessao_avulsa`, `agent_registrar_anamnese` | Paciente não existe ou não pertence ao consultório resolvido. |
+| `SESSAO_NAO_REAGENDAVEL` | `agent_reagendar_sessao` | Sessão já realizada ou cancelada. |
+| `SESSAO_TEM_VINCULO_FINANCEIRO` | `agent_excluir_sessao` | Sessão tem pagamento/lançamento/recibo vinculado, não pode ser excluída (só cancelada). |
+| `PAGAMENTO_NAO_ENCONTRADO` | `agent_excluir_pagamento` | Pagamento não existe ou não pertence ao consultório resolvido. |
+| `PAGAMENTO_TEM_NOTA_FISCAL` | `agent_excluir_pagamento` | Pagamento tem NFS-e vinculada, não pode ser excluído (adicionado na rodada de fix da revisão final, 2026-08-17). |
+| `CONTA_INVALIDA` | `agent_registrar_lancamento_despesa` | Conta financeira informada não pertence ao profissional. |
+| `CAMPO_ANAMNESE_INVALIDO` | `agent_registrar_anamnese` | Chave em `p_campos` fora da lista de 11 campos válidos. |
+| `CAMPOS_INVALIDOS` | `agent_registrar_anamnese` | `p_campos` não é um objeto JSON (adicionado na rodada de fix da revisão final, 2026-08-17). |
