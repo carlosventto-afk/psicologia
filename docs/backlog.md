@@ -31,7 +31,7 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 10 | Marcar atendimento como "já gerado em TXT", avisando o operador e excluindo das gerações automáticas seguintes | 8, 9 |
 | 11 (metade 2) | Cobrança/gateway de pagamento dos planos (preço, assinatura, inadimplência) | 11 (metade 1) |
 | 7 (infra) | Configurar conta Resend em produção (`RESEND_API_KEY`/`RESEND_FROM_EMAIL` no app principal, domínio de envio verificado) pra habilitar o e-mail automático da NFS-e ao paciente — hoje falha silenciosamente sem bloquear a emissão | 7 |
-| 13 (metade 2) | Agente de WhatsApp — workflow n8n que liga o WhatsApp às 5 RPCs (reagendar com contador/alerta, excluir sessão, excluir pagamento, lançamento de despesa, registrar anamnese), com transcrição de áudio (Whisper) e logging em `agent_audit_log` | — |
+| 13 (metade 2) | Agente de WhatsApp — workflow n8n que liga o WhatsApp às 5 RPCs (reagendar com contador/alerta, excluir sessão, excluir pagamento, lançamento de despesa, registrar anamnese), com transcrição de áudio (Whisper) e logging em `agent_audit_log` — backend do proxy (migration + rota /api/agent/call-tool) pronto; falta só o workflow n8n em si (metade 2b) | — |
 | 14 | Link público pro paciente completar o próprio cadastro — profissional gera/envia um link de dentro do app, paciente preenche sem precisar de login | — |
 
 Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também

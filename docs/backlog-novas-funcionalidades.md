@@ -555,7 +555,10 @@ diretório), foi aditivo ao cadastro do paciente.
 
 **Status: parcialmente implementado** (5 RPCs novas em 2026-08-17) — falta
 o workflow n8n que liga o WhatsApp a elas (ver seção "Falta pra existir de
-verdade" abaixo, agora só com os itens de orquestração). Pedido do usuário em 2026-08-17, retomando um
+verdade" abaixo, agora só com os itens de orquestração). Backend do
+proxy (`_agent_resolve_consultorio` corrigido, `agent_definir_consultorio_ativo`
+nova, rota `/api/agent/call-tool`) pronto em 2026-08-19 — falta só
+construir os workflows do n8n em si, que viram um plano próprio. Pedido do usuário em 2026-08-17, retomando um
 projeto já iniciado antes deste backlog numerado existir. Arquitetura
 completa (todas as fases) em
 `C:\Users\Administrador\.claude\plans\preciso-criar-um-ecossistema-tidy-bachman.md`;
