@@ -553,7 +553,9 @@ diretório), foi aditivo ao cadastro do paciente.
 
 ## 13. Agente de WhatsApp — secretário do profissional
 
-**Status: a realizar** — pedido do usuário em 2026-08-17, retomando um
+**Status: parcialmente implementado** (5 RPCs novas em 2026-08-17) — falta
+o workflow n8n que liga o WhatsApp a elas (ver seção "Falta pra existir de
+verdade" abaixo, agora só com os itens de orquestração). Pedido do usuário em 2026-08-17, retomando um
 projeto já iniciado antes deste backlog numerado existir. Arquitetura
 completa (todas as fases) em
 `C:\Users\Administrador\.claude\plans\preciso-criar-um-ecossistema-tidy-bachman.md`;
@@ -598,35 +600,10 @@ abrir o app.
   no WhatsApp.
 - Wrapper de log em `agent_audit_log` (toda ação do agente registrada, pra
   auditoria/depuração).
-- Tools novas de RPC (nenhuma existe ainda), a criar seguindo o mesmo
-  padrão `security definer`/`service_role` das 11 já existentes:
-  - `agent_reagendar_sessao` — muda data/horário de uma sessão **não
-    realizada** existente (não cria nova, não cancela; espelha
-    `atualizarSessao` do app), e grava uma linha em `SessaoReagendamento`
-    (tabela nova: sessão, data/horário anterior, data/horário novo,
-    `reagendado_em`) — o contador de reagendamentos por paciente vira um
-    `count(*)` sobre essa tabela, e o alerta pro profissional dispara a
-    partir de **3 reagendamentos no mesmo mês** por paciente (padrão
-    inicial, sem UI de configuração na v1).
-  - `agent_excluir_sessao` — exclui de verdade (não só cancela) uma sessão
-    marcada por engano; bloqueado se houver `PagamentoSessao`/`Recibo`
-    vinculado (mesma trava que o app já teria que ter — nesse caso o
-    agente orienta a cancelar em vez de excluir).
-  - `agent_excluir_pagamento` — espelha `excluirLancamento` do app: apaga
-    o `LancamentoFinanceiro` e o `PagamentoSessao` vinculado junto,
-    desfazendo o pagamento por completo.
-  - `agent_registrar_lancamento_despesa` — cria um `LancamentoFinanceiro`
-    avulso (sem vínculo com sessão), espelha `criarLancamento` do app.
-  - `agent_registrar_anamnese` — recebe paciente + um ou mais dos 11 campos
-    de `web/lib/anamnese-campos.js` (o LLM decide qual campo bate com o
-    que o profissional disse) e/ou uma observação livre; reaproveita a
-    mesma lógica de diff+upsert+followup de `salvarAnamnese`
-    (`web/lib/actions/anamnese.js`), então o histórico gerado pelo agente
-    fica idêntico ao gerado pela tela.
-- Os 3 textos de mensagem já redigidos (`docs/whatsapp-message-templates.md`)
-  não precisam mais de aprovação de template (isso só existe na API oficial
-  da Meta) — com Evolution API são só texto livre, mas vale revisar se
-  ainda refletem o fluxo atual antes de usar.
+- Revisão dos 3 textos de mensagem redigidos (`docs/whatsapp-message-templates.md`)
+  — com Evolution API são texto livre (não precisam de aprovação de template
+  como na API oficial da Meta), mas vale revisar se ainda refletem o fluxo
+  atual antes de usar.
 
 **Fora de escopo nesta entrega (decisão do usuário em 2026-08-17):**
 - **Canal do paciente** — consulta + solicitação de reagendamento/
