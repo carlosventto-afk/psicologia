@@ -355,6 +355,33 @@ de teste deixados em produção por verificações anteriores (3 `Paciente` +
 3 `Sessao` + `SessaoReagendamento` em cascata, todos com `owner`/`consultorio`
 nulos, portanto inertes mas não deveriam existir).
 
+### Rota `/api/agent/call-tool` + correções da revisão final (2026-08-19)
+
+Migration aplicada no banco real: correção em `_agent_resolve_consultorio`
+mais a RPC nova `agent_definir_consultorio_ativo`. A rota Next.js
+`POST /api/agent/call-tool` (o proxy que o futuro workflow do n8n vai
+chamar pra executar as 18 tools do agente) está **commitada na `main` mas
+ainda não implantada** — o deploy deste projeto é por clique manual no
+EasyPanel, e ainda não houve esse clique pra esta branch. Ou seja: agora
+mesmo, mesmo com a env var abaixo ausente em produção, nada quebra, porque
+nada chama essa rota ainda.
+
+- **Env var nova `AGENT_TOOL_SECRET`** — autentica a chamada do n8n pro
+  app: a rota compara o header `x-agent-secret` com essa variável e devolve
+  401 se não bater (é o único controle de acesso do endpoint, que não usa
+  sessão de usuário). Precisa estar presente em **dois lugares**:
+  - **EasyPanel (produção)**, serviço do app Next.js — a ser configurada
+    quando o app for implantado;
+  - **nó HTTP Request Tool do workflow do n8n** (ainda não construído —
+    parte da "metade 2b" do plano do agente), como header `x-agent-secret`
+    da requisição.
+
+  Os dois valores têm que ser idênticos; se divergirem, todo disparo vira
+  401 silencioso — e, nesse caso, nem chega a gravar linha em
+  `agent_audit_log`, porque a rota rejeita antes de chegar no insert
+  (mesmo formato de falha já documentado acima pra
+  `CARNE_LEAO_CRON_SECRET`).
+
 ## Nova funcionalidade: sessões recorrentes (Semanal/Quinzenal/Mensal)
 
 A pedido do usuário, "Nova Sessão" agora suporta recorrência: ao escolher **Tipo de Atendimento** = Semanal/Quinzenal/Mensal (em vez de Avulso), o sistema cria a sessão + uma série (`Recorrencia`) + todas as próximas ocorrências até ~3 meses à frente. Não existe uma "data final" escolhida pelo usuário — a recorrência é indefinida até ser cancelada, e o sistema sempre mantém ~3 meses de sessões futuras geradas.

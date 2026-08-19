@@ -94,8 +94,8 @@ export async function POST(request) {
 
   const admin = createAdminClient();
   const { data, error } = await admin.rpc(tool_name, {
-    p_whatsapp_number: whatsapp_number,
     ...params,
+    p_whatsapp_number: whatsapp_number,
   });
 
   await admin.from("agent_audit_log").insert({
