@@ -588,56 +588,108 @@ abrir o app.
   registrado de queda/reconexão). Efeito prático: se o número cair, todo
   profissional fica sem o agente ao mesmo tempo, não só um.
 
-**Falta pra existir de verdade (nada disso foi começado ainda):**
+**Falta pra existir de verdade:**
 - O workflow n8n em si — `WA - Inbound Router` + `WA - Agent Psicólogo` —
   que liga a mensagem recebida no WhatsApp a um LLM (Claude) com acesso às
-  RPC tools acima. Hoje só a base de dados está pronta pra receber esse
-  trabalho.
+  tools. **O n8n em si já está rodando** na VPS (serviço `psifacil_n8n`,
+  implantado pro item 9/Carnê-Leão) — o que falta é só o workflow
+  específico do agente dentro dele, não a plataforma.
 - Transcrição de áudio (Whisper), já que mensagem de voz é um canal comum
   no WhatsApp.
 - Wrapper de log em `agent_audit_log` (toda ação do agente registrada, pra
   auditoria/depuração).
-- **Gap identificado, confirmado pelo usuário em 2026-08-17:** a lista de
-  tools de hoje cobre criar (`agent_agendar_sessao_avulsa`) e cancelar
-  (`agent_cancelar_sessao`) uma sessão, mas não **reagendar/mudar a data de
-  uma sessão existente** — que é explicitamente um dos comandos pedidos
-  ("mudar data de atendimento"). O usuário foi explícito: reagendar **não é**
-  cancelar — cancelar não tem substituição, reagendar troca a data/hora do
-  *mesmo* atendimento. Precisa de uma RPC nova (ex: `agent_reagendar_sessao`)
-  que faz `update` na `Sessao` existente (não cria uma nova nem cancela a
-  atual).
-- **Novo requisito, pedido pelo usuário em 2026-08-17:** contador de quantas
-  vezes cada paciente já reagendou, pra servir de alerta pro profissional
-  quando um paciente remarca com frequência incomum. Duas formas de
-  implementar, a decidir na hora do design:
-  - **(a) Coluna contadora** em `Paciente` (ex: `reagendamentos_count int
-    default 0`, incrementada a cada chamada de `agent_reagendar_sessao`) —
-    mais simples, mas só guarda o número, sem histórico de quando/pra
-    quando cada reagendamento foi.
-  - **(b) Tabela de histórico** (ex: `ReagendamentoSessao`: sessao, data
-    anterior, data nova, reagendado_em) — mesmo padrão já usado no item 12
-    (`AnamneseFollowup`) pra esse tipo de "trilha de eventos"; o contador
-    vira só um `count(*)` por paciente, e de brinde já dá pra mostrar
-    *quando* cada remarcação aconteceu, não só quantas. **Recomendo (b)** —
-    mesmo padrão comprovado no código, e "quantas vezes" sozinho tende a
-    gerar a pergunta seguinte ("quando foram essas remarcações?") assim que
-    o profissional vir o número.
+- Tools novas de RPC (nenhuma existe ainda), a criar seguindo o mesmo
+  padrão `security definer`/`service_role` das 11 já existentes:
+  - `agent_reagendar_sessao` — muda data/horário de uma sessão **não
+    realizada** existente (não cria nova, não cancela; espelha
+    `atualizarSessao` do app), e grava uma linha em `SessaoReagendamento`
+    (tabela nova: sessão, data/horário anterior, data/horário novo,
+    `reagendado_em`) — o contador de reagendamentos por paciente vira um
+    `count(*)` sobre essa tabela, e o alerta pro profissional dispara a
+    partir de **3 reagendamentos no mesmo mês** por paciente (padrão
+    inicial, sem UI de configuração na v1).
+  - `agent_excluir_sessao` — exclui de verdade (não só cancela) uma sessão
+    marcada por engano; bloqueado se houver `PagamentoSessao`/`Recibo`
+    vinculado (mesma trava que o app já teria que ter — nesse caso o
+    agente orienta a cancelar em vez de excluir).
+  - `agent_excluir_pagamento` — espelha `excluirLancamento` do app: apaga
+    o `LancamentoFinanceiro` e o `PagamentoSessao` vinculado junto,
+    desfazendo o pagamento por completo.
+  - `agent_registrar_lancamento_despesa` — cria um `LancamentoFinanceiro`
+    avulso (sem vínculo com sessão), espelha `criarLancamento` do app.
+  - `agent_registrar_anamnese` — recebe paciente + um ou mais dos 11 campos
+    de `web/lib/anamnese-campos.js` (o LLM decide qual campo bate com o
+    que o profissional disse) e/ou uma observação livre; reaproveita a
+    mesma lógica de diff+upsert+followup de `salvarAnamnese`
+    (`web/lib/actions/anamnese.js`), então o histórico gerado pelo agente
+    fica idêntico ao gerado pela tela.
 - Os 3 textos de mensagem já redigidos (`docs/whatsapp-message-templates.md`)
   não precisam mais de aprovação de template (isso só existe na API oficial
   da Meta) — com Evolution API são só texto livre, mas vale revisar se
   ainda refletem o fluxo atual antes de usar.
 
-**Decisões já tomadas pelo usuário em 2026-08-17:**
-- **Escopo desta entrega: só o canal do profissional.** O canal opcional do
-  paciente (consulta + solicitação de reagendamento/cancelamento sujeita a
-  aprovação do psicólogo, já desenhado na arquitetura original) fica pra
-  uma entrega futura separada — não faz parte deste item 13.
-- Reagendamento é uma ação própria (não cancelar+criar) e precisa de um
-  contador/histórico de reagendamentos por paciente pra alertar o
-  profissional sobre remarcações frequentes (ver gap acima).
+**Fora de escopo nesta entrega (decisão do usuário em 2026-08-17):**
+- **Canal do paciente** — consulta + solicitação de reagendamento/
+  cancelamento sujeita a aprovação do psicólogo, já desenhado na
+  arquitetura original. Fica pra uma entrega futura separada.
+- **Relatórios** (resumo em texto estendido, ou geração/envio de arquivo
+  tipo PDF) — explicitamente adiado pelo usuário; a decidir depois se é
+  (a) resumo em texto na própria conversa ou (b) arquivo anexado (esta
+  última é bem mais trabalho: geração de arquivo + envio de anexo pelo
+  Evolution API).
 
-**Tamanho estimado:** G — a parte estrutural (schema/RPCs/RLS/canal) já
-está pronta, mas a peça que falta é a mais complexa do projeto todo: o
-próprio agente (orquestração n8n + LLM + prompt engineering + tratamento de
-erro de tool call + transcrição de áudio), do zero — mais a RPC nova de
-reagendamento e o contador/histórico associado.
+**Tamanho estimado:** G — a parte estrutural (schema/RPCs/RLS/canal, n8n
+como plataforma) já está pronta, mas a peça que falta é a mais complexa do
+projeto todo: o próprio agente (orquestração n8n + LLM + prompt engineering
++ tratamento de erro de tool call + transcrição de áudio) do zero, mais 5
+tools/RPCs novas e a tabela de histórico de reagendamento.
+
+---
+
+## 14. Link público pro paciente completar o próprio cadastro
+
+**Status: a realizar** — pedido do usuário em 2026-08-17.
+
+**Objetivo:** o profissional, de dentro do app, gera um link e o envia pro
+paciente (hoje: copia e manda por fora — WhatsApp pessoal, SMS etc.; depois
+do item 13 existir, dá pra automatizar o envio pelo próprio agente). O
+paciente abre o link **sem precisar logar** e completa/corrige os próprios
+dados cadastrais.
+
+**Padrão já existente no app que isso reaproveita:** rotas públicas fora do
+grupo `(app)` já existem (`/busca`, `/blog`, `/cadastro`, `/comece`,
+`/termos` — ver `web/proxy.js`), servidas sem passar pelo check de sessão.
+Uma rota nova `/completar-cadastro/[token]` seguiria o mesmo padrão.
+
+**Escopo provável:**
+- Tabela nova (ex: `TokenCompletarCadastro`: paciente, token, criado_em,
+  expira_em, usado_em nullable) — RLS permite ao profissional gerar/listar
+  tokens dos próprios pacientes (mesmo padrão de join a `Paciente.owner`);
+  o preenchimento em si passa por uma RPC `security definer` que valida o
+  token (existe, não expirou, não foi usado) antes de aceitar a escrita —
+  mais seguro do que abrir uma policy de RLS permissiva pra `anon` direto
+  na tabela `Paciente`.
+- Botão "Gerar link" na página do paciente (`/pacientes/[id]`), copia o
+  link pra área de transferência.
+- Página pública `/completar-cadastro/[token]`: formulário simples,
+  confirma sucesso, token vira inválido depois de usado (ou expira depois
+  de N dias, o que vier primeiro).
+
+**Decisões em aberto:**
+- **Quais campos o paciente pode preencher?** Provavelmente os campos de
+  contato/documento (telefone, e-mail, endereço, CPF, RG) que hoje só o
+  profissional cadastra manualmente — **não** parece fazer sentido abrir a
+  Anamnese (item 12) pro próprio paciente editar, já que é registro
+  clínico do profissional, não autodeclarado. A confirmar.
+- Token de uso único ou reutilizável até expirar? Recomendo uso único —
+  reduz superfície de risco se o link vazar.
+- Validade do link (ex: 7 dias)?
+- O que acontece se o paciente preencher um campo que o profissional já
+  tinha preenchido diferente — sobrescreve direto, ou fica pendente de
+  aprovação do profissional antes de valer? Sobrescrever direto é mais
+  simples; exigir aprovação é mais seguro contra erro/má-fé, mas é mais
+  fluxo pra construir.
+
+**Tamanho estimado:** M — rota pública nova + tabela de token + RPC de
+validação/escrita; não depende do item 13 (o envio manual do link não
+precisa do agente), mas ganha valor se depois for automatizado por ele.
