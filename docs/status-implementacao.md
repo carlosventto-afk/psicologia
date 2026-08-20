@@ -1,6 +1,6 @@
 # Status da implementação
 
-Última atualização: 2026-08-14.
+Última atualização: 2026-08-20.
 
 ## Envio automático do Carnê-Leão (2026-08-13, item 9 do backlog)
 
@@ -381,6 +381,92 @@ nada chama essa rota ainda.
   `agent_audit_log`, porque a rota rejeita antes de chegar no insert
   (mesmo formato de falha já documentado acima pra
   `CARNE_LEAO_CRON_SECRET`).
+
+### Workflows n8n construídos e ativados + bug crítico achado na verificação (2026-08-20)
+
+Implementado o plano `docs/superpowers/plans/2026-08-19-agente-whatsapp-n8n-workflow.md`
+(Tasks 1-6, item 13 do backlog, "metade 2b"): os 3 workflows n8n existem e
+estão **ativos em produção**, com o webhook da Evolution API configurado —
+mas a verificação de fechamento (Task 6) achou um bug que deixa o pipeline
+inteiro fora do ar mesmo assim. Registrado aqui pra quem for corrigir.
+
+**Os 3 workflows** (n8n rodando em `psifacil-n8n.lcuzxl.easypanel.host`,
+ids em `scripts/n8n-agente-whatsapp/ids.json`):
+- **`WA - Enviar Mensagem`** (`zzOUzuQ8kbEtkMyy`) — sub-workflow reutilizável,
+  trigger `Execute Workflow Trigger`, recebe `{whatsapp_number, mensagem}` e
+  manda via `POST /message/sendText/psifacil` na Evolution API.
+- **`WA - Agent Psicólogo`** (`2DCUpWdgU1A2PyFv`) — sub-workflow com o
+  agente LangChain (Gemini 3.5 Flash-Lite + memória Postgres + as 18 tools
+  como nós `toolHttpRequest`, cada um chamando `POST /api/agent/call-tool`
+  com o `tool_name` fixo daquele nó), recebe `{whatsapp_number,
+  mensagem_texto, usuario_nome}` e devolve `{output}`.
+- **`WA - Inbound Router`** (`5muCm5Q2UYo2jWWe`) — recebe o webhook da
+  Evolution API (`POST /webhook/wa-inbound`), normaliza o payload, filtra
+  mensagem própria (`fromMe`)/não-texto, busca se o número já está
+  vinculado a um `Usuarios.whatsapp_number`, e roteia entre chamar o Agent
+  Psicólogo (número vinculado) ou o fluxo de vinculação por código de 6
+  dígitos (número novo) — chamando `WA - Enviar Mensagem` pra cada resposta.
+
+**As 4 credenciais** criadas por `scripts/n8n-agente-whatsapp/01-criar-credenciais.mjs`
+(ids também em `ids.json`): `postgres` (conexão direta com o Supabase,
+usada pelas queries do Router e pela memória do Agent), `gemini`
+(`googlePalmApi`, usada pelo nó LLM), `proxySecret` (header
+`x-agent-secret`, usado pelos 18 nós de tool + qualquer chamada à rota
+`/api/agent/call-tool`), `evolutionApiKey` (header `apikey`, usado pelo nó
+que manda a mensagem).
+
+**Webhook da Evolution API** (`scripts/n8n-agente-whatsapp/05-configurar-webhook-e-ativar.mjs`):
+instância `psifacil` configurada via `POST /webhook/set/psifacil` pra
+mandar `MESSAGES_UPSERT` (`webhookByEvents: true`) pro Router — ordem de
+ativação importa (sub-workflows antes do Router, senão o webhook de
+produção do Router ainda não existe pra apontar).
+
+**Risco já documentado, reforçado aqui:** o canal inteiro depende de uma
+única instância Evolution API self-hosted pareada com um número dedicado.
+Se essa instância cair/desconectar (`connectionStatus: close`), **todo
+profissional perde o agente ao mesmo tempo** — não é um agente por
+profissional, é um canal único compartilhado. Ver incidente já registrado
+na seção "Agente de WhatsApp — Fase A em andamento" (2026-07-30) pro
+procedimento de recuperação (delete → create → connect coordenado).
+
+**Bug crítico achado no teste sintético (Task 6, Step 1):** um `curl`
+simulando um payload de vinculação por código direto no webhook de
+produção do Router (`POST /webhook/wa-inbound`) mostrou que o nó
+"Normalizar Payload" extrai o payload da Evolution API corretamente —
+`numero_normalizado: "5511900000000"`, `texto: "123456"`, `fromMe: false`,
+`isText: true` — mas a execução termina em `status: error` por dois
+problemas de configuração, não de lógica do workflow:
+
+1. **`Buscar Usuario Vinculado` (nó Postgres) falha com `connect ENETUNREACH
+   2600:...`**: a credencial `postgres` aponta pro host de conexão direta
+   do Supabase (`db.rohulajgyxdangxfurha.supabase.co`), que é **IPv6-only**
+   — o container do n8n no EasyPanel não tem rota IPv6 de saída. Provável
+   correção: trocar pelo host do connection pooler do Supabase (Supavisor,
+   IPv4), não pela conexão direta.
+2. **`Enviar via Evolution API` (dentro de `WA - Enviar Mensagem`) falha com
+   `"This credential is configured to prevent use within an HTTP Request
+   node"`**: as credenciais `evolutionApiKey` e `proxySecret` foram criadas
+   em `01-criar-credenciais.mjs` com `allowedHttpRequestDomains: "none"`
+   (deveria ser `"all"` ou a lista de domínios certa) — é um campo de
+   segurança do n8n que bloqueia por padrão o uso de credenciais genéricas
+   (`httpHeaderAuth`) dentro de nós HTTP Request/Tool HTTP Request. Como
+   **todos os 18 nós de tool do Agent Psicólogo** e **o único nó que manda
+   mensagem** usam essas duas credenciais, isso bloqueia o pipeline inteiro:
+   nenhuma tool executa, nenhuma resposta sai, mesmo que o resto da lógica
+   esteja certa (confirmado pelo próprio "Normalizar Payload" acima).
+
+**Não corrigido nesta task** (Task 6 é só verificação + documentação,
+consertar workflow/credencial é outra unidade de trabalho) — os dois
+problemas acima bloqueiam qualquer teste real com WhatsApp (mesmo depois
+de reconectar a instância) até serem corrigidos. `agent_audit_log` conferido
+como baseline antes de qualquer teste real: **0 linhas**.
+
+**Ainda pendente (depende de ação humana, não script):** reconectar a
+instância `psifacil` da Evolution API (`connectionStatus: close` hoje,
+precisa escanear QR code) e, depois de corrigir os 2 problemas acima,
+rodar o roteiro de teste real mandando mensagens de verdade pelo WhatsApp
+vinculado (consulta de agenda, cancelamento com confirmação, protocolo
+`CONSULTORIO_AMBIGUO`, áudio → resposta fixa, vinculação por código).
 
 ## Nova funcionalidade: sessões recorrentes (Semanal/Quinzenal/Mensal)
 

@@ -553,14 +553,23 @@ diretório), foi aditivo ao cadastro do paciente.
 
 ## 13. Agente de WhatsApp — secretário do profissional
 
-**Status: parcialmente implementado** (5 RPCs novas em 2026-08-17) — falta
-o workflow n8n que liga o WhatsApp a elas (ver seção "Falta pra existir de
-verdade" abaixo, agora só com os itens de orquestração). Backend do
-proxy (`_agent_resolve_consultorio` corrigido, `agent_definir_consultorio_ativo`
-nova, rota `/api/agent/call-tool`) pronto em 2026-08-19 — falta só
-construir os workflows do n8n em si, que viram um plano próprio. Pedido do usuário em 2026-08-17, retomando um
-projeto já iniciado antes deste backlog numerado existir. Arquitetura
-completa (todas as fases) em
+**Status: implementado, metades 1, 2a e 2b** (2026-08-20) — os 3 workflows
+n8n (`WA - Enviar Mensagem`, `WA - Agent Psicólogo`, `WA - Inbound Router`)
+estão construídos, com as 4 credenciais criadas e o webhook da Evolution
+API (instância `psifacil`) apontando pra eles em produção. **Achado
+crítico na verificação de fechamento (Task 6, 2026-08-20):** o teste
+sintético do Router encontrou um bug que bloqueia o pipeline inteiro —
+2 das 4 credenciais criadas (Evolution API e o secret de proxy usado
+pelas 18 tools) foram criadas com `allowedHttpRequestDomains: "none"`, o
+que impede n8n de usá-las em qualquer nó HTTP, e a credencial de Postgres
+aponta pro host de conexão direta do Supabase (IPv6-only), que o n8n não
+alcança (`ENETUNREACH`). Na prática, nenhuma mensagem sai e nenhuma tool
+executa ainda, mesmo com tudo ativo — ver detalhes e causa raiz em
+`docs/status-implementacao.md`. Backend do proxy
+(`_agent_resolve_consultorio` corrigido, `agent_definir_consultorio_ativo`
+nova, rota `/api/agent/call-tool`) pronto desde 2026-08-19. Pedido do
+usuário em 2026-08-17, retomando um projeto já iniciado antes deste
+backlog numerado existir. Arquitetura completa (todas as fases) em
 `C:\Users\Administrador\.claude\plans\preciso-criar-um-ecossistema-tidy-bachman.md`;
 histórico técnico do que já foi feito em `docs/status-implementacao.md`,
 seção "Agente de WhatsApp — Fase A em andamento".
@@ -594,15 +603,25 @@ abrir o app.
   profissional fica sem o agente ao mesmo tempo, não só um.
 
 **Falta pra existir de verdade:**
-- O workflow n8n em si — `WA - Inbound Router` + `WA - Agent Psicólogo` —
-  que liga a mensagem recebida no WhatsApp a um LLM (Claude) com acesso às
-  tools. **O n8n em si já está rodando** na VPS (serviço `psifacil_n8n`,
-  implantado pro item 9/Carnê-Leão) — o que falta é só o workflow
-  específico do agente dentro dele, não a plataforma.
+- **Corrigir o bug crítico achado na verificação (Task 6)** — as
+  credenciais `Evolution API - psifacil` e `Agent Tool Secret - proxy
+  Next.js` precisam de `allowedHttpRequestDomains: "all"` (ou a lista de
+  domínios certa) em vez de `"none"`, e a credencial de Postgres precisa
+  trocar `db.rohulajgyxdangxfurha.supabase.co` (direct connection,
+  IPv6-only) pelo host do connection pooler do Supabase (IPv4). Sem isso,
+  nenhuma mensagem sai e nenhuma tool roda, mesmo com os workflows ativos.
+  Não corrigido nesta task (fora do escopo de verificação/documentação) —
+  precisa virar uma task própria antes do teste real com WhatsApp.
+- **Preciso de você — reconectar o WhatsApp**: a instância `psifacil` da
+  Evolution API está desconectada (`connectionStatus: close`), precisa de
+  QR code escaneado pelo celular vinculado antes de qualquer teste real.
+- **Roteiro de teste real** (após reconectar e corrigir o bug acima):
+  mandar mensagens reais pelo WhatsApp vinculado cobrindo consulta de
+  agenda, cancelamento com confirmação, protocolo `CONSULTORIO_AMBIGUO`,
+  mensagem de áudio (resposta fixa de "só texto") e vinculação por código
+  de 6 dígitos — conferindo `agent_audit_log` antes/depois.
 - Transcrição de áudio (Whisper), já que mensagem de voz é um canal comum
   no WhatsApp.
-- Wrapper de log em `agent_audit_log` (toda ação do agente registrada, pra
-  auditoria/depuração).
 - Revisão dos 3 textos de mensagem redigidos (`docs/whatsapp-message-templates.md`)
   — com Evolution API são texto livre (não precisam de aprovação de template
   como na API oficial da Meta), mas vale revisar se ainda refletem o fluxo
