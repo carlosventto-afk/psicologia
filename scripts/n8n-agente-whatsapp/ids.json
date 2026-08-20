@@ -4,5 +4,8 @@
     "gemini": "r7hXKFZZWZ3vwT4g",
     "proxySecret": "UTGmdRt9IVuk9hmA",
     "evolutionApiKey": "B3BWRpH0DhAIxjq6"
+  },
+  "workflows": {
+    "enviarMensagem": "zzOUzuQ8kbEtkMyy"
   }
 }
