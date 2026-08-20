@@ -109,7 +109,7 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto } }]
       parameters: {
         operation: "executeQuery",
         query:
-          "select id, nome from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1",
+          "select\n  coalesce((select id::text from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1), '') as id,\n  (select nome from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1) as nome",
         options: {
           queryReplacement: "={{ [$json.numero_normalizado] }}",
         },
@@ -179,7 +179,7 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto } }]
         conditions: {
           options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
           conditions: [
-            { leftValue: "={{ $('Normalizar Payload').item.json.texto }}", rightValue: "^\\\\d{6}$", operator: { type: "string", operation: "regex" } },
+            { leftValue: "={{ $('Normalizar Payload').item.json.texto }}", rightValue: "^\\d{6}$", operator: { type: "string", operation: "regex" } },
           ],
           combinator: "and",
         },
@@ -265,8 +265,15 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto } }]
   settings: { executionOrder: "v1" },
 };
 
-const criado = await n8nRequest("POST", "/workflows", workflow);
-console.log(`Workflow "WA - Inbound Router" criado, id=${criado.id}, nós=${workflow.nodes.length}`);
-
-ids.workflows.inboundRouter = criado.id;
-fs.writeFileSync(idsPath, JSON.stringify(ids, null, 2));
+// Idempotente: se o workflow já existe (ids.json.workflows.inboundRouter), atualiza via PUT
+// em vez de criar um duplicado via POST. Isso permite reexecutar este script após corrigir
+// bugs no código acima (ex.: a correção dos Critical #1/#2 pós-review) sem duplicar o workflow.
+if (ids.workflows.inboundRouter) {
+  const atualizado = await n8nRequest("PUT", `/workflows/${ids.workflows.inboundRouter}`, workflow);
+  console.log(`Workflow "WA - Inbound Router" atualizado, id=${atualizado.id}, nós=${workflow.nodes.length}`);
+} else {
+  const criado = await n8nRequest("POST", "/workflows", workflow);
+  console.log(`Workflow "WA - Inbound Router" criado, id=${criado.id}, nós=${workflow.nodes.length}`);
+  ids.workflows.inboundRouter = criado.id;
+  fs.writeFileSync(idsPath, JSON.stringify(ids, null, 2));
+}
