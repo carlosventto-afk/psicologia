@@ -567,7 +567,10 @@ ao host de cada credencial, não `"all"`, que seria permissivo demais). Uma
 segunda rodada — revisão de todo o branch, não mais task a task — achou
 mais 5 Criticals (2 deles de segurança/exposição de dado: webhook sem
 autenticação e uma tabela de memória de conversa que nasceria sem RLS) e
-6 Importants, todos corrigidos e verificados contra produção em 2026-08-24
+6 Importants, dos quais **5 foram corrigidos** (o 6º, auto-reply pra
+qualquer estranho sem vínculo prévio, é uma decisão de produto/ban-risk
+deixada pro usuário, não um bug de código) — todos os 5 Critical + 5
+Important corrigidos foram verificados contra produção em 2026-08-24
 (`.superpowers/sdd/2026-08-19-agente-whatsapp-n8n-workflow/final-review-fix-report.md`
 tem o detalhamento completo; resumo também em `docs/status-implementacao.md`,
 seção "Revisão final do branch"). Backend do proxy
@@ -608,24 +611,20 @@ abrir o app.
   profissional fica sem o agente ao mesmo tempo, não só um.
 
 **Falta pra existir de verdade:**
-- **Achado incidental na revisão final, não corrigido (fora do escopo
-  daquela rodada):** o nó "Google Gemini Chat Model" do Agent está
-  configurado com `models/gemini-3.5-flash-lite`, mas uma chamada real
-  feita durante a verificação mostrou a API do Gemini chamando (e
-  rejeitando) `models/gemini-2.5-flash` — `404 no longer available to new
-  users`. Precisa de uma task própria pra escolher/confirmar um model id
-  válido no catálogo atual do Gemini antes do primeiro teste real com
-  WhatsApp — sem isso, a primeira mensagem real vai falhar mesmo com todo
-  o resto (rede, credenciais, autenticação, RLS) já corrigido.
+- **Preciso de você — créditos do Google esgotados**: uma chamada real ao
+  Gemini feita durante a verificação da correção abaixo retornou `429 Too
+  Many Requests — Your prepayment credits are depleted`. Precisa resolver
+  o billing da conta Google (AI Studio/Google Cloud) antes de qualquer
+  teste real com WhatsApp — sem isso nenhuma chamada ao Gemini funciona,
+  mesmo com o resto já corrigido.
 - **Preciso de você — reconectar o WhatsApp**: a instância `psifacil` da
   Evolution API está desconectada (`connectionStatus: close`), precisa de
   QR code escaneado pelo celular vinculado antes de qualquer teste real.
-- **Roteiro de teste real** (após reconectar e resolver o model id do
-  Gemini acima): mandar mensagens reais pelo WhatsApp vinculado cobrindo
-  consulta de agenda, cancelamento com confirmação, protocolo
-  `CONSULTORIO_AMBIGUO`, mensagem de áudio (resposta fixa de "só texto") e
-  vinculação por código de 6 dígitos — conferindo `agent_audit_log`
-  antes/depois.
+- **Roteiro de teste real** (após resolver os 2 itens acima): mandar
+  mensagens reais pelo WhatsApp vinculado cobrindo consulta de agenda,
+  cancelamento com confirmação, protocolo `CONSULTORIO_AMBIGUO`, mensagem
+  de áudio (resposta fixa de "só texto") e vinculação por código de 6
+  dígitos — conferindo `agent_audit_log` antes/depois.
 - Transcrição de áudio (Whisper), já que mensagem de voz é um canal comum
   no WhatsApp.
 - Revisão dos 3 textos de mensagem redigidos (`docs/whatsapp-message-templates.md`)

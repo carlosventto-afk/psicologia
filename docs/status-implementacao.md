@@ -425,6 +425,15 @@ qualquer chamada à rota `/api/agent/call-tool`), `evolutionApiKey` (header
 `x-webhook-secret`, usado só pelo nó Webhook do Router — autentica a
 entrada, não é usada em nenhum nó de saída).
 
+**Acoplamento importante do `webhookSecret`:** `01-criar-credenciais.mjs`
+(cria/atualiza a credencial no n8n) e `05-configurar-webhook-e-ativar.mjs`
+(manda o mesmo valor pro `headers` do webhook da Evolution API) precisam
+rodar com a **mesma** env var `WEBHOOK_SHARED_SECRET` na mesma sessão.
+Rodar só `01` de novo com um valor novo rotaciona o segredo do lado do n8n
+silenciosamente enquanto a Evolution API continua mandando o valor antigo —
+toda mensagem passa a tomar `403` do n8n antes de qualquer nó rodar, sem
+nenhuma execução na lista pra explicar o motivo.
+
 **Webhook da Evolution API** (`scripts/n8n-agente-whatsapp/05-configurar-webhook-e-ativar.mjs`):
 instância `psifacil` configurada via `POST /webhook/set/psifacil` pra
 mandar `MESSAGES_UPSERT` (`byEvents: false` — o valor efetivo sempre foi
@@ -481,7 +490,10 @@ credential de rede/permissão parar de mascará-lo). Ver a seção seguinte.
 Uma revisão de todo o branch (não mais task-a-task) achou 5 bugs Critical
 (2 com impacto de segurança/exposição de dado) e 6 Important que nenhuma
 revisão anterior, escopada a uma task por vez, conseguiria ter visto
-isoladamente. Todos corrigidos e verificados contra produção nesta rodada
+isoladamente. **5 dos 6 Important foram corrigidos** (I1-I5, listados
+abaixo) — o 6º (I6) foi deliberadamente deixado de fora deste fix wave, ver
+nota ao final desta seção. Todos os 5 Critical + 5 Important corrigidos
+foram verificados contra produção nesta rodada
 (`.superpowers/sdd/2026-08-19-agente-whatsapp-n8n-workflow/final-review-findings.md`
 e `final-review-fix-report.md` têm o detalhamento completo):
 
@@ -536,40 +548,60 @@ e `final-review-fix-report.md` têm o detalhamento completo):
   substitui a autenticação por header. Verificado ao vivo: `curl` sem o
   header → `403`; com o header certo → `200` e o pipeline roda normalmente.
 
-Mais 5 Importants na mesma leva: erro de banco em "Buscar Usuario
-Vinculado" não cai mais indistinguível de "usuário não encontrado"; os 18
-nós de tool do Agent trocaram `.item` por `.first()` (referência ao trigger
-a partir de um nó de sub-tool, que pode falhar com `.item`); os 2 documentos
-deste repositório citados acima foram atualizados pra refletir o estado
-real; Gemini/tool falhando agora manda uma mensagem de desculpa em vez de
-deixar o profissional sem resposta nenhuma; e os 5 scripts de provisionamento
-(`01` a `05`) agora são idempotentes (checam `ids.json` antes de criar,
-fazem PATCH/PUT em vez de duplicar).
+Mais 5 Importants (I1-I5) corrigidos na mesma leva: erro de banco em
+"Buscar Usuario Vinculado" não cai mais indistinguível de "usuário não
+encontrado"; os 18 nós de tool do Agent trocaram `.item` por `.first()`
+(referência ao trigger a partir de um nó de sub-tool, que pode falhar com
+`.item` — e, numa rodada seguinte de re-revisão, a mesma troca foi aplicada
+também no nó "Postgres Chat Memory", que não tinha `onError` e derrubaria o
+workflow inteiro se misresolvesse); os 2 documentos deste repositório
+citados acima foram atualizados pra refletir o estado real; Gemini/tool
+falhando agora manda uma mensagem de desculpa em vez de deixar o
+profissional sem resposta nenhuma; e os 5 scripts de provisionamento (`01`
+a `05`) agora são idempotentes (checam `ids.json` antes de criar, fazem
+PATCH/PUT em vez de duplicar).
 
-**Achado incidental durante a verificação desta rodada, fora do escopo
-desta revisão:** o nó "Google Gemini Chat Model" do Agent está configurado
-com `modelId: "models/gemini-3.5-flash-lite"`, mas uma chamada real
-disparada durante a verificação mostrou a API do Gemini rejeitando com
-`404 models/gemini-2.5-flash is no longer available to new users` — ou
-seja, o modelo efetivamente chamado nem bate com o configurado, e o que foi
-chamado já não existe mais. Isso é **anterior a esta rodada de correções**
-(o modelo nunca fazia parte de nenhum dos achados) e continua **não
-corrigido** — precisa de uma task própria pra escolher/confirmar um model
-id válido no catálogo atual do Gemini antes do primeiro teste real com
-WhatsApp.
+**I6, deliberadamente fora deste fix wave:** o auto-reply do bot pra
+qualquer estranho que mandar mensagem pro número (sem exigir vínculo
+prévio) é uma consideração de produto/política — ban-risk tuning num canal
+que o projeto já aceitou cientemente o risco (Evolution API self-hosted,
+ver seção acima), não um defeito de código, e em aberto o bastante
+(precisaria de rate limiting com estado persistente) pra não caber num fix
+wave delimitado. Ficou pro usuário decidir diretamente, fora do escopo
+desta correção.
+
+**Achado incidental durante a verificação desta rodada, corrigido numa
+re-revisão seguinte:** o nó "Google Gemini Chat Model" do Agent estava
+configurado com `modelId: { __rl: true, mode: "id", value:
+"models/gemini-3.5-flash-lite" }` — mas o nó real do n8n
+(`LmChatGoogleGemini.node.ts`) lê o modelo de um parâmetro chamado
+**`modelName`** (string simples), não `modelId`. O valor configurado era
+silenciosamente ignorado e o nó caía no próprio default hardcoded da sua
+definição (`models/gemini-2.5-flash`, pra `typeVersion: 1`) — foi esse
+default, não o valor configurado, que a API do Gemini rejeitou com `404
+... no longer available to new users`. O model id em si sempre esteve
+correto (confirmado via chamada real à API ListModels do Google). **Corrigido**
+(`03-workflow-agent-psicologo.mjs`): parâmetro trocado de `modelId`
+(resource locator) pra `modelName: "models/gemini-3.5-flash-lite"` (string
+simples). Verificado ao vivo disparando uma execução real do Agent: o erro
+retornado pela API do Gemini agora mostra a URL correta
+(`.../v1beta/models/gemini-3.5-flash-lite:generateContent`) — falhou só por
+um `429` de créditos de conta esgotados (billing do Google Cloud, assunto
+separado, não deste fix wave).
 
 A baseline de `agent_audit_log` citada acima (**0 linhas**) já não reflete
 o estado atual — a própria verificação ao vivo desta e da revisão anterior
 já gravou pelo menos 1 linha real.
 
-**Ainda pendente (depende de ação humana, não script):** reconectar a
-instância `psifacil` da Evolution API (`connectionStatus: close` hoje,
-precisa escanear QR code) e, só depois disso, rodar o roteiro de teste real
-mandando mensagens de verdade pelo WhatsApp vinculado (consulta de agenda,
-cancelamento com confirmação, protocolo `CONSULTORIO_AMBIGUO`, áudio →
-resposta fixa, vinculação por código) — e, antes desse teste, resolver o
-achado incidental do model id do Gemini acima, ou a primeira mensagem real
-vai falhar mesmo com tudo o resto corrigido.
+**Ainda pendente (depende de ação humana, não script):** resolver os
+créditos/billing esgotados da conta Google (o `429` acima — sem isso
+nenhuma chamada real ao Gemini funciona, mesmo com o `modelName` já
+corrigido) e reconectar a instância `psifacil` da Evolution API
+(`connectionStatus: close` hoje, precisa escanear QR code). Só depois dos
+dois, rodar o roteiro de teste real mandando mensagens de verdade pelo
+WhatsApp vinculado (consulta de agenda, cancelamento com confirmação,
+protocolo `CONSULTORIO_AMBIGUO`, áudio → resposta fixa, vinculação por
+código).
 
 ## Nova funcionalidade: sessões recorrentes (Semanal/Quinzenal/Mensal)
 
