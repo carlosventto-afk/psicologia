@@ -54,9 +54,15 @@ const workflow = {
   settings: { executionOrder: "v1" },
 };
 
-const criado = await n8nRequest("POST", "/workflows", workflow);
-console.log(`Workflow "WA - Enviar Mensagem" criado, id=${criado.id}`);
-
+// Idempotente: mesmo padrão de 03/04 (Important #5, revisão final) — se o
+// workflow já existe, atualiza via PUT em vez de duplicar via POST.
 ids.workflows = ids.workflows || {};
-ids.workflows.enviarMensagem = criado.id;
-fs.writeFileSync(idsPath, JSON.stringify(ids, null, 2));
+if (ids.workflows.enviarMensagem) {
+  const atualizado = await n8nRequest("PUT", `/workflows/${ids.workflows.enviarMensagem}`, workflow);
+  console.log(`Workflow "WA - Enviar Mensagem" atualizado, id=${atualizado.id}`);
+} else {
+  const criado = await n8nRequest("POST", "/workflows", workflow);
+  console.log(`Workflow "WA - Enviar Mensagem" criado, id=${criado.id}`);
+  ids.workflows.enviarMensagem = criado.id;
+  fs.writeFileSync(idsPath, JSON.stringify(ids, null, 2));
+}

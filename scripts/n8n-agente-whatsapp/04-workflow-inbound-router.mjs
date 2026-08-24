@@ -6,16 +6,26 @@ import { n8nRequest } from "./lib.mjs";
 const idsPath = path.resolve("scripts/n8n-agente-whatsapp/ids.json");
 const ids = JSON.parse(fs.readFileSync(idsPath, "utf8"));
 const credPostgresId = ids.credenciais.postgres;
+const credWebhookSecretId = ids.credenciais.webhookSecret;
 const wfEnviarMensagem = ids.workflows.enviarMensagem;
 const wfAgentPsicologo = ids.workflows.agentPsicologo;
 
+// Critical #1 (revisão final): antes disto era "={{ $json.numero_normalizado }}",
+// que só resolve corretamente quando $json ainda é a saída de "Normalizar
+// Payload" (o único call site nesse contexto é "Enviar: só texto"). Os
+// outros 3 call sites ficam depois de nós Postgres, onde $json é a saída
+// DAQUELE nó (sem "numero_normalizado"), então o sub-workflow "WA - Enviar
+// Mensagem" era chamado sem whatsapp_number — a Evolution API rejeitava com
+// "Bad request". Referenciar o nó pelo nome (como o resto do workflow já faz
+// em "Chamar Agent Psicólogo"/"Enviar: resposta do Agent") resolve certo
+// não importa de onde o helper for chamado.
 function noEnviarMensagem(id, posicao, nomeMensagem, mensagemLiteral) {
   return {
     parameters: {
       workflowId: { __rl: true, mode: "id", value: wfEnviarMensagem },
       workflowInputs: {
         value: {
-          whatsapp_number: "={{ $json.numero_normalizado }}",
+          whatsapp_number: "={{ $('Normalizar Payload').item.json.numero_normalizado }}",
           mensagem: mensagemLiteral,
         },
       },
@@ -32,10 +42,22 @@ const workflow = {
   name: "WA - Inbound Router",
   nodes: [
     {
+      // Critical #5 (revisão final): o webhook não tinha nenhuma
+      // autenticação — qualquer um que descobrisse a URL podia forjar um
+      // payload messages.upsert se passando por qualquer número (inclusive
+      // um já vinculado a um profissional real) e disparar qualquer tool,
+      // incluindo as destrutivas (agent_excluir_sessao/
+      // agent_cancelar_sessao/agent_excluir_pagamento). Confirmado ao vivo:
+      // um curl não autenticado de fora conseguiu rodar o pipeline inteiro.
+      // Fix: headerAuth com segredo compartilhado (credencial
+      // "webhookSecret"), verificado pelo próprio n8n antes de qualquer nó
+      // do workflow rodar. Path também trocado de "wa-inbound" (adivinhável)
+      // pra um segmento aleatório — reforço, não substitui a autenticação.
       parameters: {
         httpMethod: "POST",
-        path: "wa-inbound",
+        path: "wa-inbound-e96da1092a23a820",
         responseMode: "onReceived",
+        authentication: "headerAuth",
         options: {},
       },
       type: "n8n-nodes-base.webhook",
@@ -44,6 +66,9 @@ const workflow = {
       id: "b7c17000-0000-4000-8000-000000000001",
       name: "Webhook Evolution",
       webhookId: "wa-inbound-router",
+      credentials: {
+        httpHeaderAuth: { id: credWebhookSecretId, name: "Webhook Evolution -> n8n (shared secret)" },
+      },
     },
     {
       parameters: {
@@ -120,9 +145,15 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto } }]
       id: "b7c17000-0000-4000-8000-000000000006",
       name: "Buscar Usuario Vinculado",
       credentials: {
-        postgres: { id: credPostgresId, name: "Supabase - psiagente (direct DB)" },
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
       },
-      onError: "continueRegularOutput",
+      // Important #1 (revisão final): era "continueRegularOutput", que faz
+      // um erro de banco virar um item de saída indistinguível de "usuário
+      // não encontrado" — um profissional já vinculado que sofresse um erro
+      // de DB caía no fluxo de vinculação por código e ouvia "código
+      // inválido" sobre um código que nem existe. "continueErrorOutput" com
+      // uma branch de erro dedicada (abaixo) resolve isso.
+      onError: "continueErrorOutput",
     },
     {
       parameters: {
@@ -157,6 +188,13 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto } }]
       position: [1320, -80],
       id: "b7c17000-0000-4000-8000-000000000008",
       name: "Chamar Agent Psicólogo",
+      // Important #4 (revisão final): sem isto, qualquer erro do Gemini
+      // (quota, timeout, falha de tool call não tratada) derrubava a
+      // execução inteira sem nenhuma resposta pro profissional —
+      // indistinguível de o bot estar completamente fora do ar.
+      // "continueErrorOutput" com uma branch de erro dedicada (abaixo) manda
+      // uma mensagem de desculpa em vez de deixar o profissional no vácuo.
+      onError: "continueErrorOutput",
     },
     {
       parameters: {
@@ -206,7 +244,7 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto } }]
       id: "b7c17000-0000-4000-8000-00000000000b",
       name: "Validar Código Vinculação",
       credentials: {
-        postgres: { id: credPostgresId, name: "Supabase - psiagente (direct DB)" },
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
       },
       onError: "continueErrorOutput",
     },
@@ -228,6 +266,16 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto } }]
       "Enviar: instruções de vinculação",
       "Não encontrei seu número vinculado a nenhuma conta. Acesse /configuracoes/whatsapp no aplicativo, gere um código de 6 dígitos e envie ele aqui pra mim."
     ),
+    // Important #1 + #4 (revisão final): branch de erro genérica,
+    // compartilhada pelas duas fontes de erro do workflow ("Buscar Usuario
+    // Vinculado" e "Chamar Agent Psicólogo") — um só nó de resposta em vez
+    // de duplicar o mesmo texto duas vezes.
+    noEnviarMensagem(
+      "b7c17000-0000-4000-8000-00000000000f",
+      [1100, 250],
+      "Enviar: erro genérico",
+      "Desculpa, tive um problema aqui do meu lado. Pode tentar de novo daqui a pouco?"
+    ),
   ],
   connections: {
     "Webhook Evolution": { main: [[{ node: "Normalizar Payload", type: "main", index: 0 }]] },
@@ -241,14 +289,24 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto } }]
         [{ node: "Enviar: só texto", type: "main", index: 0 }],
       ],
     },
-    "Buscar Usuario Vinculado": { main: [[{ node: "Usuário encontrado?", type: "main", index: 0 }]] },
+    "Buscar Usuario Vinculado": {
+      main: [
+        [{ node: "Usuário encontrado?", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
     "Usuário encontrado?": {
       main: [
         [{ node: "Chamar Agent Psicólogo", type: "main", index: 0 }],
         [{ node: "Parece código de 6 dígitos?", type: "main", index: 0 }],
       ],
     },
-    "Chamar Agent Psicólogo": { main: [[{ node: "Enviar: resposta do Agent", type: "main", index: 0 }]] },
+    "Chamar Agent Psicólogo": {
+      main: [
+        [{ node: "Enviar: resposta do Agent", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
     "Parece código de 6 dígitos?": {
       main: [
         [{ node: "Validar Código Vinculação", type: "main", index: 0 }],

@@ -137,8 +137,15 @@ function construirNoTool(tool, posY) {
   const paramsExpr = tool.params
     .map((p) => `"${p.nome}": $fromAI('${p.nome}', ${JSON.stringify(p.desc)}, '${p.tipo}')`)
     .join(", ");
+  // Important #2 (revisão final): era "$('Execute Workflow Trigger').item...".
+  // Nós de tool são chamados pelo AI Agent fora do fluxo linear principal de
+  // dados, então o rastreamento de "paired item" do n8n até o trigger pode
+  // falhar aí com "Can't determine which item to use". ".first()" é a forma
+  // que resolve de forma confiável a partir de um nó de sub-tool, mantendo a
+  // mesma propriedade de segurança (item único, sempre vindo do trigger,
+  // nunca de $fromAI).
   const jsonBody =
-    `={{ { "tool_name": "${tool.nome}", "whatsapp_number": $('Execute Workflow Trigger').item.json.whatsapp_number, "params": { ${paramsExpr} } } }}`;
+    `={{ { "tool_name": "${tool.nome}", "whatsapp_number": $('Execute Workflow Trigger').first().json.whatsapp_number, "params": { ${paramsExpr} } } }}`;
   return {
     parameters: {
       toolDescription: tool.descricao,
@@ -162,7 +169,11 @@ function construirNoTool(tool, posY) {
   };
 }
 
-const SYSTEM_PROMPT = `Você é o(a) secretário(a) virtual de um consultório de psicologia, atendendo o(a) profissional (psicólogo/a) pelo WhatsApp. Tom profissional e cordial, respostas curtas (é WhatsApp, não e-mail), sem markdown pesado (nada de #, **, tabelas).
+// "usuario_nome" chega no trigger mas antes nunca era usado no prompt —
+// interpolado aqui via expressão n8n (por isso o "=" na atribuição de
+// options.systemMessage abaixo, que faz o campo ser avaliado como
+// expressão em vez de texto literal).
+const SYSTEM_PROMPT = `Você é o(a) secretário(a) virtual de um consultório de psicologia, atendendo {{ $json.usuario_nome }}, o(a) profissional (psicólogo/a), pelo WhatsApp. Tom profissional e cordial, respostas curtas (é WhatsApp, não e-mail), sem markdown pesado (nada de #, **, tabelas).
 
 Nunca exponha id interno de sessão/paciente/consultório na resposta — fale em nomes e datas, o profissional não sabe (nem precisa saber) o número de linha do banco.
 
@@ -197,7 +208,7 @@ const workflow = {
       parameters: {
         promptType: "define",
         text: "={{ $json.mensagem_texto }}",
-        options: { systemMessage: SYSTEM_PROMPT },
+        options: { systemMessage: "=" + SYSTEM_PROMPT },
       },
       type: "@n8n/n8n-nodes-langchain.agent",
       typeVersion: 2.1,
@@ -232,7 +243,7 @@ const workflow = {
       id: "a9e17000-0000-4000-8000-000000000004",
       name: "Postgres Chat Memory",
       credentials: {
-        postgres: { id: credPostgresId, name: "Supabase - psiagente (direct DB)" },
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
       },
     },
     ...tools.map((t, i) => construirNoTool(t, i)),
@@ -254,10 +265,17 @@ const workflow = {
   settings: { executionOrder: "v1" },
 };
 
-const criado = await n8nRequest("POST", "/workflows", workflow);
-console.log(`Workflow "WA - Agent Psicólogo" criado, id=${criado.id}, nós=${workflow.nodes.length}`);
-
+// Idempotente: se o workflow já existe (ids.json.workflows.agentPsicologo),
+// atualiza via PUT em vez de criar um duplicado via POST (Important #5,
+// revisão final — mesmo padrão já usado em 04-workflow-inbound-router.mjs).
 const idsPath2 = path.resolve("scripts/n8n-agente-whatsapp/ids.json");
 ids.workflows = ids.workflows || {};
-ids.workflows.agentPsicologo = criado.id;
-fs.writeFileSync(idsPath2, JSON.stringify(ids, null, 2));
+if (ids.workflows.agentPsicologo) {
+  const atualizado = await n8nRequest("PUT", `/workflows/${ids.workflows.agentPsicologo}`, workflow);
+  console.log(`Workflow "WA - Agent Psicólogo" atualizado, id=${atualizado.id}, nós=${workflow.nodes.length}`);
+} else {
+  const criado = await n8nRequest("POST", "/workflows", workflow);
+  console.log(`Workflow "WA - Agent Psicólogo" criado, id=${criado.id}, nós=${workflow.nodes.length}`);
+  ids.workflows.agentPsicologo = criado.id;
+  fs.writeFileSync(idsPath2, JSON.stringify(ids, null, 2));
+}
