@@ -392,7 +392,7 @@ inteiro fora do ar mesmo assim. Registrado aqui pra quem for corrigir.
 **Atualização:** os 2 problemas descritos abaixo (Postgres IPv6-only e
 `allowedHttpRequestDomains: "none"`) foram corrigidos logo em seguida
 (commit `204d1c0`), e uma segunda rodada — a revisão final de todo o branch
-— achou mais 5 Criticals e 5 Importants (alguns coexistindo com esses 2
+— achou mais 5 Criticals e 6 Importants (alguns coexistindo com esses 2
 primeiros bugs, mascarados por eles). Ver a seção "Revisão final do branch"
 mais abaixo pro estado real e definitivo depois de tudo corrigido.
 
