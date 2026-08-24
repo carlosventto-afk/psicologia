@@ -217,8 +217,21 @@ const workflow = {
       name: "AI Agent",
     },
     {
+      // Novo blocker achado na re-revisão: o nó lê o modelo do parâmetro
+      // "modelName" (string simples), não "modelId" (resource locator) — o
+      // valor antigo era silenciosamente ignorado e o nó caía no default
+      // hardcoded da própria definição do nó pra typeVersion 1
+      // (LmChatGoogleGemini.node.ts: `default: 'models/gemini-2.5-flash'`),
+      // que é exatamente o modelo que a chamada real rejeitou com 404
+      // durante a verificação anterior. Confirmado lendo o código-fonte real
+      // do nó (packages/@n8n/nodes-langchain/nodes/llms/LmChatGoogleGemini/
+      // LmChatGoogleGemini.node.ts): `name: 'modelName'`,
+      // `this.getNodeParameter('modelName', itemIndex)`. O model id em si
+      // ("models/gemini-3.5-flash-lite") já tinha sido confirmado existente
+      // via chamada real à API ListModels do Google na revisão final — só o
+      // nome/formato do parâmetro estava errado.
       parameters: {
-        modelId: { __rl: true, mode: "id", value: "models/gemini-3.5-flash-lite" },
+        modelName: "models/gemini-3.5-flash-lite",
         options: {},
       },
       type: "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
@@ -233,7 +246,11 @@ const workflow = {
     {
       parameters: {
         sessionIdType: "customKey",
-        sessionKey: "={{ $('Execute Workflow Trigger').item.json.whatsapp_number }}",
+        // Mesma classe de bug do Important #2 (.item pode falhar a partir de
+        // um nó de sub-node/cluster fora do fluxo linear principal — aqui é
+        // ainda mais sensível: este nó não tem onError, então um
+        // misresolve derruba o workflow inteiro em vez de só uma tool).
+        sessionKey: "={{ $('Execute Workflow Trigger').first().json.whatsapp_number }}",
         tableName: "n8n_chat_histories",
         contextWindowLength: 10,
       },

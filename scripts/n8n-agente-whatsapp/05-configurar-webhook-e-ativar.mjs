@@ -3,6 +3,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { n8nRequest, evolutionRequest } from "./lib.mjs";
 
+// Checagem movida pra ANTES do loop de ativação (achado da re-revisão): se
+// isto rodasse depois, uma execução sem a env var definida ativava os 3
+// workflows e só então abortava antes de configurar o webhook da Evolution
+// API — um estado parcial confuso. Mesmo padrão que 01-criar-credenciais.mjs
+// já usa corretamente (valida tudo primeiro, só then age).
+if (!process.env.WEBHOOK_SHARED_SECRET) {
+  console.error("Defina WEBHOOK_SHARED_SECRET no ambiente antes de rodar este script (mesmo valor usado em 01-criar-credenciais.mjs para a credencial webhookSecret — os dois scripts precisam rodar com o MESMO valor; ver nota de acoplamento em 01-criar-credenciais.mjs).");
+  process.exit(1);
+}
+
 const idsPath = path.resolve("scripts/n8n-agente-whatsapp/ids.json");
 const ids = JSON.parse(fs.readFileSync(idsPath, "utf8"));
 const { enviarMensagem, agentPsicologo, inboundRouter } = ids.workflows;
@@ -16,11 +26,6 @@ for (const [nome, id] of [
 ]) {
   await n8nRequest("POST", `/workflows/${id}/activate`, {});
   console.log(`Workflow "${nome}" (${id}) ativado.`);
-}
-
-if (!process.env.WEBHOOK_SHARED_SECRET) {
-  console.error("Defina WEBHOOK_SHARED_SECRET no ambiente antes de rodar este script (mesmo valor usado em 01-criar-credenciais.mjs para a credencial webhookSecret).");
-  process.exit(1);
 }
 
 // Critical #5 (revisão final): path aleatório (não mais "wa-inbound",

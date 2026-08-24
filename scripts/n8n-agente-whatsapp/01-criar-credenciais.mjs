@@ -109,6 +109,17 @@ const credenciais = [
     // env var em nenhum outro lugar, por isso não está em nenhuma lista de
     // "obrigatorias" derivada de infra existente: foi gerado do zero pra
     // esta correção (mesmo padrão do AGENT_TOOL_SECRET).
+    //
+    // ACOPLAMENTO IMPORTANTE (achado da re-revisão): este script e
+    // 05-configurar-webhook-e-ativar.mjs precisam rodar com o MESMO valor de
+    // WEBHOOK_SHARED_SECRET. Rodar só este script de novo com um valor novo
+    // rotaciona o segredo do lado do n8n silenciosamente, enquanto a
+    // Evolution API continua mandando o valor antigo no header — toda
+    // mensagem passa a tomar 403 do n8n sem nada na lista de execuções que
+    // explique o motivo (o 403 acontece antes de qualquer nó do workflow
+    // rodar, então não gera execução nenhuma pra inspecionar). Ao rotacionar
+    // de propósito, rode os dois scripts na mesma sessão de shell, com a
+    // mesma env var exportada pros dois.
     chave: "webhookSecret",
     payload: {
       name: "Webhook Evolution -> n8n (shared secret)",
