@@ -18,9 +18,15 @@ const credenciais = [
       name: "Supabase - psiagente (direct DB)",
       type: "postgres",
       data: {
-        host: "db.rohulajgyxdangxfurha.supabase.co",
+        // Pooler (Supavisor), não o host de conexão direta: o host direto
+        // (db.rohulajgyxdangxfurha.supabase.co) é IPv6-only e o container do
+        // n8n na VPS não tem rota de saída IPv6 (ENETUNREACH em produção,
+        // achado + corrigido na revisão do Task 1 pós-Task 6). Host/porta
+        // confirmados via supabase/.temp/pooler-url (CLI já resolveu a
+        // região certa) e testados com uma conexão real antes do fix.
+        host: "aws-1-sa-east-1.pooler.supabase.com",
         database: "postgres",
-        user: "postgres",
+        user: "postgres.rohulajgyxdangxfurha",
         password: process.env.SUPABASE_DB_PASSWORD,
         port: 5432,
         ssl: "require",
@@ -45,7 +51,15 @@ const credenciais = [
     payload: {
       name: "Agent Tool Secret - proxy Next.js",
       type: "httpHeaderAuth",
-      data: { name: "x-agent-secret", value: process.env.AGENT_TOOL_SECRET, allowedHttpRequestDomains: "none" },
+      // "none" bloqueava QUALQUER uso em nó HTTP Request/Tool HTTP Request
+      // (achado + corrigido na revisão pós-Task 6) — o correto é escopar ao
+      // único host que essa credencial de fato chama.
+      data: {
+        name: "x-agent-secret",
+        value: process.env.AGENT_TOOL_SECRET,
+        allowedHttpRequestDomains: "domains",
+        allowedDomains: "psiagente.com.br",
+      },
     },
   },
   {
@@ -53,7 +67,12 @@ const credenciais = [
     payload: {
       name: "Evolution API - psifacil",
       type: "httpHeaderAuth",
-      data: { name: "apikey", value: process.env.EVOLUTION_API_KEY, allowedHttpRequestDomains: "none" },
+      data: {
+        name: "apikey",
+        value: process.env.EVOLUTION_API_KEY,
+        allowedHttpRequestDomains: "domains",
+        allowedDomains: "psifacil-evolution-api.lcuzxl.easypanel.host",
+      },
     },
   },
 ];
