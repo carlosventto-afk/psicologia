@@ -553,19 +553,24 @@ diretório), foi aditivo ao cadastro do paciente.
 
 ## 13. Agente de WhatsApp — secretário do profissional
 
-**Status: implementado, metades 1, 2a e 2b** (2026-08-20) — os 3 workflows
-n8n (`WA - Enviar Mensagem`, `WA - Agent Psicólogo`, `WA - Inbound Router`)
-estão construídos, com as 4 credenciais criadas e o webhook da Evolution
-API (instância `psifacil`) apontando pra eles em produção. **Achado
-crítico na verificação de fechamento (Task 6, 2026-08-20):** o teste
-sintético do Router encontrou um bug que bloqueia o pipeline inteiro —
-2 das 4 credenciais criadas (Evolution API e o secret de proxy usado
-pelas 18 tools) foram criadas com `allowedHttpRequestDomains: "none"`, o
-que impede n8n de usá-las em qualquer nó HTTP, e a credencial de Postgres
-aponta pro host de conexão direta do Supabase (IPv6-only), que o n8n não
-alcança (`ENETUNREACH`). Na prática, nenhuma mensagem sai e nenhuma tool
-executa ainda, mesmo com tudo ativo — ver detalhes e causa raiz em
-`docs/status-implementacao.md`. Backend do proxy
+**Status: implementado, metades 1, 2a e 2b, com revisão final de branch
+concluída** (2026-08-24) — os 3 workflows n8n (`WA - Enviar Mensagem`,
+`WA - Agent Psicólogo`, `WA - Inbound Router`) estão construídos e ativos
+em produção, com as 5 credenciais criadas (a 5ª, `webhookSecret`, somada na
+revisão final abaixo) e o webhook da Evolution API (instância `psifacil`)
+apontando pra eles, agora autenticado por header. O teste sintético do
+Task 6 (2026-08-20) achou 2 bugs que bloqueavam o pipeline inteiro
+(credenciais com `allowedHttpRequestDomains: "none"` e Postgres apontando
+pro host IPv6-only) — **corrigidos no mesmo dia** (commit `204d1c0`; a
+correção usou `allowedHttpRequestDomains: "domains"` com a lista escopada
+ao host de cada credencial, não `"all"`, que seria permissivo demais). Uma
+segunda rodada — revisão de todo o branch, não mais task a task — achou
+mais 5 Criticals (2 deles de segurança/exposição de dado: webhook sem
+autenticação e uma tabela de memória de conversa que nasceria sem RLS) e
+6 Importants, todos corrigidos e verificados contra produção em 2026-08-24
+(`.superpowers/sdd/2026-08-19-agente-whatsapp-n8n-workflow/final-review-fix-report.md`
+tem o detalhamento completo; resumo também em `docs/status-implementacao.md`,
+seção "Revisão final do branch"). Backend do proxy
 (`_agent_resolve_consultorio` corrigido, `agent_definir_consultorio_ativo`
 nova, rota `/api/agent/call-tool`) pronto desde 2026-08-19. Pedido do
 usuário em 2026-08-17, retomando um projeto já iniciado antes deste
@@ -603,23 +608,24 @@ abrir o app.
   profissional fica sem o agente ao mesmo tempo, não só um.
 
 **Falta pra existir de verdade:**
-- **Corrigir o bug crítico achado na verificação (Task 6)** — as
-  credenciais `Evolution API - psifacil` e `Agent Tool Secret - proxy
-  Next.js` precisam de `allowedHttpRequestDomains: "all"` (ou a lista de
-  domínios certa) em vez de `"none"`, e a credencial de Postgres precisa
-  trocar `db.rohulajgyxdangxfurha.supabase.co` (direct connection,
-  IPv6-only) pelo host do connection pooler do Supabase (IPv4). Sem isso,
-  nenhuma mensagem sai e nenhuma tool roda, mesmo com os workflows ativos.
-  Não corrigido nesta task (fora do escopo de verificação/documentação) —
-  precisa virar uma task própria antes do teste real com WhatsApp.
+- **Achado incidental na revisão final, não corrigido (fora do escopo
+  daquela rodada):** o nó "Google Gemini Chat Model" do Agent está
+  configurado com `models/gemini-3.5-flash-lite`, mas uma chamada real
+  feita durante a verificação mostrou a API do Gemini chamando (e
+  rejeitando) `models/gemini-2.5-flash` — `404 no longer available to new
+  users`. Precisa de uma task própria pra escolher/confirmar um model id
+  válido no catálogo atual do Gemini antes do primeiro teste real com
+  WhatsApp — sem isso, a primeira mensagem real vai falhar mesmo com todo
+  o resto (rede, credenciais, autenticação, RLS) já corrigido.
 - **Preciso de você — reconectar o WhatsApp**: a instância `psifacil` da
   Evolution API está desconectada (`connectionStatus: close`), precisa de
   QR code escaneado pelo celular vinculado antes de qualquer teste real.
-- **Roteiro de teste real** (após reconectar e corrigir o bug acima):
-  mandar mensagens reais pelo WhatsApp vinculado cobrindo consulta de
-  agenda, cancelamento com confirmação, protocolo `CONSULTORIO_AMBIGUO`,
-  mensagem de áudio (resposta fixa de "só texto") e vinculação por código
-  de 6 dígitos — conferindo `agent_audit_log` antes/depois.
+- **Roteiro de teste real** (após reconectar e resolver o model id do
+  Gemini acima): mandar mensagens reais pelo WhatsApp vinculado cobrindo
+  consulta de agenda, cancelamento com confirmação, protocolo
+  `CONSULTORIO_AMBIGUO`, mensagem de áudio (resposta fixa de "só texto") e
+  vinculação por código de 6 dígitos — conferindo `agent_audit_log`
+  antes/depois.
 - Transcrição de áudio (Whisper), já que mensagem de voz é um canal comum
   no WhatsApp.
 - Revisão dos 3 textos de mensagem redigidos (`docs/whatsapp-message-templates.md`)
