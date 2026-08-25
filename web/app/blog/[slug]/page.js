@@ -50,12 +50,18 @@ export default async function PaginaArtigo({ params }) {
     dateModified: artigo.atualizado_em ?? artigo.publicado_em,
     author: artigo.autor ? { "@type": "Person", name: artigo.autor } : undefined,
   };
+  // Escapa "<" pra evitar que um título/resumo/autor contendo "</script>"
+  // feche a tag prematuramente durante o parse HTML inicial (JSON.stringify
+  // não escapa "<" por padrão). < é um escape JSON/JS válido — o
+  // parser de JSON-LD (e o crawler que consome a tag) interpreta de volta
+  // como "<" normalmente.
+  const jsonLdString = JSON.stringify(jsonLd).replace(/</g, "\\u003c");
 
   return (
     <article className="space-y-4">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString }}
       />
 
       {artigo.imagem_capa && (
