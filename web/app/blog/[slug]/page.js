@@ -11,7 +11,10 @@ export async function generateMetadata({ params }) {
 
   const origem = process.env.NEXT_PUBLIC_BLOG_URL ?? "http://localhost:3000";
   const url = `${origem}/${artigo.slug}`;
-  const imagens = artigo.imagem_capa ? [{ url: artigo.imagem_capa }] : undefined;
+  // Fallback pro logo do PsiAgente quando o artigo não tem capa — nunca
+  // deixar o compartilhamento sem imagem (exigência explícita do spec).
+  const imagemOg = artigo.imagem_capa ?? `${origem}/og-default.png`;
+  const imagens = [{ url: imagemOg }];
 
   return {
     title: artigo.titulo,
@@ -40,12 +43,17 @@ export default async function PaginaArtigo({ params }) {
   const html = marked.parse(artigo.conteudo);
   const tempoLeitura = calcularTempoLeitura(artigo.conteudo);
 
+  const origem = process.env.NEXT_PUBLIC_BLOG_URL ?? "http://localhost:3000";
+  // Mesmo fallback do Open Graph (ver generateMetadata acima): rich
+  // snippets também não devem ficar sem imagem.
+  const imagemJsonLd = artigo.imagem_capa ?? `${origem}/og-default.png`;
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: artigo.titulo,
     description: artigo.resumo ?? undefined,
-    image: artigo.imagem_capa ?? undefined,
+    image: imagemJsonLd,
     datePublished: artigo.publicado_em,
     dateModified: artigo.atualizado_em ?? artigo.publicado_em,
     author: artigo.autor ? { "@type": "Person", name: artigo.autor } : undefined,
