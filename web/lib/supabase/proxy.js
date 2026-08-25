@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
   "/termos",
   "/carne-leao-automatico",
   "/api/agent/call-tool",
+  "/api/blog/artigos",
 ];
 
 export async function updateSession(request) {
