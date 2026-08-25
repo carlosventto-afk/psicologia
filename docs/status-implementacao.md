@@ -234,15 +234,18 @@ RLS reaproveitando `public.is_admin()`: leitura liberada (inclusive pra
 
 Rota pra criação/atualização automática de artigos (futuramente usada por
 fluxos de publicação automatizados): busca por `slug`, atualiza se existe
-ou cria novo se não existe. Migrations `20260825000001` a `20260825000002`
-adicionam campos `imagem_capa` e `resumo` à tabela `artigos`, mais índice
-único em `slug` pra garantir a busca/atualização segura.
+ou cria novo se não existe. A tabela `artigos` já tinha `resumo` e a
+constraint `unique` em `slug` desde a migration original
+(`20260803000001_add_artigos_blog.sql`) — a única migration nova desta
+entrega é `20260825000001_add_imagem_capa_artigos.sql`, que adiciona só a
+coluna `imagem_capa` e o bucket de Storage `artigos-imagens` (com as
+policies de leitura/escrita).
 
 - **Env var nova `BLOG_API_SECRET`** — autentica a chamada pra a rota:
   a rota compara o header `x-blog-secret` com essa variável e devolve
   401 se não bater (é o único controle de acesso do endpoint, que não usa
   sessão de usuário). Precisa estar presente em **dois lugares**:
-  - `web/.env.local` — **já feito** (valor gerado na Task 7 desta branch);
+  - `web/.env.local` — **pendente**, ainda não gerado/adicionado ao arquivo;
   - **EasyPanel (produção)**, serviço do app Next.js — **pendente, manual**,
     mesmo procedimento já usado pra `SUPABASE_SERVICE_ROLE_KEY` e
     `AGENT_TOOL_SECRET` (lida só em runtime, não entra no Dockerfile/build;
@@ -252,6 +255,22 @@ adicionam campos `imagem_capa` e `resumo` à tabela `artigos`, mais índice
   401 silencioso — a rota rejeita antes de chegar no insert
   (mesmo formato de falha do padrão de segredo compartilhado já usado no
   projeto — ver `CARNE_LEAO_CRON_SECRET` e `AGENT_TOOL_SECRET` mais abaixo).
+
+  **Este segredo precisa do mesmo cuidado que uma credencial de banco, não
+  de uma API key de baixo risco:** a rota grava `conteudo` sem sanitização
+  e a página do artigo renderiza esse Markdown com `marked` sem passar por
+  nenhuma lib de sanitização de HTML embutido (comportamento pré-existente,
+  fora do escopo desta entrega mudar). Ou seja, `BLOG_API_SECRET` vazado dá
+  a quem o tiver uma capacidade de XSS persistente no domínio do blog, não
+  só "postar artigo indesejado".
+
+  **Divergência conhecida entre os dois caminhos de escrita:** o editor
+  admin (`atualizarArtigo`, acima) zera `publicado_em` explicitamente ao
+  despublicar um artigo; esta rota só toca `publicado_em` ao transicionar
+  PARA publicado, nunca ao sair de publicado — despublicar via a rota
+  deixa o `publicado_em` original intacto. Aceito como diferença conhecida
+  por ora; unificar o comportamento das duas escritas é uma decisão de
+  design maior, fora do escopo desta entrega.
 
   **Exemplo de uso com `curl`:**
   ```bash
@@ -274,7 +293,7 @@ adicionam campos `imagem_capa` e `resumo` à tabela `artigos`, mais índice
   {
     "success": true,
     "data": {
-      "id": 42,
+      "id": "9d6b2a1c-c414-4fb2-9271-bc2c887a52d0",
       "titulo": "Ansiedade no trabalho",
       "slug": "ansiedade-trabalho",
       ...
