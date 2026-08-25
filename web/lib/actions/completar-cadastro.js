@@ -58,6 +58,7 @@ export async function aceitarPropostaCompletarCadastro(propostaId, pacienteId, p
 
   if (error) return { error: mensagemAmigavel(error) };
 
+  revalidatePath("/pacientes");
   revalidatePath(`/pacientes/${pacienteId}`);
   redirect(`/pacientes/${pacienteId}`);
 }

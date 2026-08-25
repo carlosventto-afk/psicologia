@@ -1,6 +1,10 @@
 import { buscarDadosCompletarCadastro } from "@/lib/data/completar-cadastro";
 import CompletarCadastroForm from "@/components/CompletarCadastroForm";
 
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 export default async function PaginaCompletarCadastro({ params }) {
   const { token } = await params;
   const dados = await buscarDadosCompletarCadastro(token);
