@@ -69,12 +69,23 @@ export async function criarArtigo(prevState, formData) {
   const publicado = formData.get("publicado") === "on";
   const slugNormalizado = normalizarSlug(formData.get("slug"));
 
+  if (!slugNormalizado) {
+    return { error: "Preencha um slug válido para o artigo." };
+  }
+
   let imagemCapa;
   try {
     imagemCapa = await resolverImagemCapa(supabase, slugNormalizado, formData, null);
   } catch (e) {
     return { error: e.message };
   }
+
+  // Timestamp único reaproveitado em criado_em/atualizado_em/publicado_em
+  // — evita depender do default now() do Postgres pra atualizado_em, que
+  // roda no relógio do servidor de banco e pode desalinhar com
+  // publicado_em (computado aqui em JS), fazendo dateModified renderizar
+  // antes de datePublished no JSON-LD (achado da revisão final).
+  const agora = new Date().toISOString();
 
   const { error } = await supabase.from("artigos").insert({
     titulo: formData.get("titulo"),
@@ -84,7 +95,9 @@ export async function criarArtigo(prevState, formData) {
     autor: formData.get("autor") || null,
     imagem_capa: imagemCapa,
     publicado,
-    publicado_em: publicado ? new Date().toISOString() : null,
+    publicado_em: publicado ? agora : null,
+    criado_em: agora,
+    atualizado_em: agora,
   });
 
   if (error) {
@@ -115,6 +128,10 @@ export async function atualizarArtigo(id, prevState, formData) {
   const publicado = formData.get("publicado") === "on";
   const publicadoEm = publicado ? atual.publicado_em ?? new Date().toISOString() : null;
   const slugNormalizado = normalizarSlug(formData.get("slug"));
+
+  if (!slugNormalizado) {
+    return { error: "Preencha um slug válido para o artigo." };
+  }
 
   let imagemCapa;
   try {
