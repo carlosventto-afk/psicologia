@@ -4,7 +4,7 @@ export async function listarArtigosPublicados() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("artigos")
-    .select("id, titulo, slug, resumo, autor, publicado_em")
+    .select("id, titulo, slug, resumo, conteudo, autor, publicado_em, imagem_capa")
     .eq("publicado", true)
     .order("publicado_em", { ascending: false });
 
