@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { buscarPaciente, listarSessoesDoPaciente } from "@/lib/data/pacientes";
 import { buscarAnamnese, listarFollowupsAnamnese } from "@/lib/data/anamnese";
+import { buscarPropostaAtiva } from "@/lib/data/completar-cadastro";
 import { CAMPOS_ANAMNESE } from "@/lib/anamnese-campos";
 import { diaDaSemanaAbreviado } from "@/lib/periodo-agenda";
 import { desativarPaciente, reativarPaciente } from "@/lib/actions/pacientes";
 import ExcluirPacienteBotao from "@/components/ExcluirPacienteBotao";
+import GerarLinkCadastroBotao from "@/components/GerarLinkCadastroBotao";
 
 const ABAS = [
   { chave: "dados", rotulo: "Dados" },
@@ -21,11 +23,12 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
   const { aba: abaParam } = await searchParams;
   const aba = ABAS.some((a) => a.chave === abaParam) ? abaParam : "dados";
   const pacienteId = Number(id);
-  const [paciente, sessoes, anamnese, followups] = await Promise.all([
+  const [paciente, sessoes, anamnese, followups, propostaAtiva] = await Promise.all([
     buscarPaciente(pacienteId),
     listarSessoesDoPaciente(pacienteId),
     buscarAnamnese(pacienteId),
     listarFollowupsAnamnese(pacienteId),
+    buscarPropostaAtiva(pacienteId),
   ]);
 
   return (
@@ -76,47 +79,64 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
       </div>
 
       {aba === "dados" && (
-        <div className="card p-5 grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-muted">Telefone</p>
-            <p>{paciente.telefone || "—"}</p>
+        <div className="space-y-4">
+          <div className="card p-5 grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted">Telefone</p>
+              <p>{paciente.telefone || "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted">E-mail</p>
+              <p>{paciente.email || "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted">Data de nascimento</p>
+              <p>{paciente.data_nascimento || "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted">Valor da sessão</p>
+              <p>R$ {paciente.valor_sessao}</p>
+            </div>
+            <div>
+              <p className="text-muted">CPF</p>
+              <p>{paciente.cpf || "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted">RG</p>
+              <p>
+                {paciente.rg_numero || "—"}
+                {paciente.rg_orgao_emissor && ` · ${paciente.rg_orgao_emissor}`}
+                {paciente.rg_data_expedicao && ` · exp. ${paciente.rg_data_expedicao}`}
+              </p>
+            </div>
+            {paciente.dependente && (
+              <div className="col-span-2">
+                <p className="text-muted">Responsável financeiro</p>
+                <p>{paciente.responsavel_nome || "—"}</p>
+              </div>
+            )}
+            {paciente.observacoes && (
+              <div className="col-span-2">
+                <p className="text-muted">Observações</p>
+                <p>{paciente.observacoes}</p>
+              </div>
+            )}
           </div>
-          <div>
-            <p className="text-muted">E-mail</p>
-            <p>{paciente.email || "—"}</p>
-          </div>
-          <div>
-            <p className="text-muted">Data de nascimento</p>
-            <p>{paciente.data_nascimento || "—"}</p>
-          </div>
-          <div>
-            <p className="text-muted">Valor da sessão</p>
-            <p>R$ {paciente.valor_sessao}</p>
-          </div>
-          <div>
-            <p className="text-muted">CPF</p>
-            <p>{paciente.cpf || "—"}</p>
-          </div>
-          <div>
-            <p className="text-muted">RG</p>
-            <p>
-              {paciente.rg_numero || "—"}
-              {paciente.rg_orgao_emissor && ` · ${paciente.rg_orgao_emissor}`}
-              {paciente.rg_data_expedicao && ` · exp. ${paciente.rg_data_expedicao}`}
-            </p>
-          </div>
-          {paciente.dependente && (
-            <div className="col-span-2">
-              <p className="text-muted">Responsável financeiro</p>
-              <p>{paciente.responsavel_nome || "—"}</p>
+
+          {propostaAtiva && (
+            <div className="card border border-yellow-200 bg-yellow-50 p-4 text-sm">
+              <p className="text-navy">
+                {propostaAtiva.status === "rejeitada"
+                  ? "Uma proposta de atualização foi rejeitada, mas ainda pode ser aceita."
+                  : "Tem uma atualização de cadastro esperando revisão."}
+              </p>
+              <Link href={`/pacientes/${pacienteId}/proposta-cadastro`} className="link">
+                Revisar proposta
+              </Link>
             </div>
           )}
-          {paciente.observacoes && (
-            <div className="col-span-2">
-              <p className="text-muted">Observações</p>
-              <p>{paciente.observacoes}</p>
-            </div>
-          )}
+
+          <GerarLinkCadastroBotao pacienteId={pacienteId} />
         </div>
       )}
 
