@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 const PUBLIC_PATHS = [
   "/login",
   "/cadastro",
+  "/completar-cadastro",
   "/esqueci-senha",
   "/redefinir-senha",
   "/auth/callback",
