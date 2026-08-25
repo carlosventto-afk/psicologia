@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 212 48" width="212" height="48" role="img" aria-label="PsiAgente">
+  <path d="M20 44 V27.4" fill="none" stroke="#000000" stroke-width="3.6" stroke-linecap="round" />
+  <path d="M20 27.4 V8" fill="none" stroke="#000000" stroke-width="3.6" stroke-linecap="round" />
+  <path d="M20 27.4C20 27.4 9.5 26.3 9.5 8.6" fill="none" stroke="#000000" stroke-width="3.6" stroke-linecap="round" />
+  <path d="M20 27.4C20 27.4 27.7 26.4 28.2 14" fill="none" stroke="#000000" stroke-width="3.6" stroke-linecap="round" />
+  <circle cx="28.9" cy="10.8" r="2.8" fill="#000000" />
+  <text x="52" y="33" font-family="Sora, Arial, sans-serif" font-size="27" font-weight="700" fill="#000000">PsiAgente</text>
+</svg>
