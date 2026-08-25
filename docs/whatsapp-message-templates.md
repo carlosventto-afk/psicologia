@@ -1,51 +1,42 @@
-# Templates de mensagem (WhatsApp Cloud API)
+# Mensagens do agente de WhatsApp
 
-Mensagens iniciadas pela plataforma (fora da janela de 24h de conversa ativa)
-exigem templates pré-aprovados pela Meta. Aprovação costuma levar 1-2 dias úteis.
-Cadastrar em Meta Business Manager → WhatsApp Manager → Modelos de mensagem.
+O canal é a **Evolution API** (self-hosted, não a API oficial do WhatsApp/Meta
+— decisão confirmada, não vai mudar). Por isso não existe fluxo de aprovação
+de template: toda mensagem enviada pelo agente é texto livre, sem submissão
+prévia à Meta e sem restrição de janela de 24h.
 
-Convenção de variáveis: `{{1}}`, `{{2}}`, ... na ordem em que serão preenchidas
-pelo workflow de cron no n8n.
+## Em produção (`WA - Inbound Router`)
 
-## `lembrete_sessao` (categoria: UTILITY)
+### Boas-vindas ao vincular WhatsApp
 
-Enviado ao paciente (com opt-in) ou ao psicólogo, no dia anterior à sessão.
+Enviada assim que o código de verificação de 6 dígitos da tela
+`/configuracoes/whatsapp` é confirmado com sucesso.
 
-> Olá, {{1}}! Passando para lembrar da sua sessão amanhã, dia {{2}}, às {{3}}.
-> Qualquer imprevisto, é só responder esta mensagem.
+> Seu WhatsApp foi vinculado com sucesso! A partir de agora você pode
+> consultar sua agenda, pagamentos e pacientes por aqui. Experimente
+> perguntar: "quais atendimentos eu tenho hoje?"
 
-Variáveis: `{{1}}` nome do paciente, `{{2}}` data, `{{3}}` horário.
+### Mensagem de voz recebida
 
-## `lembrete_pagamento` (categoria: UTILITY)
+Resposta fixa — transcrição/entrada de áudio ainda não implementada
+(adiado a pedido do usuário em 2026-08-25).
 
-Enviado ao paciente (com opt-in), quando uma sessão realizada segue sem
-pagamento vinculado após N dias (parametrizável, sugestão inicial: 3 dias).
+> Por enquanto só consigo entender mensagens de texto 🙂
 
-> Olá, {{1}}! Notamos que a sessão do dia {{2}} (valor: R$ {{3}}) ainda está em
-> aberto. Se já efetuou o pagamento, desconsidere esta mensagem.
+### Demais respostas
 
-Variáveis: `{{1}}` nome do paciente, `{{2}}` data da sessão, `{{3}}` valor.
+Qualquer mensagem de texto dentro do fluxo normal é respondida livremente
+pelo agente (Gemini), sem texto fixo pré-definido.
 
-## `boas_vindas_vinculo_whatsapp` (categoria: UTILITY)
+## Ainda não implementadas
 
-Enviado ao psicólogo assim que o código de verificação da tela "Vincular
-WhatsApp" é confirmado com sucesso — primeira mensagem que ele recebe do bot.
+Estas duas dependem de uma rotina de lembrete/cron que não existe —
+fora de escopo da entrega atual do item 13 (junto com canal do paciente e
+relatórios):
 
-> Seu WhatsApp foi vinculado com sucesso à sua conta, {{1}}! A partir de
-> agora você pode consultar sua agenda, pagamentos e pacientes por aqui.
-> Experimente perguntar: "quais atendimentos eu tenho hoje?"
+- **Lembrete de sessão** — no dia anterior à sessão.
+- **Lembrete de pagamento em aberto** — sessão realizada sem pagamento
+  vinculado após N dias.
 
-Variável: `{{1}}` nome do psicólogo.
-
----
-
-## Observações
-
-- Todo template precisa passar por revisão de política da Meta antes do uso —
-  evitar linguagem promocional/marketing nesses três (categoria UTILITY, não
-  MARKETING), já que são transacionais e têm aprovação mais rápida/estável.
-- Mensagens de resposta dentro da janela de 24h (quando o próprio
-  psicólogo pergunta algo) **não** precisam de template — o agente responde
-  livremente via Claude nesse caso.
-- Ajustar o texto final com um psicólogo/clínica piloto antes de submeter,
-  para garantir tom adequado ao público.
+Quando essa rotina for construída, revisar o tom/texto final com um
+psicólogo antes de ativar em produção.
