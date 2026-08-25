@@ -16,7 +16,7 @@ export async function buscarArtigoPublicadoPorSlug(slug) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("artigos")
-    .select("id, titulo, slug, resumo, conteudo, autor, publicado_em")
+    .select("id, titulo, slug, resumo, conteudo, autor, publicado_em, atualizado_em, imagem_capa")
     .eq("slug", slug)
     .eq("publicado", true)
     .maybeSingle();

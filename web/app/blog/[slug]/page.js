@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { marked } from "marked";
 import { buscarArtigoPublicadoPorSlug } from "@/lib/data/artigos";
+import { calcularTempoLeitura } from "@/lib/tempo-leitura";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -10,6 +11,7 @@ export async function generateMetadata({ params }) {
 
   const origem = process.env.NEXT_PUBLIC_BLOG_URL ?? "http://localhost:3000";
   const url = `${origem}/${artigo.slug}`;
+  const imagens = artigo.imagem_capa ? [{ url: artigo.imagem_capa }] : undefined;
 
   return {
     title: artigo.titulo,
@@ -22,6 +24,7 @@ export async function generateMetadata({ params }) {
       description: artigo.resumo ?? undefined,
       type: "article",
       url,
+      images: imagens,
     },
   };
 }
@@ -35,13 +38,39 @@ export default async function PaginaArtigo({ params }) {
   }
 
   const html = marked.parse(artigo.conteudo);
+  const tempoLeitura = calcularTempoLeitura(artigo.conteudo);
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: artigo.titulo,
+    description: artigo.resumo ?? undefined,
+    image: artigo.imagem_capa ?? undefined,
+    datePublished: artigo.publicado_em,
+    dateModified: artigo.atualizado_em ?? artigo.publicado_em,
+    author: artigo.autor ? { "@type": "Person", name: artigo.autor } : undefined,
+  };
 
   return (
     <article className="space-y-4">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {artigo.imagem_capa && (
+        <img
+          src={artigo.imagem_capa}
+          alt={artigo.titulo}
+          className="w-full h-64 object-cover rounded-2xl"
+        />
+      )}
+
       <div>
         <p className="text-xs text-muted">
           {new Date(artigo.publicado_em).toLocaleDateString("pt-BR")}
           {artigo.autor && ` · ${artigo.autor}`}
+          {` · ${tempoLeitura} min de leitura`}
         </p>
         <h1 className="page-title mt-1">{artigo.titulo}</h1>
       </div>
