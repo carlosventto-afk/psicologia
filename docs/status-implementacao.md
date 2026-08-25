@@ -230,6 +230,59 @@ RLS reaproveitando `public.is_admin()`: leitura liberada (inclusive pra
   link). Dados de teste removidos depois. **Não testado ainda passando
   pelo formulário de admin de verdade no navegador.**
 
+### Rota de automação: `POST /api/blog/artigos` (2026-08-25)
+
+Rota pra criação/atualização automática de artigos (futuramente usada por
+fluxos de publicação automatizados): busca por `slug`, atualiza se existe
+ou cria novo se não existe. Migrations `20260825000001` a `20260825000002`
+adicionam campos `imagem_capa` e `resumo` à tabela `artigos`, mais índice
+único em `slug` pra garantir a busca/atualização segura.
+
+- **Env var nova `BLOG_API_SECRET`** — autentica a chamada pra a rota:
+  a rota compara o header `x-blog-secret` com essa variável e devolve
+  401 se não bater (é o único controle de acesso do endpoint, que não usa
+  sessão de usuário). Precisa estar presente em **dois lugares**:
+  - `web/.env.local` — **já feito** (valor gerado na Task 7 desta branch);
+  - **EasyPanel (produção)**, serviço do app Next.js — **pendente, manual**,
+    mesmo procedimento já usado pra `SUPABASE_SERVICE_ROLE_KEY` e
+    `AGENT_TOOL_SECRET` (lida só em runtime, não entra no Dockerfile/build;
+    exige restart do container).
+
+  Os dois valores têm que ser idênticos; se divergirem, todo disparo vira
+  401 silencioso — a rota rejeita antes de chegar no insert
+  (mesmo formato de falha já documentado acima pra `AGENT_TOOL_SECRET`).
+
+  **Exemplo de uso com `curl`:**
+  ```bash
+  curl -X POST https://psiagente.com.br/api/blog/artigos \
+    -H "x-blog-secret: <BLOG_API_SECRET>" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "titulo": "Ansiedade no trabalho",
+      "slug": "ansiedade-trabalho",
+      "conteudo": "# Ansiedade\n\nO texto do artigo em Markdown...",
+      "resumo": "Dicas para lidar com ansiedade no ambiente corporativo",
+      "autor": "Dra. Silva",
+      "publicado": true,
+      "imagem_capa_url": "https://exemplo.com/imagem.jpg"
+    }'
+  ```
+
+  **Resposta na criação/atualização bem-sucedida:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": 42,
+      "titulo": "Ansiedade no trabalho",
+      "slug": "ansiedade-trabalho",
+      ...
+    },
+    "acao": "criado"
+  }
+  ```
+  (ou `"acao": "atualizado"` se o artigo já existia).
+
 ## Painel admin — convidar profissionais (2026-08-03, item 3 do backlog, parte 1)
 
 A pedido do usuário, primeira entrega de `docs/backlog-novas-funcionalidades.md`
