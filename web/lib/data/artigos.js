@@ -40,7 +40,7 @@ export async function buscarArtigoAdmin(id) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("artigos")
-    .select("id, titulo, slug, resumo, conteudo, autor, publicado, publicado_em")
+    .select("id, titulo, slug, resumo, conteudo, autor, publicado, publicado_em, imagem_capa")
     .eq("id", id)
     .single();
 
