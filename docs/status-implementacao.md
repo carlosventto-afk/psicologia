@@ -250,7 +250,8 @@ adicionam campos `imagem_capa` e `resumo` à tabela `artigos`, mais índice
 
   Os dois valores têm que ser idênticos; se divergirem, todo disparo vira
   401 silencioso — a rota rejeita antes de chegar no insert
-  (mesmo formato de falha já documentado acima pra `AGENT_TOOL_SECRET`).
+  (mesmo formato de falha do padrão de segredo compartilhado já usado no
+  projeto — ver `CARNE_LEAO_CRON_SECRET` e `AGENT_TOOL_SECRET` mais abaixo).
 
   **Exemplo de uso com `curl`:**
   ```bash
