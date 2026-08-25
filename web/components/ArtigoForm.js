@@ -8,7 +8,9 @@ const estadoInicial = {};
 
 export default function ArtigoForm({ action, artigo }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
+  const capaOriginalExiste = Boolean(artigo?.imagem_capa);
   const [previewCapa, setPreviewCapa] = useState(artigo?.imagem_capa ?? null);
+  const [capaRemovida, setCapaRemovida] = useState(false);
   const [enviandoImagem, setEnviandoImagem] = useState(false);
   const [erroImagem, setErroImagem] = useState(null);
   const conteudoRef = useRef(null);
@@ -19,6 +21,13 @@ export default function ArtigoForm({ action, artigo }) {
     const arquivo = e.target.files?.[0];
     if (!arquivo) return;
     setPreviewCapa(URL.createObjectURL(arquivo));
+    setCapaRemovida(false);
+  }
+
+  function handleRemoverCapaChange(e) {
+    const marcado = e.target.checked;
+    setCapaRemovida(marcado);
+    setPreviewCapa(marcado ? null : artigo?.imagem_capa ?? null);
   }
 
   async function handleInserirImagem(e) {
@@ -119,12 +128,13 @@ export default function ArtigoForm({ action, artigo }) {
           onChange={handleCapaChange}
           className="field mt-2"
         />
-        {previewCapa && (
+        {capaOriginalExiste && (
           <label className="mt-2 flex items-center gap-2 text-sm text-muted">
             <input
               type="checkbox"
               name="remover_capa"
-              onChange={(e) => e.target.checked && setPreviewCapa(null)}
+              checked={capaRemovida}
+              onChange={handleRemoverCapaChange}
               className="h-4 w-4"
             />
             Remover capa atual
