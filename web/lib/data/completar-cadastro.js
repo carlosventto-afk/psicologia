@@ -14,33 +14,22 @@ const CAMPOS_SELECT =
 export async function buscarPropostaAtiva(pacienteId) {
   const supabase = await createClient();
 
-  const { data: pendente, error: erroPendente } = await supabase
+  const { data: ultima, error } = await supabase
     .from("PropostaCompletarCadastro")
     .select(CAMPOS_SELECT)
     .eq("paciente_id", pacienteId)
-    .eq("status", "pendente")
     .order("criado_em", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (erroPendente) throw new Error(erroPendente.message);
-  if (pendente) return pendente;
+  if (error) throw new Error(error.message);
+  if (!ultima || ultima.status === "aceita") return null;
+  if (ultima.status === "pendente") return ultima;
 
-  const { data: rejeitada, error: erroRejeitada } = await supabase
-    .from("PropostaCompletarCadastro")
-    .select(CAMPOS_SELECT)
-    .eq("paciente_id", pacienteId)
-    .eq("status", "rejeitada")
-    .order("criado_em", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (erroRejeitada) throw new Error(erroRejeitada.message);
-  if (!rejeitada) return null;
-
-  const prazo = new Date(rejeitada.criado_em);
+  // rejeitada: só dentro dos 60 dias
+  const prazo = new Date(ultima.criado_em);
   prazo.setDate(prazo.getDate() + 60);
   if (new Date() > prazo) return null;
 
-  return { ...rejeitada, prazoAceite: prazo.toISOString() };
+  return { ...ultima, prazoAceite: prazo.toISOString() };
 }
