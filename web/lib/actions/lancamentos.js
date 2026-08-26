@@ -6,6 +6,24 @@ import { createClient } from "@/lib/supabase/server";
 import { horizonteAtual } from "@/lib/recorrencia";
 import { gerarLancamentosAteHorizonte } from "@/lib/recorrencia-despesa";
 
+// O form já filtra as opções pelo tipo (ver LancamentoForm), mas isso é só
+// UX — sem essa checagem no servidor dava pra mandar qualquer id de
+// classificação direto no formData e vincular uma classificação de Despesa
+// a uma Receita (ou vice-versa), o que quebra o propósito do plano de
+// contas (relatórios futuros por classificação+tipo ficariam inconsistentes).
+async function classificacaoValidaParaTipo(supabase, classificacaoId, tipo) {
+  if (!classificacaoId) return true;
+
+  const { data, error } = await supabase
+    .from("ClassificacaoFinanceira")
+    .select("tipo")
+    .eq("id", classificacaoId)
+    .single();
+
+  if (error) return false;
+  return data.tipo === "Ambos" || data.tipo === tipo;
+}
+
 export async function criarLancamento(prevState, formData) {
   const supabase = await createClient();
 
@@ -16,6 +34,10 @@ export async function criarLancamento(prevState, formData) {
   const conta = formData.get("conta") ? Number(formData.get("conta")) : null;
   const classificacao = formData.get("classificacao") ? Number(formData.get("classificacao")) : null;
   const frequencia = formData.get("frequencia");
+
+  if (!(await classificacaoValidaParaTipo(supabase, classificacao, tipo))) {
+    return { error: "Essa classificação não é válida para o tipo selecionado." };
+  }
 
   let recorrenciaCriada = null;
 
@@ -53,6 +75,12 @@ export async function criarLancamento(prevState, formData) {
   });
 
   if (error) {
+    // Sem o lançamento inicial, a série ficaria órfã (ativa, sem nenhum
+    // lançamento vinculado) e garantirRecorrenciasDespesaEstendidas passaria
+    // a gerar despesas futuras que o usuário nunca confirmou.
+    if (recorrenciaCriada) {
+      await supabase.from("RecorrenciaDespesa").delete().eq("id", recorrenciaCriada.id);
+    }
     return { error: "Não foi possível salvar o lançamento." };
   }
 
@@ -63,11 +91,19 @@ export async function criarLancamento(prevState, formData) {
 
   revalidatePath("/financeiro/lancamentos");
   revalidatePath("/financeiro/recorrencias");
+  revalidatePath("/financeiro");
   redirect("/financeiro/lancamentos");
 }
 
 export async function atualizarLancamento(id, prevState, formData) {
   const supabase = await createClient();
+
+  const tipo = formData.get("tipo");
+  const classificacao = formData.get("classificacao") ? Number(formData.get("classificacao")) : null;
+
+  if (!(await classificacaoValidaParaTipo(supabase, classificacao, tipo))) {
+    return { error: "Essa classificação não é válida para o tipo selecionado." };
+  }
 
   const { error } = await supabase
     .from("LancamentoFinanceiro")
@@ -75,9 +111,9 @@ export async function atualizarLancamento(id, prevState, formData) {
       data: formData.get("data"),
       descricao: formData.get("descricao"),
       valor: Number(formData.get("valor")),
-      tipo: formData.get("tipo"),
+      tipo,
       conta: formData.get("conta") ? Number(formData.get("conta")) : null,
-      classificacao: formData.get("classificacao") ? Number(formData.get("classificacao")) : null,
+      classificacao,
     })
     .eq("id", id);
 

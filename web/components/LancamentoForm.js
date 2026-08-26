@@ -13,6 +13,10 @@ export default function LancamentoForm({
 }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const [tipo, setTipo] = useState(valoresIniciais.tipo ?? "Receita");
+  const [classificacao, setClassificacao] = useState(valoresIniciais.classificacao ?? "");
+
+  const classificacoesDoTipo = classificacoes.filter((c) => c.tipo === "Ambos" || c.tipo === tipo);
+  const classificacaoSelecionadaValida = classificacoesDoTipo.some((c) => String(c.id) === String(classificacao));
 
   return (
     <form action={formAction} className="max-w-md space-y-4 card p-6">
@@ -98,13 +102,14 @@ export default function LancamentoForm({
         <select
           id="classificacao"
           name="classificacao"
-          defaultValue={valoresIniciais.classificacao ?? ""}
+          value={classificacaoSelecionadaValida ? classificacao : ""}
+          onChange={(e) => setClassificacao(e.target.value)}
           className="field"
         >
           <option value="">Nenhuma</option>
-          {classificacoes.map((c) => (
+          {classificacoesDoTipo.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.nome} ({c.tipo})
+              {c.nome}
             </option>
           ))}
         </select>
