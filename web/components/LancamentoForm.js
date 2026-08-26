@@ -1,11 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const estadoInicial = {};
 
-export default function LancamentoForm({ action, contas, valoresIniciais = {} }) {
+export default function LancamentoForm({
+  action,
+  contas,
+  classificacoes,
+  permitirRecorrencia = false,
+  valoresIniciais = {},
+}) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
+  const [tipo, setTipo] = useState(valoresIniciais.tipo ?? "Receita");
 
   return (
     <form action={formAction} className="max-w-md space-y-4 card p-6">
@@ -57,7 +64,14 @@ export default function LancamentoForm({ action, contas, valoresIniciais = {} })
         <label htmlFor="tipo" className="block text-sm font-semibold text-navy">
           Tipo
         </label>
-        <select id="tipo" name="tipo" required defaultValue={valoresIniciais.tipo ?? "Receita"} className="field">
+        <select
+          id="tipo"
+          name="tipo"
+          required
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          className="field"
+        >
           <option value="Receita">Receita</option>
           <option value="Despesa">Despesa</option>
         </select>
@@ -76,6 +90,39 @@ export default function LancamentoForm({ action, contas, valoresIniciais = {} })
           ))}
         </select>
       </div>
+
+      <div>
+        <label htmlFor="classificacao" className="block text-sm font-semibold text-navy">
+          Classificação
+        </label>
+        <select
+          id="classificacao"
+          name="classificacao"
+          defaultValue={valoresIniciais.classificacao ?? ""}
+          className="field"
+        >
+          <option value="">Nenhuma</option>
+          {classificacoes.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nome} ({c.tipo})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {permitirRecorrencia && tipo === "Despesa" && (
+        <div>
+          <label htmlFor="frequencia" className="block text-sm font-semibold text-navy">
+            Repetir
+          </label>
+          <select id="frequencia" name="frequencia" defaultValue="Nenhuma" className="field">
+            <option value="Nenhuma">Não repetir</option>
+            <option value="Semanal">Semanal</option>
+            <option value="Quinzenal">Quinzenal</option>
+            <option value="Mensal">Mensal</option>
+          </select>
+        </div>
+      )}
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
 

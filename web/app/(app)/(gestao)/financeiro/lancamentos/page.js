@@ -1,19 +1,22 @@
 import Link from "next/link";
 import { listarLancamentos } from "@/lib/data/lancamentos";
 import { listarContas } from "@/lib/data/contas";
+import { listarClassificacoes } from "@/lib/data/classificacoes";
 import { excluirLancamento } from "@/lib/actions/lancamentos";
 import ExcluirLancamentoBotao from "@/components/ExcluirLancamentoBotao";
 
 export default async function PaginaLancamentos({ searchParams }) {
-  const { conta = "", tipo = "", inicio = "", fim = "" } = await searchParams;
-  const [lancamentos, contas] = await Promise.all([
+  const { conta = "", tipo = "", classificacao = "", inicio = "", fim = "" } = await searchParams;
+  const [lancamentos, contas, classificacoes] = await Promise.all([
     listarLancamentos({
       contaId: conta ? Number(conta) : undefined,
       tipo: tipo || undefined,
+      classificacaoId: classificacao ? Number(classificacao) : undefined,
       dataInicio: inicio || undefined,
       dataFim: fim || undefined,
     }),
     listarContas(),
+    listarClassificacoes(),
   ]);
 
   return (
@@ -49,6 +52,17 @@ export default async function PaginaLancamentos({ searchParams }) {
           </select>
         </div>
         <div>
+          <label className="block text-xs text-muted">Classificação</label>
+          <select name="classificacao" defaultValue={classificacao} className="field mt-0">
+            <option value="">Todas</option>
+            {classificacoes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label className="block text-xs text-muted">De</label>
           <input type="date" name="inicio" defaultValue={inicio} className="field mt-0" />
         </div>
@@ -70,7 +84,7 @@ export default async function PaginaLancamentos({ searchParams }) {
               <div>
                 <p className="font-semibold text-navy">{l.descricao}</p>
                 <p className="text-muted">
-                  {String(l.data).slice(0, 10)} · {l.conta_nome} · {l.tipo}
+                  {String(l.data).slice(0, 10)} · {l.conta_nome} · {l.classificacao_nome} · {l.tipo}
                 </p>
               </div>
               <div className="flex items-center gap-4">
