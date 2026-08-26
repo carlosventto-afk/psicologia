@@ -701,3 +701,77 @@ Uma rota nova `/completar-cadastro/[token]` seguiria o mesmo padrão.
 fluxo de proposta pendente + RPC de validação/escrita + tela de aprovação
 pro profissional. Não depende do item 13 (o envio manual do link não
 precisa do agente), mas ganha valor se depois for automatizado por ele.
+
+---
+
+## 15. Integração com Open Finance bancário
+
+**Status: a realizar** — pedido do usuário em 2026-08-26.
+
+**Objetivo:** trazer pro sistema, com o consentimento do profissional, o
+extrato da própria conta bancária via Open Finance Brasil (Banco Central) —
+carregar os lançamentos automaticamente, identificar quais são recebimentos
+de pacientes e vincular cada um ao pagamento de sessão correspondente
+(`PagamentoSessao`), reduzindo o trabalho manual de dar baixa em pagamento
+hoje feito na mão em `/financeiro`.
+
+**Contexto importante — Open Finance não é uma API única do banco:** é um
+padrão regulatório (Banco Central) com um diretório de participantes
+certificados; qualquer instituição que queira consumir dados de conta de
+terceiros via Open Finance precisa ser ela mesma um participante certificado
+(processo de credenciamento pesado) **ou** usar um agregador que já é
+certificado e revende acesso por API simples — modelo usado por praticamente
+todo SaaS financeiro brasileiro que não é banco (ex.: Pluggy, Belvo, Quanto,
+Klavi). Pro tamanho e natureza deste produto, o caminho realista é via
+agregador, não credenciamento direto no Banco Central.
+
+**Escopo provável:**
+- Escolher um agregador Open Finance certificado (avaliar Pluggy como
+  primeira opção — mais usado no mercado brasileiro pra esse caso de uso —
+  comparando pricing por conta conectada, cobertura de bancos e qualidade do
+  webhook de transações; Belvo/Quanto como alternativas).
+- Tela nova (ex.: `/configuracoes/open-finance` ou dentro de
+  `/configuracoes/conta`): profissional inicia o consentimento, é
+  redirecionado pro próprio banco pra autorizar, e volta com a conta
+  conectada. Renovação de consentimento (Open Finance exige renovação
+  periódica, tipicamente a cada 12 meses) precisa de aviso antes de expirar.
+- Sincronização de extrato: via webhook do agregador (lançamento novo chega
+  e dispara atualização) e/ou polling periódico como reforço.
+- **Motor de identificação/matching**: cruzar cada lançamento de crédito
+  (valor + data + quando disponível, nome/CPF do pagador via Pix) com
+  `PagamentoSessao` pendente do mesmo paciente/responsável financeiro. Casos
+  a tratar: match exato (1 lançamento = 1 pagamento), lançamento agrupando
+  múltiplas sessões pagas juntas (já existe um padrão parecido no item 8 —
+  Carnê-Leão — pra combinar atendimentos), valor não bate com nada
+  (lançamento de outra natureza, não é paciente) e ambiguidade (valor bate
+  com mais de um paciente/pagamento em aberto).
+- **Tela de conciliação**: lançamentos com match automático de alta
+  confiança (aprovação com 1 clique ou automático silencioso — a decidir),
+  separados dos que precisam de revisão manual (ambíguos ou sem match).
+  Confirmar o vínculo marca o `PagamentoSessao` como recebido, mesmo padrão
+  já usado na baixa manual hoje.
+- Segurança: o Open Finance nunca expõe senha/credencial bancária — o
+  agregador guarda o token de acesso OAuth; ainda assim, o token de conexão
+  do agregador em si precisa ser guardado com o mesmo cuidado de qualquer
+  segredo (nunca em texto plano, mesmo padrão já usado pro certificado A1 do
+  item 7).
+
+**Decisões em aberto:**
+- Qual agregador usar — decisão de custo/cobertura, a validar com um teste
+  em conta real antes de comprometer.
+- Nível de automação: baixa automática silenciosa em match de alta
+  confiança, ou sempre exigir confirmação humana antes de marcar como pago
+  (mais seguro contra falso positivo, mais trabalho manual).
+- Custo por conta bancária conectada — normalmente cobrado por conexão pelo
+  agregador; decidir se é repassado ao profissional (ex.: feature de plano
+  pago) ou absorvido.
+- Critério de "alta confiança" pro match automático (valor exato + data
+  próxima + nome do pagador reconhecido, vs. só valor batendo).
+- Escopo inicial: só contas Pessoa Física do profissional, ou também Pessoa
+  Jurídica (quando o profissional recebe via CNPJ)?
+
+**Tamanho estimado:** G — depende de provedor externo (Open Finance via
+agregador certificado), fluxo de consentimento regulado com renovação
+periódica, um motor de matching heurístico novo (mais complexo que os
+filtros diretos já existentes no financeiro) e uma superfície de conciliação
+nova na UI.
