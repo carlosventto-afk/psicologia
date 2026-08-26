@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { listarPagamentosElegiveis } from "@/lib/data/carne-leao";
+import { listarPagamentosElegiveis, marcarPagamentosGerados } from "@/lib/data/carne-leao";
 import { agruparEmLinhas, montarArquivoTxt, cpfValido } from "@/lib/carne-leao-txt";
 import { estaNaData, periodoParaEnvio } from "@/lib/carne-leao-automacao";
 import { hojeISO } from "@/lib/periodo-agenda";
@@ -60,7 +60,7 @@ export async function POST(request) {
 
       const { elegiveis } = await listarPagamentosElegiveis(
         { dataInicio, dataFim },
-        { supabase: admin, ownerId: usuario.id_user }
+        { supabase: admin, ownerId: usuario.id_user, excluirJaGerados: true }
       );
 
       if (elegiveis.length === 0) {
@@ -97,6 +97,11 @@ export async function POST(request) {
 
       const linhas = agruparEmLinhas(elegiveis);
       const conteudo = montarArquivoTxt(linhas, usuario);
+
+      await marcarPagamentosGerados(
+        elegiveis.map((p) => p.pagamentoId),
+        { supabase: admin }
+      );
 
       let email = usuario.carne_leao_email;
       if (!email) {

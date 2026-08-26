@@ -1,4 +1,4 @@
-import { buscarPagamentosPorIds } from "@/lib/data/carne-leao";
+import { buscarPagamentosPorIds, marcarPagamentosGerados } from "@/lib/data/carne-leao";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { montarArquivoTxt, agruparEmLinhas, cpfValido } from "@/lib/carne-leao-txt";
 import { calcularPeriodo } from "@/lib/periodo-agenda";
@@ -54,6 +54,8 @@ export async function POST(request) {
 
   const conteudo = montarArquivoTxt(linhas, usuario);
   const nomeArquivo = `carne-leao-${String(mes).padStart(2, "0")}-${ano}.txt`;
+
+  await marcarPagamentosGerados([...idsConsumidos]);
 
   return new Response(conteudo, {
     headers: {

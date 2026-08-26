@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { desmarcarGeradoCarneLeao } from "@/lib/actions/carne-leao";
 
 export default function CarneLeaoForm({ porPagador, mes, ano }) {
   const [gruposPorPagador, setGruposPorPagador] = useState(() =>
@@ -28,9 +29,24 @@ export default function CarneLeaoForm({ porPagador, mes, ano }) {
   }
 
   const todosGrupos = Object.values(gruposPorPagador).flat();
+  const porIdGeral = Object.fromEntries(
+    porPagador.flatMap((pagador) => pagador.pagamentos).map((item) => [item.pagamentoId, item])
+  );
+
+  function confirmarEnvio(evento) {
+    const idsEnviados = todosGrupos.flat();
+    const jaGerados = idsEnviados.filter((id) => porIdGeral[id]?.jaGerado).length;
+    if (jaGerados > 0 && !window.confirm(`${jaGerados} atendimento(s) já geraram TXT antes. Gerar mesmo assim?`)) {
+      evento.preventDefault();
+    }
+  }
+
+  async function desmarcar(pagamentoId) {
+    await desmarcarGeradoCarneLeao(pagamentoId);
+  }
 
   return (
-    <form method="POST" action="/carne-leao/gerar" className="space-y-4">
+    <form method="POST" action="/carne-leao/gerar" className="space-y-4" onSubmit={confirmarEnvio}>
       <input type="hidden" name="mes" value={mes} />
       <input type="hidden" name="ano" value={ano} />
       <input type="hidden" name="grupos" value={JSON.stringify(todosGrupos)} />
@@ -73,15 +89,29 @@ export default function CarneLeaoForm({ porPagador, mes, ano }) {
                       <p className="text-muted text-xs">{itens.length} atendimentos combinados em um recibo</p>
                     )}
                     {itens.map((item) => (
-                      <label key={item.pagamentoId} className="flex items-center gap-2 text-navy">
-                        <input
-                          type="checkbox"
-                          checked={selecionadosDoPagador.includes(item.pagamentoId)}
-                          disabled={combinado}
-                          onChange={() => alternarSelecao(pagador.chave, item.pagamentoId)}
-                        />
-                        {item.dataPagamento} — R$ {Number(item.valor).toFixed(2)}
-                      </label>
+                      <div key={item.pagamentoId} className="flex items-center gap-2 text-navy">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selecionadosDoPagador.includes(item.pagamentoId)}
+                            disabled={combinado}
+                            onChange={() => alternarSelecao(pagador.chave, item.pagamentoId)}
+                          />
+                          {item.dataPagamento} — R$ {Number(item.valor).toFixed(2)}
+                        </label>
+                        {item.jaGerado && (
+                          <span className="flex items-center gap-1 text-xs text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-2 py-0.5">
+                            já gerado em {new Date(item.jaGerado).toLocaleDateString("pt-BR")}
+                            <button
+                              type="button"
+                              onClick={() => desmarcar(item.pagamentoId)}
+                              className="underline font-semibold"
+                            >
+                              Desmarcar
+                            </button>
+                          </span>
+                        )}
+                      </div>
                     ))}
                   </div>
                 );

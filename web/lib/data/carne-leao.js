@@ -3,7 +3,7 @@ import { normalizarIdsLista } from "@/lib/normalizar-ids";
 import { cpfValido } from "@/lib/carne-leao-txt";
 
 const SELECT_PAGAMENTO =
-  "id, valor, data_pagamento, Sessao!inner(data, Paciente!inner(nome, cpf, dependente, documento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf)))";
+  "id, valor, data_pagamento, carne_leao_gerado_em, Sessao!inner(data, Paciente!inner(nome, cpf, dependente, documento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf)))";
 
 function elegivel(p) {
   return cpfValido(p.cpfPagador) && cpfValido(p.cpfBeneficiario);
@@ -23,6 +23,7 @@ function resolverPagamento(p) {
     pagadorNome: paciente.dependente ? responsavel?.nome ?? paciente.nome : paciente.nome,
     cpfPagador,
     cpfBeneficiario: paciente.cpf || null,
+    jaGerado: p.carne_leao_gerado_em,
   };
 }
 
@@ -48,6 +49,13 @@ export async function listarPagamentosElegiveis({ dataInicio, dataFim }, opcoes 
 
   if (opcoes.ownerId) {
     query = query.eq("Sessao.owner", opcoes.ownerId);
+  }
+
+  // Geração automática (item 9) nunca deve incluir um pagamento já
+  // marcado como gerado (item 10) — a geração manual, ao contrário,
+  // continua listando tudo e só avisa o operador na UI.
+  if (opcoes.excluirJaGerados) {
+    query = query.is("carne_leao_gerado_em", null);
   }
 
   const { data, error } = await query;
@@ -79,4 +87,28 @@ export async function buscarPagamentosPorIds(ids, { dataInicio, dataFim }) {
   return normalizarIdsLista(data, ["id"])
     .map(resolverPagamento)
     .filter(elegivel);
+}
+
+// Marca os pagamentos como "já entraram num TXT do Carnê-Leão" — chamado
+// depois que o arquivo (manual ou automático) já foi montado com sucesso.
+export async function marcarPagamentosGerados(ids, opcoes = {}) {
+  if (ids.length === 0) return;
+
+  const supabase = opcoes.supabase ?? (await createClient());
+  const { error } = await supabase
+    .from("PagamentoSessao")
+    .update({ carne_leao_gerado_em: new Date().toISOString() })
+    .in("id", ids);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function desmarcarPagamentoGerado(id) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("PagamentoSessao")
+    .update({ carne_leao_gerado_em: null })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
 }
