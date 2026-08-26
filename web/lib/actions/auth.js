@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
 
 export async function entrar(prevState, formData) {
   const email = formData.get("email");
@@ -78,6 +79,10 @@ export async function cadastrar(prevState, formData) {
   if (erroUsuarios) {
     return { error: "Conta criada, mas não foi possível salvar seus dados. Avise o suporte." };
   }
+
+  // Melhor esforço: se falhar, o profissional ainda consegue carregar a
+  // lista padrão depois pelo botão em /financeiro/classificacoes.
+  await criarClassificacoesPadrao(supabase, data.user.id).catch(() => {});
 
   redirect(origem === "busca" ? "/diretorio" : "/");
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
 
 export async function convidarProfissional(prevState, formData) {
   const supabase = await createClient();
@@ -57,6 +58,10 @@ export async function convidarProfissional(prevState, formData) {
   if (erroUsuarios) {
     return { error: "Convite enviado, mas não foi possível criar o cadastro. Avise o suporte." };
   }
+
+  // Melhor esforço: se falhar, o profissional ainda consegue carregar a
+  // lista padrão depois pelo botão em /financeiro/classificacoes.
+  await criarClassificacoesPadrao(admin, convite.user.id).catch(() => {});
 
   revalidatePath("/admin/profissionais");
   return { mensagem: `Convite enviado para ${email}.` };
