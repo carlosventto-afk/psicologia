@@ -8,10 +8,7 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const files = [
-  "20260826000001_add_classificacao_financeira.sql",
-  "20260826000002_add_recorrencia_despesa.sql",
-];
+const files = ["20260826000003_add_unique_classificacao_owner_nome.sql"];
 
 const migrationsDir = path.resolve("supabase/migrations");
 

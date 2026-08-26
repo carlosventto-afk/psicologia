@@ -26,27 +26,23 @@ export const CLASSIFICACOES_PADRAO = [
   { nome: "Outras Despesas", tipo: "Despesa" },
 ];
 
-// Insere só as classificações padrão que o dono ainda não tem (comparando
-// nome, case-insensitive) — chamável tanto com o client normal (RLS, owner
+// Insere só as classificações padrão que o dono ainda não tem. Upsert com
+// ignoreDuplicates (ON CONFLICT DO NOTHING via a constraint única em
+// owner+nome, ver migration 20260826000003) em vez de "SELECT existentes,
+// calcula faltantes, INSERT" — esse padrão não é atômico e duas chamadas
+// concorrentes (ex: clique duplo em "Carregar lista padrão") inseririam os
+// mesmos itens duas vezes. Chamável tanto com o client normal (RLS, owner
 // vem do default auth.uid()) quanto com o client admin (service_role, sem
 // sessão própria, por isso "ownerId" é sempre explícito aqui).
 export async function criarClassificacoesPadrao(supabase, ownerId) {
-  const { data: existentes, error: erroExistentes } = await supabase
+  const { data, error } = await supabase
     .from("ClassificacaoFinanceira")
-    .select("nome")
-    .eq("owner", ownerId);
-
-  if (erroExistentes) throw new Error(erroExistentes.message);
-
-  const nomesExistentes = new Set(existentes.map((c) => c.nome.toLowerCase()));
-  const faltantes = CLASSIFICACOES_PADRAO.filter((c) => !nomesExistentes.has(c.nome.toLowerCase()));
-
-  if (faltantes.length === 0) return 0;
-
-  const { error } = await supabase
-    .from("ClassificacaoFinanceira")
-    .insert(faltantes.map((c) => ({ ...c, owner: ownerId })));
+    .upsert(
+      CLASSIFICACOES_PADRAO.map((c) => ({ ...c, owner: ownerId })),
+      { onConflict: "owner,nome", ignoreDuplicates: true }
+    )
+    .select("id");
 
   if (error) throw new Error(error.message);
-  return faltantes.length;
+  return data?.length ?? 0;
 }
