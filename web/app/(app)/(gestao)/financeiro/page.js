@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { resumoDoMes, listarInadimplentes, calcularPrevisto } from "@/lib/data/financeiro";
 import { calcularPeriodo, hojeISO } from "@/lib/periodo-agenda";
+import { garantirRecorrenciasDespesaEstendidas } from "@/lib/recorrencia-despesa";
 
 export default async function PaginaFinanceiro() {
   const hoje = hojeISO();
   const mesReferencia = hoje.slice(0, 7);
   const { inicio, fim } = calcularPeriodo("mes", hoje);
+
+  await garantirRecorrenciasDespesaEstendidas();
 
   const [resumo, inadimplentes, previsto] = await Promise.all([
     resumoDoMes(mesReferencia),
@@ -18,6 +21,12 @@ export default async function PaginaFinanceiro() {
       <div className="flex items-center justify-between">
         <h1 className="page-title">Financeiro</h1>
         <div className="flex gap-4 text-sm">
+          <Link href="/financeiro/classificacoes" className="link">
+            Classificações
+          </Link>
+          <Link href="/financeiro/recorrencias" className="link">
+            Despesas Recorrentes
+          </Link>
           <Link href="/financeiro/contas" className="link">
             Contas
           </Link>
