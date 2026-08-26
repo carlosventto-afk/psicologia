@@ -9,10 +9,8 @@ if (!connectionString) {
 }
 
 const files = [
-  "20260727000001_add_whatsapp_agent.sql",
-  "20260727000002_create_agent_rpc_functions.sql",
-  "20260727000003_enable_rls_policies.sql",
-  "20260727000004_lockdown_agent_tables.sql",
+  "20260826000001_add_classificacao_financeira.sql",
+  "20260826000002_add_recorrencia_despesa.sql",
 ];
 
 const migrationsDir = path.resolve("supabase/migrations");
