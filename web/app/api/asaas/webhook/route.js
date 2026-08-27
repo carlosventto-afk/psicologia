@@ -34,12 +34,15 @@ export async function POST(request) {
     if (erroInsert.code === "23505") {
       return new Response("OK (evento duplicado, ignorado).", { status: 200 });
     }
+    console.error("Falha ao registrar EventoAssinatura:", erroInsert);
     return new Response("Erro ao registrar evento.", { status: 500 });
   }
 
   if (!usuario) {
     return new Response("OK (assinatura não encontrada).", { status: 200 });
   }
+
+  let erroAtualizacao = null;
 
   if (evento.event === "PAYMENT_CONFIRMED" || evento.event === "PAYMENT_RECEIVED") {
     const pendenciaLiberada =
@@ -57,12 +60,25 @@ export async function POST(request) {
       atualizacao.plano = usuario.plano_pago;
     }
 
-    await admin.from("Usuarios").update(atualizacao).eq("id", usuario.id);
+    const { error } = await admin.from("Usuarios").update(atualizacao).eq("id", usuario.id);
+    erroAtualizacao = error;
   } else if (evento.event === "PAYMENT_OVERDUE") {
-    await admin
+    const { error } = await admin
       .from("Usuarios")
       .update({ assinatura_status: "inadimplente", assinatura_vencida_em: new Date().toISOString() })
       .eq("id", usuario.id);
+    erroAtualizacao = error;
+  }
+
+  if (erroAtualizacao) {
+    // A linha de EventoAssinatura já foi gravada com o default
+    // (processado_com_sucesso = true) -- corrige aqui pra registrar que a
+    // atualização em Usuarios falhou, senão a tabela de auditoria fica
+    // afirmando sucesso num evento que não aplicou a mudança de plano.
+    await admin
+      .from("EventoAssinatura")
+      .update({ processado_com_sucesso: false, mensagem_erro: erroAtualizacao.message })
+      .eq("asaas_event_id", evento.id);
   }
 
   return new Response("OK", { status: 200 });
