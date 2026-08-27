@@ -12,7 +12,7 @@ export async function criarConsultorio(prevState, formData) {
 
   const limite = PLANOS[usuario.plano].limiteConsultorios;
   if (limite !== null) {
-    const { count } = await supabase.from("Consultorio").select("id", { count: "exact", head: true });
+    const { count } = await supabase.from("Consultorio").select("id", { count: "exact", head: true }).eq("owner", usuario.id_user);
     if ((count ?? 0) >= limite) {
       return {
         error: `Seu plano permite até ${limite} consultório(s). Faça upgrade para adicionar mais.`,
