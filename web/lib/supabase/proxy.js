@@ -19,6 +19,7 @@ const PUBLIC_PATHS = [
   "/api/agent/call-tool",
   "/api/blog/artigos",
   "/api/asaas/webhook",
+  "/api/assinaturas/aplicar-pendencias",
 ];
 
 export async function updateSession(request) {
