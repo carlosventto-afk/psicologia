@@ -40,9 +40,9 @@ const ITENS_NAV = [
     label: "Documentos",
     Icone: IconeDocumentos,
     itens: [
-      { href: "/recibos", label: "Recibos", Icone: IconeRecibo },
-      { href: "/notas-fiscais", label: "Notas Fiscais", Icone: IconeNotaFiscal },
-      { href: "/carne-leao", label: "Carnê-Leão", Icone: IconeCarneLeao },
+      { href: "/recibos", label: "Recibos", Icone: IconeRecibo, pro: true },
+      { href: "/notas-fiscais", label: "Notas Fiscais", Icone: IconeNotaFiscal, pro: true },
+      { href: "/carne-leao", label: "Carnê-Leão", Icone: IconeCarneLeao, pro: true },
     ],
   },
   { href: "/consultorios", label: "Consultórios", Icone: IconeConsultorio },
@@ -53,7 +53,7 @@ const ITENS_NAV = [
     itens: [
       { href: "/diretorio", label: "Diretório", Icone: IconeDiretorio },
       { href: "/configuracoes/conta", label: "Meus Dados", Icone: IconeContaUsuario },
-      { href: "/configuracoes/whatsapp", label: "WhatsApp", Icone: IconeWhatsapp },
+      { href: "/configuracoes/whatsapp", label: "WhatsApp", Icone: IconeWhatsapp, pro: true },
       { href: "/configuracoes/nfse", label: "NFS-e", Icone: IconeNotaFiscal },
     ],
   },
@@ -137,7 +137,7 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
         : ITENS_NAV;
 
   function ItemNav({ item, compacta, onNavegar }) {
-    const { href, label, Icone, exact } = item;
+    const { href, label, Icone, exact, pro } = item;
     const ativo = estaAtivo(href, exact);
     return (
       <Link
@@ -149,7 +149,14 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
         } ${compacta ? "justify-center" : ""}`}
       >
         <Icone className={ativo ? "shrink-0 text-primary" : "shrink-0 text-muted"} />
-        {!compacta && label}
+        {!compacta && (
+          <span className="flex-1 flex items-center justify-between">
+            {label}
+            {pro && plano === "gratis" && (
+              <span className="text-[10px] font-bold text-primary bg-primary/10 rounded px-1.5 py-0.5">PRO</span>
+            )}
+          </span>
+        )}
       </Link>
     );
   }
