@@ -18,6 +18,7 @@ const PUBLIC_PATHS = [
   "/carne-leao-automatico",
   "/api/agent/call-tool",
   "/api/blog/artigos",
+  "/api/asaas/webhook",
 ];
 
 export async function updateSession(request) {
