@@ -70,7 +70,26 @@ export async function convidarProfissional(prevState, formData) {
 export async function aprovarProfissional(id) {
   const supabase = await createClient();
 
-  const { error } = await supabase.from("Usuarios").update({ aprovado: true }).eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Não autorizado.");
+  }
+
+  const { data: usuarioAtual, error: erroUsuarioAtual } = await supabase
+    .from("Usuarios")
+    .select("role")
+    .eq("id_user", user.id)
+    .single();
+
+  if (erroUsuarioAtual || usuarioAtual?.role !== "admin") {
+    throw new Error("Não autorizado.");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("Usuarios").update({ aprovado: true }).eq("id", id);
 
   if (error) {
     throw new Error(error.message);
@@ -82,7 +101,26 @@ export async function aprovarProfissional(id) {
 export async function alternarCriadorConteudo(id, valorAtual) {
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Não autorizado.");
+  }
+
+  const { data: usuarioAtual, error: erroUsuarioAtual } = await supabase
+    .from("Usuarios")
+    .select("role")
+    .eq("id_user", user.id)
+    .single();
+
+  if (erroUsuarioAtual || usuarioAtual?.role !== "admin") {
+    throw new Error("Não autorizado.");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
     .from("Usuarios")
     .update({ criador_conteudo: !valorAtual })
     .eq("id", id);
