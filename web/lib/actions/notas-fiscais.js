@@ -4,8 +4,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { chamarServicoNfse } from "@/lib/nfse-client";
 import { enviarEmailNotaFiscal } from "@/lib/email";
+import { buscarUsuarioAtual } from "@/lib/data/usuario";
+import { PLANOS } from "@/lib/planos";
 
 export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
+  const usuario = await buscarUsuarioAtual();
+  if (!PLANOS[usuario.plano].temDocumentos) {
+    return { error: "Emissão de Nota Fiscal disponível apenas nos planos pagos." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
