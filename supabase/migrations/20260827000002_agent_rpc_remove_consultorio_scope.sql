@@ -11,6 +11,13 @@
 -- _agent_resolve_consultorio e ficaria quebrada (chamando funcao inexistente)
 -- apos o DROP FUNCTION abaixo. Gap identificado durante o cross-check contra
 -- o estado ao vivo do banco antes de aplicar a migration.
+--
+-- Nota 2 (pos-review): agent_gerar_recibo ganhou um guard explicito pra
+-- Paciente.consultorio nulo (PACIENTE_SEM_CONSULTORIO) antes do insert em
+-- Recibo, que tem consultorio NOT NULL -- sem isso, pacientes com consultorio
+-- nulo (existem casos assim em producao, hoje inalcancaveis via agente pq o
+-- owner correspondente nao tem whatsapp vinculado) estourariam um
+-- not_null_violation cru em vez de uma excecao de dominio.
 
 CREATE OR REPLACE FUNCTION public.agent_agendar_sessao_avulsa(p_whatsapp_number text, p_paciente_id bigint, p_data date, p_horario time without time zone, p_duracao_min numeric DEFAULT 50, p_consultorio_id bigint DEFAULT NULL::bigint)
  RETURNS bigint
@@ -168,6 +175,10 @@ begin
 
   if v_paciente_id is null then
     raise exception 'SESSAO_NAO_ENCONTRADA' using errcode = 'P0001';
+  end if;
+
+  if v_consultorio_id is null then
+    raise exception 'PACIENTE_SEM_CONSULTORIO' using errcode = 'P0001';
   end if;
 
   insert into "Recibo" (sessao, consultorio, paciente, data_emissao, owner)
