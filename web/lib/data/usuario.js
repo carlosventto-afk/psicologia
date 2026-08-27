@@ -10,7 +10,7 @@ export async function buscarUsuarioAtual() {
   const { data, error } = await supabase
     .from("Usuarios")
     .select(
-      "id, nome, cpf, crp, contato, whatsapp_number, whatsapp_verified, role, aprovado, criador_conteudo, plano, carne_leao_frequencia, carne_leao_email, carne_leao_ultimo_envio"
+      "id, nome, cpf, crp, contato, whatsapp_number, whatsapp_verified, role, aprovado, criador_conteudo, plano, plano_pago, plano_pretendido, plano_pretendido_a_partir_de, assinatura_status, asaas_customer_id, asaas_subscription_id, carne_leao_frequencia, carne_leao_email, carne_leao_ultimo_envio"
     )
     .eq("id_user", user.id)
     .single();
