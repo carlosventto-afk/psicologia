@@ -3,8 +3,16 @@ import CertificadoForm from "@/components/CertificadoForm";
 import AmbienteNfseForm from "@/components/AmbienteNfseForm";
 import { salvarDadosFiscais, enviarCertificado, trocarParaProducao } from "@/lib/actions/dados-fiscais";
 import { buscarDadosFiscais } from "@/lib/data/dados-fiscais";
+import { buscarUsuarioAtual } from "@/lib/data/usuario";
+import { PLANOS } from "@/lib/planos";
+import AvisoRecursoPago from "@/components/AvisoRecursoPago";
 
 export default async function PaginaNfseConfig() {
+  const usuario = await buscarUsuarioAtual();
+  if (!PLANOS[usuario.plano].temDocumentos) {
+    return <AvisoRecursoPago recurso="A emissão de NFS-e" />;
+  }
+
   const dadosFiscais = await buscarDadosFiscais();
 
   return (
