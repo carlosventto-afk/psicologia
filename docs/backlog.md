@@ -35,6 +35,9 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 11 (metade 2) | Cobrança/gateway de pagamento dos planos (preço, assinatura, inadimplência) | 11 (metade 1) |
 | 7 (infra) | Configurar conta Resend em produção (`RESEND_API_KEY`/`RESEND_FROM_EMAIL` no app principal, domínio de envio verificado) pra habilitar o e-mail automático da NFS-e ao paciente — hoje falha silenciosamente sem bloquear a emissão | 7 |
 | 15 | Integração com Open Finance bancário — importar lançamentos da conta do profissional, identificar recebimentos de pacientes e vincular automaticamente com pagamentos de sessão | — |
+| 17 | Confirmação de escopo ao alterar horário/dia de uma sessão recorrente (só esta sessão ou todas as futuras) | — |
+| 18 | Registrar motivação da alteração de sessão (paciente ou profissional) | 17 |
+| 19 | Gráficos de indicadores de mercado na tela inicial | — |
 
 Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também
 `docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original

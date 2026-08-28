@@ -787,3 +787,94 @@ agregador certificado), fluxo de consentimento regulado com renovação
 periódica, um motor de matching heurístico novo (mais complexo que os
 filtros diretos já existentes no financeiro) e uma superfície de conciliação
 nova na UI.
+
+---
+
+## 17. Confirmação de escopo ao alterar horário/dia de uma sessão recorrente
+
+**Status: a realizar** — pedido do usuário em 2026-08-28.
+
+**Objetivo:** hoje alterar data/horário de uma sessão que faz parte de uma
+recorrência (`web/lib/recorrencia.js`) não distingue entre alterar só
+aquela ocorrência específica e alterar a série toda. Este item introduz uma
+pergunta obrigatória na hora da alteração: a mudança vale só para esta
+sessão ou para todas as sessões futuras da mesma recorrência?
+
+**Escopo provável:**
+- Detectar se a sessão sendo alterada faz parte de uma série recorrente.
+- Ao mudar data e/ou horário, exibir um diálogo de confirmação com as duas
+  opções antes de salvar.
+- "Só esta sessão": desvincula a ocorrência da série (ou marca como
+  exceção) sem alterar as demais.
+- "Todas as futuras": aplica o novo horário/dia a partir daquela ocorrência
+  em diante, sem tocar nas sessões já passadas.
+
+**Decisões em aberto:** como o modelo de dados representa uma "exceção"
+dentro de uma série (campo próprio na sessão, ou desvincular criando uma
+sessão avulsa); se sessões passadas da mesma série também precisam de
+algum ajuste (provavelmente não, só as futuras).
+
+**Tamanho estimado:** M — precisa modelar exceção/série na Agenda; hoje a
+recorrência de sessão trata a série como um bloco só, sem conceito de
+ocorrência destacada.
+
+---
+
+## 18. Registrar motivação da alteração de sessão (paciente ou profissional)
+
+**Status: a realizar** — pedido do usuário em 2026-08-28.
+
+**Objetivo:** ao alterar data/horário de uma sessão, perguntar e registrar
+se a mudança foi motivada pelo paciente ou pelo profissional — dado útil
+pra métricas de remarcação/no-show e pro histórico do atendimento.
+
+**Escopo provável:**
+- Campo novo (ex.: `motivacao_alteracao`: `'paciente' | 'profissional'`)
+  num histórico de alteração de sessão.
+- Diálogo de confirmação (mesmo momento do item 17) pede essa escolha antes
+  de salvar a alteração.
+- Uma tela de histórico/relatório que use esse dado fica fora de escopo
+  desta entrega — só a coleta.
+
+**Decisões em aberto:** se a pergunta é obrigatória sempre que a sessão é
+editada, ou só quando a edição de fato muda data/horário (outros campos
+não precisariam perguntar); onde esse histórico fica visível pro
+profissional depois.
+
+**Depende do item 17** — mesmo ponto de entrada na UI; o diálogo de
+confirmação de escopo é o lugar natural pra também perguntar a motivação.
+
+**Tamanho estimado:** P — um campo e uma pergunta a mais no mesmo fluxo do
+item 17, não introduz tela nova.
+
+---
+
+## 19. Gráficos de indicadores de mercado na tela inicial
+
+**Status: a realizar** — pedido do usuário em 2026-08-28.
+
+**Objetivo:** a tela inicial/painel passa a apresentar gráficos com
+indicadores pertinentes à atividade do consultório e ao mercado de
+serviços de psicologia (ex.: ticket médio de sessão, taxa de ocupação da
+agenda, taxa de cancelamento/no-show, inadimplência, e comparativos de
+mercado do setor).
+
+**Escopo provável:**
+- Indicadores internos (derivados dos dados do próprio profissional):
+  ocupação da agenda, ticket médio, taxa de no-show/cancelamento,
+  inadimplência — todos calculáveis a partir de `Sessao`/`PagamentoSessao`
+  já existentes.
+- Indicadores externos de mercado (benchmark do setor) exigiriam uma fonte
+  de dados externa (pesquisa/API de terceiros) — a definir qual, já que
+  não é algo que o sistema já coleta.
+- Componente de gráficos na tela inicial — decidir biblioteca de charting
+  a adotar (o projeto ainda não usa nenhuma).
+
+**Decisões em aberto:** quais indicadores de mercado externos fazem
+sentido e de onde vêm; se os indicadores internos bastam pra uma primeira
+entrega, deixando o benchmark de mercado pra depois; biblioteca de
+gráficos a adotar.
+
+**Tamanho estimado:** M — indicadores internos são cálculo sobre dados já
+existentes; o benchmark de mercado externo é a parte incerta, por depender
+de uma fonte de dados ainda não definida.
