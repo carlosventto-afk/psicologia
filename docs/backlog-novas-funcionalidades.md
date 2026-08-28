@@ -978,10 +978,14 @@ reverte sozinho pro plano anterior, **sem depender de cobrança/gateway**
   pediu: só a operação da plataforma decide quem ganha o período de
   avaliação).
 
+**Decisões já tomadas pelo usuário em 2026-08-28:**
+- **Admin pode encerrar o teste manualmente** antes do prazo (ação
+  "Encerrar teste" ao lado de "Liberar teste").
+- **Sem limite** de quantas vezes um mesmo profissional pode receber um
+  novo período de teste.
+
 **Decisões em aberto:** aviso ao profissional de que o teste está prestes a
-expirar (quantos dias antes); se o admin pode encerrar o teste manualmente
-antes do prazo; se há limite de quantas vezes um mesmo profissional pode
-receber um novo período de teste.
+expirar (quantos dias antes, e se existe aviso).
 
 **Depende do item 11 (metade 1)** — reaproveita o campo `plano` e a tela
 `/admin/profissionais` já existentes. Não depende do item 11 (metade 2,
