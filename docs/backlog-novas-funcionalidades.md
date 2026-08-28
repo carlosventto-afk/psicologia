@@ -883,31 +883,76 @@ de uma fonte de dados ainda não definida.
 
 ## 20. Ajuste de responsividade para celular
 
-**Status: a realizar** — pedido do usuário em 2026-08-28.
+**Status: implementado** (2026-08-28) — levantamento tela a tela
+confirmou que o problema real não era tabela sem scroll wrapper (o app
+não usa `<table>`, usa cards `flex items-center justify-between`), e sim
+esse mesmo padrão de card repetido em ~17 telas de listagem sem nenhum
+tratamento responsivo, mais 2 componentes de calendário com layout fixo.
 
-**Objetivo:** várias telas do app hoje geram barra de rolagem horizontal
-ou têm elementos sobrepostos quando abertas num celular — o produto foi
-construído com foco em desktop e nunca passou por uma revisão de
-responsividade dedicada.
+**O que foi corrigido:**
+- **Cards de lista** (Pacientes, Financeiro/Lançamentos, Financeiro
+  (inadimplentes), Recibos, Notas Fiscais, Consultórios, Pacotes,
+  Recorrências (sessão e despesa), Admin/Profissionais, Admin/Artigos,
+  Agenda (visão dia), Painel (atendimentos de hoje), detalhe do paciente
+  (aba Sessões)): o padrão `flex items-center justify-between` (bloco de
+  texto à esquerda + status/ações à direita, tudo numa linha só) virou
+  `flex-col` no mobile e volta a ser uma linha só a partir do breakpoint
+  `sm` (tablet+); quando o lado direito tinha vários itens inline
+  (status + 2-3 links de ação), esses itens ganharam `flex-wrap` pra não
+  estourar a tela quando o card está estreito.
+- **Cabeçalhos "título + botão(ões)"**: `flex-wrap` adicionado como rede
+  de segurança em todas as telas — a maioria já cabia numa linha, mas
+  telas com título longo (nome do paciente) ou vários botões/links no
+  cabeçalho (Financeiro tem 4 links, detalhe do paciente tem até 5 ações)
+  agora quebram em 2 linhas em vez de espremer ou vazar da tela em
+  320-375px.
+- **Grids fixos sem breakpoint** (`grid-cols-3`/`grid-cols-4` no Painel e
+  no Financeiro, `grid-cols-2` no detalhe do paciente — dados cadastrais
+  e anamnese): viraram `grid-cols-1 sm:grid-cols-3`, `grid-cols-2
+  sm:grid-cols-4` e `grid-cols-1 sm:grid-cols-2` respectivamente — no
+  celular, uma coluna (ou duas pro caso de 4 itens) em vez de espremer
+  3-4 colunas numa tela de 375px. Isso importa especialmente pra
+  Anamnese, onde os valores são texto livre longo.
+- **Agenda, visão Semana** (`AgendaGrade.js`): antes era uma linha
+  horizontal de 7 colunas de `w-48` (192px) dentro de um
+  `overflow-x-auto` — ou seja, rolagem horizontal forçada em qualquer
+  celular, sem nenhuma affordance visual de que dava pra arrastar (a
+  reclamação literal do usuário: "gerando barra de rolagem"). Agora
+  empilha em cards de largura total, um dia embaixo do outro, no
+  celular; a partir do breakpoint `sm` volta a ser a linha horizontal
+  original.
+- **Agenda, visão Mês** (`AgendaMes.js`): dois problemas. (1) Bug real de
+  truncamento — `truncate` estava aplicado a um `<p>` que também era
+  `flex` com um ponto colorido + texto como filhos diretos; sem
+  `min-w-0` no texto, o CSS de truncamento não fazia efeito nenhum e
+  nomes de paciente longos estouravam a célula do calendário (a
+  "sobreposição" reportada pelo usuário), em qualquer tamanho de tela.
+  Corrigido envolvendo o texto num `<span>` com `min-w-0 truncate`. (2)
+  Mesmo corrigido, texto detalhado (horário + nome) numa célula de ~50px
+  de largura no celular é ilegível — no mobile a célula agora mostra só
+  uma bolinha colorida por sessão (com "+N" se passar de 4), e o texto
+  detalhado (Desktop/tablet) fica atrás de `hidden sm:block`. Tocar no
+  dia sempre abriu a visão Dia com o detalhe completo, então nada de
+  informação se perde.
+- `overflow-x-hidden` adicionado no container da área logada
+  (`app/(app)/layout.js`) como rede de segurança final contra qualquer
+  overflow horizontal residual.
 
-**Escopo provável:**
-- Levantamento das telas mais usadas no dia a dia (Agenda, Financeiro,
-  Pacientes, Painel) num viewport mobile real, catalogando cada quebra
-  (tabela sem scroll wrapper, largura fixa maior que a tela, elementos
-  absolutos se sobrepondo).
-- Corrigir por tela, priorizando as de uso diário sobre as administrativas.
-- Padrão a aplicar: tabelas largas dentro de container com
-  `overflow-x: auto` em vez de estourar a viewport; grids/flex que
-  colapsem em coluna única abaixo de um breakpoint; nada de largura fixa
-  em `px` em componentes que hoje assumem tela grande.
+**Verificação:** Playwright contra build+preview, autenticado com uma
+conta de teste descartável já existente no banco (`Teste RPC`), com
+sessões/pacientes/lançamentos de teste inseridos só pra essa verificação
+e revertidos ao final. Capturas em 375×812 (iPhone) confirmaram
+`document.documentElement.scrollWidth` igual ao `clientWidth` (zero
+rolagem horizontal) em todas as telas tocadas, e inspeção visual
+confirmou ausência de sobreposição (nomes truncando corretamente,
+ações quebrando em linha própria). Capturas em 1366×900 confirmaram que
+o layout desktop/tablet não mudou (Agenda Semana permanece em linha
+horizontal, grids financeiros permanecem em 3-4 colunas).
 
-**Decisões em aberto:** nenhuma decisão de produto — é ajuste técnico;
-maior incerteza é o tamanho real (só se sabe a lista completa de telas
-quebradas depois de testar cada uma no celular).
-
-**Tamanho estimado:** M — não é uma feature nova, mas tende a tocar várias
-telas espalhadas pelo app; o esforço real só aparece depois do
-levantamento tela a tela.
+**Fora de escopo:** telas de formulário (`novo`/`editar`) não foram
+tocadas — já são de coluna única por padrão e não apresentaram o
+problema; revisão focou nas telas de listagem/dashboard, que eram a
+origem real da reclamação.
 
 ---
 
