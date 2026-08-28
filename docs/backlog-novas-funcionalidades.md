@@ -932,9 +932,12 @@ filtro.
 - Os 2 contadores ficam visíveis nas 3 visões (dia/semana/mês), sempre
   refletindo o período correspondente à visão + data selecionadas.
 
-**Decisões em aberto:** sessão cancelada entra ou não no "valor previsto"
-e na "quantidade"; se sessão sem valor definido conta na quantidade mas
-fica de fora da soma de valor (mais provável) ou é tratada como erro.
+**Decisões já tomadas pelo usuário em 2026-08-28:**
+- **Sessão cancelada fica de fora** dos 2 contadores (nem soma valor, nem
+  conta na quantidade).
+
+**Decisões em aberto:** se sessão sem valor definido conta na quantidade
+mas fica de fora da soma de valor (mais provável) ou é tratada como erro.
 
 **Tamanho estimado:** P — dado já está carregado pra tela (mesma consulta
 que já busca as sessões do período); é essencialmente somar e exibir 2
