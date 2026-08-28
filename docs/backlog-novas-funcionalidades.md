@@ -878,3 +878,64 @@ gráficos a adotar.
 **Tamanho estimado:** M — indicadores internos são cálculo sobre dados já
 existentes; o benchmark de mercado externo é a parte incerta, por depender
 de uma fonte de dados ainda não definida.
+
+---
+
+## 20. Ajuste de responsividade para celular
+
+**Status: a realizar** — pedido do usuário em 2026-08-28.
+
+**Objetivo:** várias telas do app hoje geram barra de rolagem horizontal
+ou têm elementos sobrepostos quando abertas num celular — o produto foi
+construído com foco em desktop e nunca passou por uma revisão de
+responsividade dedicada.
+
+**Escopo provável:**
+- Levantamento das telas mais usadas no dia a dia (Agenda, Financeiro,
+  Pacientes, Painel) num viewport mobile real, catalogando cada quebra
+  (tabela sem scroll wrapper, largura fixa maior que a tela, elementos
+  absolutos se sobrepondo).
+- Corrigir por tela, priorizando as de uso diário sobre as administrativas.
+- Padrão a aplicar: tabelas largas dentro de container com
+  `overflow-x: auto` em vez de estourar a viewport; grids/flex que
+  colapsem em coluna única abaixo de um breakpoint; nada de largura fixa
+  em `px` em componentes que hoje assumem tela grande.
+
+**Decisões em aberto:** nenhuma decisão de produto — é ajuste técnico;
+maior incerteza é o tamanho real (só se sabe a lista completa de telas
+quebradas depois de testar cada uma no celular).
+
+**Tamanho estimado:** M — não é uma feature nova, mas tende a tocar várias
+telas espalhadas pelo app; o esforço real só aparece depois do
+levantamento tela a tela.
+
+---
+
+## 21. Contadores de valor previsto e quantidade na Agenda
+
+**Status: a realizar** — pedido do usuário em 2026-08-28.
+
+**Objetivo:** a tela `/agenda` (`web/app/(app)/(gestao)/agenda/page.js`)
+já tem um filtro de período (`visao`: dia/semana/mês, com `inicio`/`fim`
+calculados em `calcularPeriodo`). Este item adiciona 2 contadores no topo
+da tela — **Valor previsto** e **Quantidade** (de sessões) — somando as
+sessões dentro do período atualmente selecionado, atualizando junto com o
+filtro.
+
+**Escopo provável:**
+- "Quantidade": total de sessões no período (`inicio`/`fim`) já carregado
+  pra renderizar a grade de dia/semana/mês.
+- "Valor previsto": soma do valor da sessão (`Sessao.valor` ou equivalente)
+  de todas as sessões do período — decidir se conta só sessões
+  agendadas/futuras, ou também as já realizadas/canceladas do período
+  (provavelmente exclui canceladas).
+- Os 2 contadores ficam visíveis nas 3 visões (dia/semana/mês), sempre
+  refletindo o período correspondente à visão + data selecionadas.
+
+**Decisões em aberto:** sessão cancelada entra ou não no "valor previsto"
+e na "quantidade"; se sessão sem valor definido conta na quantidade mas
+fica de fora da soma de valor (mais provável) ou é tratada como erro.
+
+**Tamanho estimado:** P — dado já está carregado pra tela (mesma consulta
+que já busca as sessões do período); é essencialmente somar e exibir 2
+totalizadores.
