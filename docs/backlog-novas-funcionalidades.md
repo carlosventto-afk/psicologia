@@ -942,3 +942,51 @@ mas fica de fora da soma de valor (mais provável) ou é tratada como erro.
 **Tamanho estimado:** P — dado já está carregado pra tela (mesma consulta
 que já busca as sessões do período); é essencialmente somar e exibir 2
 totalizadores.
+
+---
+
+## 22. Liberação temporária de plano avançado pelo admin (período de teste)
+
+**Status: a realizar** — pedido do usuário em 2026-08-28.
+
+**Objetivo:** hoje o admin já troca o plano de um profissional manualmente
+(`alterarPlano`, `web/lib/actions/profissionais.js`, usado em
+`SeletorPlano.js` dentro de `/admin/profissionais` — item 11 metade 1), mas
+essa troca é permanente até alguém trocar de novo. Este item permite ao
+admin liberar o módulo/plano mais avançado **por um prazo determinado**,
+pra o cliente testar sem precisar comprar — passado o prazo, o sistema
+reverte sozinho pro plano anterior, **sem depender de cobrança/gateway**
+(item 11 metade 2, ainda não implementado).
+
+**Escopo provável:**
+- Campo novo em `Usuarios` (ex.: `plano_teste_expira_em`, timestamptz
+  nullable) — quando preenchido, o profissional usa o plano concedido
+  (`plano`) até essa data; ao expirar, reverte automaticamente pro plano
+  base registrado antes da liberação (precisa guardar esse plano anterior
+  também, ex.: `plano_antes_teste`).
+- Em `/admin/profissionais`, ação "Liberar teste" ao lado do seletor de
+  plano já existente: admin escolhe o plano avançado a liberar + a data de
+  expiração (ou nº de dias).
+- Reversão automática: como o app não tem scheduler de verdade (mesma
+  limitação já registrada no item 9), a checagem de expiração roda sob
+  demanda — no login do profissional e/ou no gate de acesso já existente
+  em `app/(app)/layout.js`/`proxy.js` — comparando `plano_teste_expira_em`
+  com a data atual, mesmo padrão de "cron preguiçoso" já usado nas
+  recorrências.
+- **Só o admin concede** — não existe autosserviço nenhum pro próprio
+  profissional se dar um teste (é justamente o controle que o usuário
+  pediu: só a operação da plataforma decide quem ganha o período de
+  avaliação).
+
+**Decisões em aberto:** aviso ao profissional de que o teste está prestes a
+expirar (quantos dias antes); se o admin pode encerrar o teste manualmente
+antes do prazo; se há limite de quantas vezes um mesmo profissional pode
+receber um novo período de teste.
+
+**Depende do item 11 (metade 1)** — reaproveita o campo `plano` e a tela
+`/admin/profissionais` já existentes. Não depende do item 11 (metade 2,
+cobrança) — é justamente o caminho pra liberar acesso sem cobrança.
+
+**Tamanho estimado:** P/M — 2 campos novos + uma checagem de expiração no
+mesmo padrão de "cron preguiçoso" já usado no projeto; a maior parte da UI
+de troca de plano já existe.

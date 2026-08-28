@@ -40,6 +40,7 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 19 | Gráficos de indicadores de mercado na tela inicial | — |
 | 20 | Ajuste de responsividade para celular (barra de rolagem/sobreposição em várias telas) | — |
 | 21 | Contadores de valor previsto e quantidade na Agenda, de acordo com o filtro de período (dia/semana/mês) | — |
+| 22 | Liberação temporária de plano avançado pelo admin (período de teste sem cobrança) | 11 (metade 1) |
 
 Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também
 `docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original
