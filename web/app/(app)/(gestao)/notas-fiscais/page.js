@@ -1,8 +1,16 @@
 import { listarPagamentosElegiveisParaNotaFiscal, listarNotasFiscaisEmitidas } from "@/lib/data/notas-fiscais";
 import EmitirNotaFiscalBotao from "@/components/EmitirNotaFiscalBotao";
 import CancelarNotaFiscalBotao from "@/components/CancelarNotaFiscalBotao";
+import { buscarUsuarioAtual } from "@/lib/data/usuario";
+import { PLANOS } from "@/lib/planos";
+import AvisoRecursoPago from "@/components/AvisoRecursoPago";
 
 export default async function PaginaNotasFiscais() {
+  const usuario = await buscarUsuarioAtual();
+  if (!PLANOS[usuario.plano].temDocumentos) {
+    return <AvisoRecursoPago recurso="A emissão de notas fiscais" />;
+  }
+
   const [elegiveis, emitidas] = await Promise.all([
     listarPagamentosElegiveisParaNotaFiscal(),
     listarNotasFiscaisEmitidas(),

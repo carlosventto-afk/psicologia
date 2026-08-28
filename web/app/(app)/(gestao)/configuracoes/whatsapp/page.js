@@ -1,8 +1,14 @@
 import VincularWhatsappForm from "@/components/VincularWhatsappForm";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
+import { PLANOS } from "@/lib/planos";
+import AvisoRecursoPago from "@/components/AvisoRecursoPago";
 
 export default async function PaginaConfiguracoesWhatsapp() {
   const usuario = await buscarUsuarioAtual();
+
+  if (!PLANOS[usuario.plano].temWhatsapp) {
+    return <AvisoRecursoPago recurso="O Agente de WhatsApp" />;
+  }
 
   return (
     <div className="space-y-4">

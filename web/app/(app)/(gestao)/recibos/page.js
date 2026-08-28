@@ -1,7 +1,15 @@
 import { listarSessoesElegiveisParaRecibo, listarRecibosEmitidos } from "@/lib/data/recibos";
 import { gerarRecibo } from "@/lib/actions/recibos";
+import { buscarUsuarioAtual } from "@/lib/data/usuario";
+import { PLANOS } from "@/lib/planos";
+import AvisoRecursoPago from "@/components/AvisoRecursoPago";
 
 export default async function PaginaRecibos() {
+  const usuario = await buscarUsuarioAtual();
+  if (!PLANOS[usuario.plano].temDocumentos) {
+    return <AvisoRecursoPago recurso="A emissão de recibos" />;
+  }
+
   const [elegiveis, emitidos] = await Promise.all([listarSessoesElegiveisParaRecibo(), listarRecibosEmitidos()]);
 
   return (
