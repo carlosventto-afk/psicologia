@@ -21,7 +21,7 @@ export default async function PaginaDiretorio() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Meu Perfil no Diretório</h1>
         <p className="text-sm text-muted">{totalContatos} contato(s) recebido(s)</p>
       </div>

@@ -13,9 +13,9 @@ export default async function PaginaPacientes({ searchParams }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Pacientes</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Link href="/pacientes/importar" className="btn-outline">
             Importar planilha
           </Link>
@@ -25,8 +25,8 @@ export default async function PaginaPacientes({ searchParams }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <form className="max-w-sm flex-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <form className="sm:max-w-sm sm:flex-1">
           <input type="hidden" name="status" value={status} />
           <input
             type="text"
@@ -37,7 +37,7 @@ export default async function PaginaPacientes({ searchParams }) {
           />
         </form>
 
-        <div className="flex gap-1 text-sm">
+        <div className="flex flex-wrap gap-1 text-sm">
           {ABAS_STATUS.map((aba) => (
             <Link
               key={aba.valor}
@@ -60,9 +60,9 @@ export default async function PaginaPacientes({ searchParams }) {
             <Link
               key={p.id}
               href={`/pacientes/${p.id}`}
-              className="card flex items-center justify-between px-4 py-3 transition-shadow hover:shadow-md"
+              className="card flex flex-col gap-1 px-4 py-3 transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between sm:gap-4"
             >
-              <p className="font-semibold text-navy">{p.nome}</p>
+              <p className="truncate font-semibold text-navy">{p.nome}</p>
               <p className="text-sm text-muted">
                 {p.proxima_sessao
                   ? `Próxima sessão: ${p.proxima_sessao.data} ${p.proxima_sessao.horario}`

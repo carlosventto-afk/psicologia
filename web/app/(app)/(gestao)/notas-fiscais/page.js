@@ -22,9 +22,12 @@ export default async function PaginaNotasFiscais() {
         ) : (
           <div className="space-y-3">
             {elegiveis.map((p) => (
-              <div key={p.pagamentoId} className="card flex items-center justify-between px-4 py-3 text-sm">
-                <div>
-                  <p className="font-semibold text-navy">{p.pacienteNome}</p>
+              <div
+                key={p.pagamentoId}
+                className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-navy">{p.pacienteNome}</p>
                   <p className="text-muted">
                     {p.dataSessao} — R$ {Number(p.valor).toFixed(2)}
                   </p>
@@ -43,9 +46,12 @@ export default async function PaginaNotasFiscais() {
         ) : (
           <div className="space-y-3">
             {emitidas.map((n) => (
-              <div key={n.id} className="card flex items-center justify-between px-4 py-3 text-sm">
-                <div>
-                  <p className="font-semibold text-navy">
+              <div
+                key={n.id}
+                className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-navy">
                     {n.pacienteNome} — Nº {n.numero}/{n.serie}
                   </p>
                   <p className="text-muted">

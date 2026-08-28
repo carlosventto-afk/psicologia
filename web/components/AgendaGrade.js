@@ -15,37 +15,35 @@ export default function AgendaGrade({ dias, sessoes }) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <div className="flex gap-3 min-w-max">
-        {dias.map((d) => (
-          <div key={d} className="w-48 shrink-0">
-            <div
-              className={`text-center text-sm font-bold py-2 rounded-t-xl border border-b-0 border-border ${
-                d === hoje ? "bg-primary text-white" : "bg-white text-navy"
-              }`}
-            >
-              {diaDaSemanaAbreviado(d).toUpperCase()} · {d.slice(8, 10)}/{d.slice(5, 7)}
-            </div>
-            <div className="border border-border rounded-b-xl bg-background/50 p-2 space-y-2 min-h-[140px]">
-              {porDia[d].length === 0 ? (
-                <p className="text-xs text-muted text-center py-3">—</p>
-              ) : (
-                porDia[d].map((s) => (
-                  <Link
-                    key={s.id}
-                    href={`/sessoes/${s.id}/editar`}
-                    className={`block rounded-lg border-l-4 px-2 py-1.5 text-xs shadow-sm ${corCartao(s.status)}`}
-                  >
-                    <p className="font-bold">{s.horario?.slice(0, 5)}</p>
-                    <p className="font-semibold truncate">{s.paciente_nome}</p>
-                    <p className="text-muted truncate">{s.tipo_sessao}</p>
-                  </Link>
-                ))
-              )}
-            </div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:overflow-x-auto sm:pb-2">
+      {dias.map((d) => (
+        <div key={d} className="w-full sm:w-48 sm:shrink-0">
+          <div
+            className={`text-center text-sm font-bold py-2 rounded-t-xl border border-b-0 border-border ${
+              d === hoje ? "bg-primary text-white" : "bg-white text-navy"
+            }`}
+          >
+            {diaDaSemanaAbreviado(d).toUpperCase()} · {d.slice(8, 10)}/{d.slice(5, 7)}
           </div>
-        ))}
-      </div>
+          <div className="border border-border rounded-b-xl bg-background/50 p-2 space-y-2 sm:min-h-[140px]">
+            {porDia[d].length === 0 ? (
+              <p className="text-xs text-muted text-center py-3">—</p>
+            ) : (
+              porDia[d].map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/sessoes/${s.id}/editar`}
+                  className={`block rounded-lg border-l-4 px-2 py-1.5 text-xs shadow-sm ${corCartao(s.status)}`}
+                >
+                  <p className="font-bold">{s.horario?.slice(0, 5)}</p>
+                  <p className="font-semibold truncate">{s.paciente_nome}</p>
+                  <p className="text-muted truncate">{s.tipo_sessao}</p>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

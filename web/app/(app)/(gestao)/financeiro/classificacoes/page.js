@@ -7,9 +7,9 @@ export default async function PaginaClassificacoes() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Classificações Financeiras</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <form action={carregarClassificacoesPadrao}>
             <button type="submit" className="btn-outline">
               Carregar lista padrão

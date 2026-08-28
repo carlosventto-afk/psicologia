@@ -21,7 +21,7 @@ export default async function PaginaLancamentos({ searchParams }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Lançamentos Financeiros</h1>
         <Link
           href="/financeiro/lancamentos/novo"
@@ -80,14 +80,17 @@ export default async function PaginaLancamentos({ searchParams }) {
       ) : (
         <div className="space-y-3">
           {lancamentos.map((l) => (
-            <div key={l.id} className="card flex items-center justify-between px-4 py-3 text-sm">
-              <div>
-                <p className="font-semibold text-navy">{l.descricao}</p>
+            <div
+              key={l.id}
+              className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-navy">{l.descricao}</p>
                 <p className="text-muted">
                   {String(l.data).slice(0, 10)} · {l.conta_nome} · {l.classificacao_nome} · {l.tipo}
                 </p>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <span className={l.tipo === "Despesa" ? "text-red-600" : "text-green-700"}>
                   R$ {l.valor}
                 </span>

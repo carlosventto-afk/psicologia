@@ -39,7 +39,7 @@ export default async function PaginaPainel() {
     <div className="space-y-6">
       <h1 className="page-title">Resumo de Hoje</h1>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Link href="/agenda" className="btn-primary">
           Ver Agenda
         </Link>
@@ -64,11 +64,13 @@ export default async function PaginaPainel() {
               <Link
                 key={s.id}
                 href={`/sessoes/${s.id}/editar`}
-                className="card flex items-center justify-between px-4 py-3 text-sm transition-shadow hover:shadow-md"
+                className="card flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm transition-shadow hover:shadow-md"
               >
-                <span className="text-muted w-16">{s.horario}</span>
-                <span className="font-semibold text-navy flex-1 px-3">{s.paciente_nome}</span>
-                <span>{s.status ?? "Marcada"}</span>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="text-muted shrink-0">{s.horario}</span>
+                  <span className="truncate font-semibold text-navy">{s.paciente_nome}</span>
+                </div>
+                <span className="text-muted">{s.status ?? "Marcada"}</span>
               </Link>
             ))}
           </div>
@@ -77,7 +79,7 @@ export default async function PaginaPainel() {
 
       <div>
         <h2 className="text-lg font-bold text-navy mb-2">Financeiro</h2>
-        <div className="card p-5 grid grid-cols-3 gap-4 text-sm">
+        <div className="card p-5 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
           <div>
             <p className="text-muted">Previsto (hoje)</p>
             <p className="text-lg font-semibold">R$ {previsto.toFixed(2)}</p>

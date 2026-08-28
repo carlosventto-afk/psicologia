@@ -18,9 +18,9 @@ export default async function PaginaFinanceiro() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Financeiro</h1>
-        <div className="flex gap-4 text-sm">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
           <Link href="/financeiro/classificacoes" className="link">
             Classificações
           </Link>
@@ -38,7 +38,7 @@ export default async function PaginaFinanceiro() {
 
       <div>
         <h2 className="text-lg font-bold text-navy mb-2">Resumo do mês</h2>
-        <div className="card p-5 grid grid-cols-4 gap-4 text-sm">
+        <div className="card p-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
             <p className="text-muted">Previsto (mês)</p>
             <p className="text-lg font-semibold">R$ {previsto.toFixed(2)}</p>
@@ -65,18 +65,23 @@ export default async function PaginaFinanceiro() {
         ) : (
           <div className="space-y-3">
             {inadimplentes.map((i) => (
-              <div key={i.sessao_id} className="card flex items-center justify-between px-4 py-3 text-sm">
+              <div
+                key={i.sessao_id}
+                className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
                 <Link href={`/pacientes/${i.paciente_id}`} className="font-semibold text-navy">
                   {i.paciente_nome}
                   {i.paciente_dependente && i.responsavel_nome && (
                     <span className="text-muted font-normal"> (dependente de {i.responsavel_nome})</span>
                   )}
                 </Link>
-                <span className="text-muted">{i.data}</span>
-                <span className="text-red-600">R$ {i.valor_devido}</span>
-                <Link href={`/sessoes/${i.sessao_id}/pagamento`} className="link">
-                  Registrar Pagamento
-                </Link>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-muted">{i.data}</span>
+                  <span className="text-red-600">R$ {i.valor_devido}</span>
+                  <Link href={`/sessoes/${i.sessao_id}/pagamento`} className="link">
+                    Registrar Pagamento
+                  </Link>
+                </div>
               </div>
             ))}
           </div>

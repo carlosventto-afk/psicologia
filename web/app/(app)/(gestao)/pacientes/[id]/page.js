@@ -33,9 +33,9 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="page-title">{paciente.nome}</h1>
-        <div className="flex items-center gap-4 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="page-title min-w-0 truncate">{paciente.nome}</h1>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           <Link href={`/agenda/nova-sessao?paciente=${pacienteId}`} className="link">
             Nova Sessão
           </Link>
@@ -80,7 +80,7 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
 
       {aba === "dados" && (
         <div className="space-y-4">
-          <div className="card p-5 grid grid-cols-2 gap-4 text-sm">
+          <div className="card p-5 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <div>
               <p className="text-muted">Telefone</p>
               <p>{paciente.telefone || "—"}</p>
@@ -142,7 +142,7 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
 
       {aba === "anamnese" && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-navy">Anamnese</h2>
             <Link href={`/pacientes/${pacienteId}/anamnese/editar`} className="link">
               {anamnese ? "Editar anamnese" : "Registrar anamnese"}
@@ -152,7 +152,7 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
           {!anamnese ? (
             <p className="empty-state">Nenhuma anamnese registrada ainda.</p>
           ) : (
-            <div className="card p-5 grid grid-cols-2 gap-4 text-sm">
+            <div className="card p-5 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               {CAMPOS_ANAMNESE.map((c) => (
                 <div key={c.chave}>
                   <p className="text-muted">{c.rotulo}</p>
@@ -197,12 +197,17 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
           ) : (
             <div className="space-y-3">
               {sessoes.map((s) => (
-                <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
+                <div
+                  key={s.id}
+                  className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                >
                   <span>
                     {s.data} ({diaDaSemanaAbreviado(s.data)}) {s.horario?.slice(0, 5)}
                   </span>
-                  <span className="text-muted">{s.tipo_sessao}</span>
-                  <span>{s.status ?? "Marcada"}</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-muted">{s.tipo_sessao}</span>
+                    <span>{s.status ?? "Marcada"}</span>
+                  </div>
                 </div>
               ))}
             </div>

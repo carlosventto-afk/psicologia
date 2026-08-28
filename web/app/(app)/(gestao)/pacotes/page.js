@@ -6,7 +6,7 @@ export default async function PaginaPacotes() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Pacotes de Cobrança</h1>
         <Link href="/pacotes/novo" className="btn-primary">
           Novo Pacote
@@ -18,9 +18,12 @@ export default async function PaginaPacotes() {
       ) : (
         <div className="space-y-3">
           {pacotes.map((p) => (
-            <div key={p.id} className="card flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="font-semibold text-navy">{p.nome}</p>
+            <div
+              key={p.id}
+              className="card flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-navy">{p.nome}</p>
                 <p className="text-sm text-muted">
                   {p.tipo_atendimento_nome} · {p.tipo_cobranca_nome} · {p.forma_cobranca} · R$ {p.valor_sugerido}
                 </p>

@@ -6,7 +6,7 @@ export default async function PaginaContas() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Contas Financeiras</h1>
         <Link
           href="/financeiro/contas/novo"

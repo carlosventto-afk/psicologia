@@ -20,9 +20,12 @@ export default async function PaginaRecibos() {
             {elegiveis.map((s) => {
               const acao = gerarRecibo.bind(null, s.id);
               return (
-                <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
-                  <div>
-                    <p className="font-semibold text-navy">
+                <div
+                  key={s.id}
+                  className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-navy">
                       {s.paciente_nome}
                       {s.paciente_dependente && s.responsavel_nome && (
                         <span className="text-muted font-normal"> (dependente de {s.responsavel_nome})</span>
@@ -51,7 +54,10 @@ export default async function PaginaRecibos() {
         ) : (
           <div className="space-y-3">
             {emitidos.map((r) => (
-              <div key={r.id} className="card flex items-center justify-between px-4 py-3 text-sm">
+              <div
+                key={r.id}
+                className="card flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
                 <span className="font-semibold text-navy">
                   {r.paciente_nome}
                   {r.paciente_dependente && r.responsavel_nome && (

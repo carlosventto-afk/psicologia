@@ -31,7 +31,7 @@ export default async function PaginaAgenda({ searchParams }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Agenda</h1>
         <Link href="/agenda/nova-sessao" className="btn-primary">
           Nova Sessão
@@ -84,14 +84,17 @@ export default async function PaginaAgenda({ searchParams }) {
       ) : (
         <div className="space-y-3">
           {sessoes.map((s) => (
-            <div key={s.id} className="card flex items-center justify-between px-4 py-3 text-sm">
-              <div>
-                <p className="font-semibold text-navy">{s.paciente_nome}</p>
+            <div
+              key={s.id}
+              className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-navy">{s.paciente_nome}</p>
                 <p className="text-muted">
                   {s.data} {s.horario?.slice(0, 5)} · {s.tipo_sessao}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-muted">{s.status ?? "Marcada"}</span>
                 {!s.realizado && s.status !== "Cancelada" && (
                   <Link href={`/sessoes/${s.id}/registrar`} className="link">

@@ -15,7 +15,7 @@ export default async function PaginaProfissionais() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Profissionais</h1>
         <Link href="/admin/profissionais/novo" className="btn-primary">
           Convidar profissional
@@ -27,14 +27,17 @@ export default async function PaginaProfissionais() {
       ) : (
         <div className="space-y-3">
           {profissionais.map((p) => (
-            <div key={p.id} className="card flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="font-semibold text-navy">{p.nome}</p>
+            <div
+              key={p.id}
+              className="card flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-navy">{p.nome}</p>
                 <p className="text-sm text-muted">
                   {p.email} · {p.contato}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm text-muted">
                   {p.role === "admin" ? "Admin" : "Psicólogo"}
                 </span>

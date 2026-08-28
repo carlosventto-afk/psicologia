@@ -15,9 +15,12 @@ export default async function PaginaRecorrenciasDespesa() {
           {recorrencias.map((r) => {
             const acao = cancelarRecorrenciaDespesa.bind(null, r.id);
             return (
-              <div key={r.id} className="card flex items-center justify-between px-4 py-3 text-sm">
-                <div>
-                  <p className="font-semibold text-navy">{r.descricao}</p>
+              <div
+                key={r.id}
+                className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-navy">{r.descricao}</p>
                   <p className="text-muted">
                     R$ {r.valor} · {r.frequencia} · gerado até {r.gerado_ate}
                   </p>

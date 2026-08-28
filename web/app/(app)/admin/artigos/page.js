@@ -6,7 +6,7 @@ export default async function PaginaArtigosAdmin() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Artigos</h1>
         <Link href="/admin/artigos/novo" className="btn-primary">
           Novo artigo
@@ -18,9 +18,12 @@ export default async function PaginaArtigosAdmin() {
       ) : (
         <div className="space-y-3">
           {artigos.map((a) => (
-            <div key={a.id} className="card flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="font-semibold text-navy">{a.titulo}</p>
+            <div
+              key={a.id}
+              className="card flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-navy">{a.titulo}</p>
                 <p className="text-sm text-muted">
                   {a.publicado ? "Publicado" : "Rascunho"} · /blog/{a.slug}
                 </p>

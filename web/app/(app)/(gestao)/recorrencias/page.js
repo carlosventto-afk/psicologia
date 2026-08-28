@@ -16,8 +16,11 @@ export default async function PaginaRecorrencias() {
           {recorrencias.map((r) => {
             const acao = cancelarRecorrencia.bind(null, r.id);
             return (
-              <div key={r.id} className="card flex items-center justify-between px-4 py-3 text-sm">
-                <div>
+              <div
+                key={r.id}
+                className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
                   <Link href={`/pacientes/${r.paciente_id}`} className="font-semibold text-navy">
                     {r.paciente_nome}
                   </Link>
