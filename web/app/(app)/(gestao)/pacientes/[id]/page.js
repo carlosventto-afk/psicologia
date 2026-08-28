@@ -7,6 +7,7 @@ import { diaDaSemanaAbreviado } from "@/lib/periodo-agenda";
 import { desativarPaciente, reativarPaciente } from "@/lib/actions/pacientes";
 import ExcluirPacienteBotao from "@/components/ExcluirPacienteBotao";
 import GerarLinkCadastroBotao from "@/components/GerarLinkCadastroBotao";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 const ABAS = [
   { chave: "dados", rotulo: "Dados" },
@@ -95,7 +96,7 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
             </div>
             <div>
               <p className="text-muted">Valor da sessão</p>
-              <p>R$ {paciente.valor_sessao}</p>
+              <p>{formatarMoeda(paciente.valor_sessao)}</p>
             </div>
             <div>
               <p className="text-muted">CPF</p>

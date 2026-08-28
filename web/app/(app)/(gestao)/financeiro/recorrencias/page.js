@@ -1,5 +1,6 @@
 import { listarRecorrenciasDespesa } from "@/lib/data/recorrencias-despesa";
 import { cancelarRecorrenciaDespesa } from "@/lib/actions/recorrencias-despesa";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export default async function PaginaRecorrenciasDespesa() {
   const recorrencias = await listarRecorrenciasDespesa();
@@ -22,7 +23,7 @@ export default async function PaginaRecorrenciasDespesa() {
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-navy">{r.descricao}</p>
                   <p className="text-muted">
-                    R$ {r.valor} · {r.frequencia} · gerado até {r.gerado_ate}
+                    {formatarMoeda(r.valor)} · {r.frequencia} · gerado até {r.gerado_ate}
                   </p>
                 </div>
                 <form action={acao}>

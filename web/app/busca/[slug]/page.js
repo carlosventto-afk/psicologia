@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buscarPerfilPorSlug } from "@/lib/data/diretorio";
 import { iniciais } from "@/lib/iniciais";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -86,7 +87,7 @@ export default async function PaginaPerfilPublico({ params }) {
           <p className="font-bold text-navy">
             {perfil.valor_sessao ? (
               <>
-                R$ {perfil.valor_sessao} <span className="font-normal text-muted">/ sessão</span>
+                {formatarMoeda(perfil.valor_sessao)} <span className="font-normal text-muted">/ sessão</span>
               </>
             ) : (
               "Valor a combinar"

@@ -2,6 +2,7 @@ import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
 import { escolherPlano } from "@/lib/actions/assinatura";
 import EscolherPlanoForm from "@/components/EscolherPlanoForm";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export default async function PaginaAssinatura() {
   const usuario = await buscarUsuarioAtual();
@@ -34,7 +35,7 @@ export default async function PaginaAssinatura() {
           <div key={plano.id} className="card p-4 space-y-2">
             <p className="font-semibold text-navy">{plano.nome}</p>
             <p className="text-2xl font-bold text-navy">
-              {plano.preco === 0 ? "Grátis" : `R$ ${plano.preco.toFixed(2).replace(".", ",")}`}
+              {plano.preco === 0 ? "Grátis" : formatarMoeda(plano.preco)}
               {plano.preco > 0 && <span className="text-sm font-normal text-muted"> /mês</span>}
             </p>
             {usuario.plano === plano.id ? (

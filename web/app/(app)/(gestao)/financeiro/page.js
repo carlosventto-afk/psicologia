@@ -2,6 +2,7 @@ import Link from "next/link";
 import { resumoDoMes, listarInadimplentes, calcularPrevisto } from "@/lib/data/financeiro";
 import { calcularPeriodo, hojeISO } from "@/lib/periodo-agenda";
 import { garantirRecorrenciasDespesaEstendidas } from "@/lib/recorrencia-despesa";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export default async function PaginaFinanceiro() {
   const hoje = hojeISO();
@@ -41,19 +42,19 @@ export default async function PaginaFinanceiro() {
         <div className="card p-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
             <p className="text-muted">Previsto (mês)</p>
-            <p className="text-lg font-semibold">R$ {previsto.toFixed(2)}</p>
+            <p className="text-lg font-semibold">{formatarMoeda(previsto)}</p>
           </div>
           <div>
             <p className="text-muted">Receita</p>
-            <p className="text-lg font-semibold text-green-700">R$ {resumo.total_receita}</p>
+            <p className="text-lg font-semibold text-green-700">{formatarMoeda(resumo.total_receita)}</p>
           </div>
           <div>
             <p className="text-muted">Despesa</p>
-            <p className="text-lg font-semibold text-red-600">R$ {resumo.total_despesa}</p>
+            <p className="text-lg font-semibold text-red-600">{formatarMoeda(resumo.total_despesa)}</p>
           </div>
           <div>
             <p className="text-muted">Saldo</p>
-            <p className="text-lg font-semibold">R$ {resumo.saldo_mes}</p>
+            <p className="text-lg font-semibold">{formatarMoeda(resumo.saldo_mes)}</p>
           </div>
         </div>
       </div>
@@ -77,7 +78,7 @@ export default async function PaginaFinanceiro() {
                 </Link>
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-muted">{i.data}</span>
-                  <span className="text-red-600">R$ {i.valor_devido}</span>
+                  <span className="text-red-600">{formatarMoeda(i.valor_devido)}</span>
                   <Link href={`/sessoes/${i.sessao_id}/pagamento`} className="link">
                     Registrar Pagamento
                   </Link>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { desmarcarGeradoCarneLeao } from "@/lib/actions/carne-leao";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export default function CarneLeaoForm({ porPagador, mes, ano }) {
   const [gruposPorPagador, setGruposPorPagador] = useState(() =>
@@ -97,7 +98,7 @@ export default function CarneLeaoForm({ porPagador, mes, ano }) {
                             disabled={combinado}
                             onChange={() => alternarSelecao(pagador.chave, item.pagamentoId)}
                           />
-                          {item.dataPagamento} — R$ {Number(item.valor).toFixed(2)}
+                          {item.dataPagamento} — {formatarMoeda(item.valor)}
                         </label>
                         {item.jaGerado && (
                           <span className="flex items-center gap-1 text-xs text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-2 py-0.5">

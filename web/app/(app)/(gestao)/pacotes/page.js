@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listarPacotes } from "@/lib/data/pacotes";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export default async function PaginaPacotes() {
   const pacotes = await listarPacotes();
@@ -25,7 +26,7 @@ export default async function PaginaPacotes() {
               <div className="min-w-0">
                 <p className="truncate font-semibold text-navy">{p.nome}</p>
                 <p className="text-sm text-muted">
-                  {p.tipo_atendimento_nome} · {p.tipo_cobranca_nome} · {p.forma_cobranca} · R$ {p.valor_sugerido}
+                  {p.tipo_atendimento_nome} · {p.tipo_cobranca_nome} · {p.forma_cobranca} · {formatarMoeda(p.valor_sugerido)}
                 </p>
               </div>
               <Link href={`/pacotes/${p.id}/editar`} className="text-sm link">

@@ -1,6 +1,7 @@
 import { listarPagamentosElegiveisParaNotaFiscal, listarNotasFiscaisEmitidas } from "@/lib/data/notas-fiscais";
 import EmitirNotaFiscalBotao from "@/components/EmitirNotaFiscalBotao";
 import CancelarNotaFiscalBotao from "@/components/CancelarNotaFiscalBotao";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
 import AvisoRecursoPago from "@/components/AvisoRecursoPago";
@@ -37,7 +38,7 @@ export default async function PaginaNotasFiscais() {
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-navy">{p.pacienteNome}</p>
                   <p className="text-muted">
-                    {p.dataSessao} — R$ {Number(p.valor).toFixed(2)}
+                    {p.dataSessao} — {formatarMoeda(p.valor)}
                   </p>
                 </div>
                 <EmitirNotaFiscalBotao pagamentoId={p.pagamentoId} />

@@ -4,6 +4,7 @@ import { listarAgenda } from "@/lib/data/sessoes";
 import { resumoDoMes, listarInadimplentes, calcularPrevisto } from "@/lib/data/financeiro";
 import { hojeISO } from "@/lib/periodo-agenda";
 import { garantirRecorrenciasEstendidas } from "@/lib/recorrencia";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export default async function PaginaPainel() {
   const consultorios = await listarConsultorios();
@@ -82,11 +83,11 @@ export default async function PaginaPainel() {
         <div className="card p-5 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
           <div>
             <p className="text-muted">Previsto (hoje)</p>
-            <p className="text-lg font-semibold">R$ {previsto.toFixed(2)}</p>
+            <p className="text-lg font-semibold">{formatarMoeda(previsto)}</p>
           </div>
           <div>
             <p className="text-muted">Realizado (mês)</p>
-            <p className="text-lg font-semibold text-green-700">R$ {resumo.total_receita}</p>
+            <p className="text-lg font-semibold text-green-700">{formatarMoeda(resumo.total_receita)}</p>
           </div>
           <div>
             <p className="text-muted">Inadimplentes</p>

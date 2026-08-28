@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buscarPerfisPublicos, listarEspecialidades } from "@/lib/data/diretorio";
 import { iniciais } from "@/lib/iniciais";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const CADASTRO_URL = `${SITE_URL}/cadastro?origem=busca`;
@@ -204,7 +205,7 @@ export default async function PaginaBusca({ searchParams }) {
                   <p className="mt-auto pt-3 text-sm font-bold text-navy">
                     {p.valor_sessao ? (
                       <>
-                        R$ {p.valor_sessao} <span className="font-normal text-muted">/ sessão</span>
+                        {formatarMoeda(p.valor_sessao)} <span className="font-normal text-muted">/ sessão</span>
                       </>
                     ) : (
                       <span className="font-normal text-muted">Valor a combinar</span>

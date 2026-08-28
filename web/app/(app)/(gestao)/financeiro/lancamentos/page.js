@@ -4,6 +4,7 @@ import { listarContas } from "@/lib/data/contas";
 import { listarClassificacoes } from "@/lib/data/classificacoes";
 import { excluirLancamento } from "@/lib/actions/lancamentos";
 import ExcluirLancamentoBotao from "@/components/ExcluirLancamentoBotao";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export default async function PaginaLancamentos({ searchParams }) {
   const { conta = "", tipo = "", classificacao = "", inicio = "", fim = "" } = await searchParams;
@@ -92,7 +93,7 @@ export default async function PaginaLancamentos({ searchParams }) {
               </div>
               <div className="flex flex-wrap items-center gap-4">
                 <span className={l.tipo === "Despesa" ? "text-red-600" : "text-green-700"}>
-                  R$ {l.valor}
+                  {formatarMoeda(l.valor)}
                 </span>
                 <Link href={`/financeiro/lancamentos/${l.id}/editar`} className="text-sm text-blue-600 hover:underline">
                   Editar
