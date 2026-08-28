@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PLANOS } from "@/lib/planos";
 
 const TOOLS_VALIDAS = [
-  "agent_listar_consultorios",
   "agent_buscar_paciente",
   "agent_get_agenda",
   "agent_status_pagamento_paciente",
@@ -18,7 +18,6 @@ const TOOLS_VALIDAS = [
   "agent_excluir_pagamento",
   "agent_registrar_lancamento_despesa",
   "agent_registrar_anamnese",
-  "agent_definir_consultorio_ativo",
 ];
 
 export async function POST(request) {
@@ -45,6 +44,22 @@ export async function POST(request) {
   }
 
   const admin = createAdminClient();
+
+  // Espelha exatamente a condição usada por _agent_get_owner_uuid (whatsapp_number
+  // + whatsapp_verified = true) pra achar o profissional dono desse número e
+  // checar se o plano atual dele ainda inclui acesso ao agente de WhatsApp --
+  // sem isso, downgrade pro plano Grátis nunca revoga o uso do agente.
+  const { data: profissional } = await admin
+    .from("Usuarios")
+    .select("plano")
+    .eq("whatsapp_number", whatsapp_number)
+    .eq("whatsapp_verified", true)
+    .maybeSingle();
+
+  if (!profissional || !PLANOS[profissional.plano]?.temWhatsapp) {
+    return Response.json({ success: false, error_code: "PLANO_SEM_WHATSAPP" }, { status: 200 });
+  }
+
   const { data, error } = await admin.rpc(tool_name, {
     ...(params ?? {}),
     p_whatsapp_number: whatsapp_number,
