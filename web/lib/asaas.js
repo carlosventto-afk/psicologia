@@ -45,6 +45,16 @@ export async function buscarAssinaturaAsaas(subscriptionId) {
   return asaasFetch(`/subscriptions/${subscriptionId}`);
 }
 
+// A resposta de POST /subscriptions não traz o link de checkout (não existe
+// campo `invoiceUrl` na subscription em si) -- o link fica no primeiro
+// payment gerado pra assinatura, obtido via GET /subscriptions/{id}/payments.
+// Verificado com uma chamada real (subscription + payments) contra a API de
+// produção do Asaas.
+export async function buscarPrimeiroPagamentoAssinatura(subscriptionId) {
+  const resposta = await asaasFetch(`/subscriptions/${subscriptionId}/payments`);
+  return resposta.data?.[0] ?? null;
+}
+
 export async function atualizarAssinaturaAsaas(subscriptionId, { value }) {
   return asaasFetch(`/subscriptions/${subscriptionId}`, {
     method: "PUT",
