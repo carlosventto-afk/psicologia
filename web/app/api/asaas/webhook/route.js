@@ -79,6 +79,13 @@ export async function POST(request) {
       .from("EventoAssinatura")
       .update({ processado_com_sucesso: false, mensagem_erro: erroAtualizacao.message })
       .eq("asaas_event_id", evento.id);
+
+    // Responde com erro (não 200) só pra este caso -- a atualização em
+    // Usuarios falhou de verdade (ex.: erro transitório de banco) e o Asaas
+    // só reenvia o evento quando a resposta não é 2xx. Os outros retornos
+    // 200 (evento duplicado, assinatura não encontrada, evento não
+    // reconhecido) continuam como estavam, pois não representam falha.
+    return new Response("Erro ao atualizar plano do usuário.", { status: 500 });
   }
 
   return new Response("OK", { status: 200 });
