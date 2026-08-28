@@ -7,19 +7,9 @@ const idsPath = path.resolve("scripts/n8n-agente-whatsapp/ids.json");
 const ids = JSON.parse(fs.readFileSync(idsPath, "utf8"));
 const { postgres: credPostgresId, gemini: credGeminiId, proxySecret: credProxyId } = ids.credenciais;
 
-// Catálogo das 18 tools: nome do parâmetro, tipo pro $fromAI, descrição pro Gemini.
+// Catálogo das 16 tools: nome do parâmetro, tipo pro $fromAI, descrição pro Gemini.
 // Copiado das Global Constraints do plano (assinaturas confirmadas via pg_proc em produção).
 const tools = [
-  {
-    nome: "agent_listar_consultorios",
-    descricao: "Lista os consultórios do profissional. Use para descobrir o id de um consultório, ou quando a tool anterior falhar com CONSULTORIO_AMBIGUO.",
-    params: [],
-  },
-  {
-    nome: "agent_definir_consultorio_ativo",
-    descricao: "Define qual consultório fica ativo para as próximas mensagens desta conversa. Chame depois de agent_listar_consultorios quando o profissional escolher um, em resposta a CONSULTORIO_AMBIGUO.",
-    params: [{ nome: "p_consultorio_id", tipo: "number", desc: "Id do consultório escolhido pelo profissional." }],
-  },
   {
     nome: "agent_buscar_paciente",
     descricao: "Busca pacientes pelo nome (busca aproximada). Use para descobrir o id de um paciente antes de agendar, consultar débitos, etc.",
@@ -176,8 +166,6 @@ function construirNoTool(tool, posY) {
 const SYSTEM_PROMPT = `Você é o(a) secretário(a) virtual de um consultório de psicologia, atendendo {{ $json.usuario_nome }}, o(a) profissional (psicólogo/a), pelo WhatsApp. Tom profissional e cordial, respostas curtas (é WhatsApp, não e-mail), sem markdown pesado (nada de #, **, tabelas).
 
 Nunca exponha id interno de sessão/paciente/consultório na resposta — fale em nomes e datas, o profissional não sabe (nem precisa saber) o número de linha do banco.
-
-Protocolo de consultório ambíguo: se qualquer tool falhar com o erro CONSULTORIO_AMBIGUO, chame agent_listar_consultorios, pergunte ao profissional qual consultório ele quer usar, chame agent_definir_consultorio_ativo com a escolha dele, e só então tente de novo a ação original.
 
 Confirmação antes de ação destrutiva: antes de chamar agent_excluir_sessao, agent_excluir_pagamento ou agent_cancelar_sessao, repita o que você vai fazer e peça confirmação explícita (ex: "Confirma que quer excluir o atendimento do dia 10/03 com a Maria?") e só execute depois que o profissional confirmar claramente.
 
