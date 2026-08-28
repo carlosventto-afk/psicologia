@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 
 const estadoInicial = {};
 
@@ -62,7 +63,16 @@ export default function ConsultorioForm({ action, consultorio }) {
         />
       </div>
 
-      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state?.error && (
+        <div className="text-sm text-red-600 space-y-1">
+          <p>{state.error}</p>
+          {state.bloqueadoPorPlano && (
+            <Link href="/assinatura" className="link font-semibold">
+              Ver planos
+            </Link>
+          )}
+        </div>
+      )}
 
       <button
         type="submit"

@@ -1,7 +1,8 @@
-import { buscarPagamentosPorIds } from "@/lib/data/carne-leao";
+import { buscarPagamentosPorIds, marcarPagamentosGerados } from "@/lib/data/carne-leao";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { montarArquivoTxt, agruparEmLinhas, cpfValido } from "@/lib/carne-leao-txt";
 import { calcularPeriodo } from "@/lib/periodo-agenda";
+import { PLANOS } from "@/lib/planos";
 
 export async function POST(request) {
   const formData = await request.formData();
@@ -20,6 +21,9 @@ export async function POST(request) {
   }
 
   const usuario = await buscarUsuarioAtual();
+  if (!PLANOS[usuario.plano].temCarneLeao) {
+    return new Response("Recurso disponível apenas nos planos pagos.", { status: 403 });
+  }
   if (!cpfValido(usuario.cpf)) {
     return new Response("CPF do profissional não cadastrado. Preencha em /configuracoes/conta.", { status: 400 });
   }
@@ -54,6 +58,8 @@ export async function POST(request) {
 
   const conteudo = montarArquivoTxt(linhas, usuario);
   const nomeArquivo = `carne-leao-${String(mes).padStart(2, "0")}-${ano}.txt`;
+
+  await marcarPagamentosGerados([...idsConsumidos]);
 
   return new Response(conteudo, {
     headers: {

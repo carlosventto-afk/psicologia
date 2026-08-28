@@ -417,7 +417,19 @@ nenhum lugar.
 
 ## 10. Marcar atendimento como "já gerado" em TXT
 
-**Status: a realizar** — pedido do usuário em 2026-08-13.
+**Status: implementado** (2026-08-26) — coluna `PagamentoSessao.carne_leao_gerado_em`
+(timestamptz nullable), marcada no momento em que o TXT é efetivamente
+montado (tanto na geração manual quanto na automática). Geração manual
+(`/carne-leao`) continua listando todos os pagamentos elegíveis do período —
+os já marcados ganham uma etiqueta "já gerado em dd/mm" na UI — e um
+`confirm()` do navegador avisa antes de enviar o formulário se algum
+selecionado já foi gerado antes, sem bloquear (o profissional decide se
+gera de novo). Geração automática (`/carne-leao-automatico`) passa
+`excluirJaGerados: true` pra `listarPagamentosElegiveis`, que filtra na
+própria query (`is("carne_leao_gerado_em", null)`) — nunca inclui um
+pagamento já marcado. Botão "Desmarcar" ao lado da etiqueta (server action
+`desmarcarGeradoCarneLeao`) limpa o campo sem gerar nada, resolvendo a
+decisão em aberto abaixo sobre desfazer uma marcação por engano.
 
 **Objetivo:** evitar gerar o mesmo atendimento duas vezes num TXT do
 Carnê-Leão (item 8/9) — nem manualmente por engano, nem automaticamente na

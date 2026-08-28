@@ -3,6 +3,8 @@ import { listarPagamentosElegiveis } from "@/lib/data/carne-leao";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { calcularPeriodo, hojeISO, deslocarData, formatarRotuloPeriodo } from "@/lib/periodo-agenda";
 import CarneLeaoForm from "@/components/CarneLeaoForm";
+import { PLANOS } from "@/lib/planos";
+import AvisoRecursoPago from "@/components/AvisoRecursoPago";
 
 export default async function PaginaCarneLeao({ searchParams }) {
   const { data = hojeISO() } = await searchParams;
@@ -12,6 +14,10 @@ export default async function PaginaCarneLeao({ searchParams }) {
     buscarUsuarioAtual(),
     listarPagamentosElegiveis({ dataInicio: inicio, dataFim: fim }),
   ]);
+
+  if (!PLANOS[usuario.plano].temCarneLeao) {
+    return <AvisoRecursoPago recurso="O Carnê-Leão" />;
+  }
 
   const anterior = deslocarData(data, "mes", -1);
   const proximo = deslocarData(data, "mes", 1);
