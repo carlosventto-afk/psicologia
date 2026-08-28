@@ -46,6 +46,7 @@ const ITENS_NAV = [
     ],
   },
   { href: "/consultorios", label: "Consultórios", Icone: IconeConsultorio },
+  { href: "/assinatura", label: "Assinatura", Icone: IconeFinanceiro },
   {
     grupo: "configuracoes",
     label: "Configurações",
@@ -54,7 +55,7 @@ const ITENS_NAV = [
       { href: "/diretorio", label: "Diretório", Icone: IconeDiretorio },
       { href: "/configuracoes/conta", label: "Meus Dados", Icone: IconeContaUsuario },
       { href: "/configuracoes/whatsapp", label: "WhatsApp", Icone: IconeWhatsapp, pro: true },
-      { href: "/configuracoes/nfse", label: "NFS-e", Icone: IconeNotaFiscal },
+      { href: "/configuracoes/nfse", label: "NFS-e", Icone: IconeNotaFiscal, pro: true },
     ],
   },
 ];
@@ -62,6 +63,8 @@ const ITENS_NAV = [
 const ITEM_DIRETORIO = ITENS_NAV.find((item) => item.grupo === "configuracoes").itens.find(
   (item) => item.href === "/diretorio"
 );
+
+const ITEM_ASSINATURA = ITENS_NAV.find((item) => item.href === "/assinatura");
 
 const CHAVE_RECOLHIDA = "psiagente-sidebar-recolhida";
 const chaveGrupoAberto = (grupo) => `psiagente-sidebar-grupo-${grupo}`;
@@ -131,7 +134,7 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
 
   const itens =
     plano === "marketing"
-      ? [ITEM_DIRETORIO]
+      ? [ITEM_DIRETORIO, ITEM_ASSINATURA]
       : ehAdmin
         ? [...ITENS_NAV, { href: "/admin/profissionais", label: "Administração", Icone: IconeAdmin }]
         : ITENS_NAV;
