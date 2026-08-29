@@ -11,6 +11,9 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { calcularCreditoDisponivel } from "@/lib/data/recebimentos";
 import { usarCreditoNaSessao } from "@/lib/actions/recebimentos";
 import UsarCreditoBotao from "@/components/UsarCreditoBotao";
+import { listarResponsaveisDoPaciente, listarResponsaveisParaVincular } from "@/lib/data/responsaveis-financeiros";
+import { vincularResponsavelExistente, criarEVincularResponsavel, desvincularResponsavel } from "@/lib/actions/responsaveis-financeiros";
+import ResponsaveisFinanceirosPaciente from "@/components/ResponsaveisFinanceirosPaciente";
 
 const ABAS = [
   { chave: "dados", rotulo: "Dados" },
@@ -27,14 +30,19 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
   const { aba: abaParam } = await searchParams;
   const aba = ABAS.some((a) => a.chave === abaParam) ? abaParam : "dados";
   const pacienteId = Number(id);
-  const [paciente, sessoes, anamnese, followups, propostaAtiva, credito] = await Promise.all([
+  const [paciente, sessoes, anamnese, followups, propostaAtiva, credito, responsaveis, paraVincular] = await Promise.all([
     buscarPaciente(pacienteId),
     listarSessoesDoPaciente(pacienteId),
     buscarAnamnese(pacienteId),
     listarFollowupsAnamnese(pacienteId),
     buscarPropostaAtiva(pacienteId),
     calcularCreditoDisponivel(pacienteId),
+    listarResponsaveisDoPaciente(pacienteId),
+    listarResponsaveisParaVincular(pacienteId),
   ]);
+  const vincularAcaoComId = vincularResponsavelExistente.bind(null, pacienteId);
+  const criarEVincularAcaoComId = criarEVincularResponsavel.bind(null, pacienteId);
+  const desvincularAcaoComId = desvincularResponsavel.bind(null, pacienteId);
 
   return (
     <div className="space-y-6">
@@ -145,6 +153,17 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
           )}
 
           <GerarLinkCadastroBotao pacienteId={pacienteId} />
+
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold text-navy">Responsáveis Financeiros</h2>
+            <ResponsaveisFinanceirosPaciente
+              responsaveis={responsaveis}
+              paraVincular={paraVincular}
+              vincularExistenteAction={vincularAcaoComId}
+              criarEVincularAction={criarEVincularAcaoComId}
+              onDesvincular={desvincularAcaoComId}
+            />
+          </div>
         </div>
       )}
 
