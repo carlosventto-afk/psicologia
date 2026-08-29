@@ -7,7 +7,7 @@ export async function listarSessoesReceptiveis(pacienteId) {
     .from("Sessao")
     .select("id, data, horario, valor, status, RecebimentoSessao(valor_aplicado)")
     .eq("paciente", pacienteId)
-    .neq("status", "Cancelada")
+    .or("status.neq.Cancelada,status.is.null")
     .order("data")
     .order("horario");
 
