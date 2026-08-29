@@ -35,6 +35,7 @@ const ITENS_NAV = [
   { href: "/recorrencias", label: "Recorrências", Icone: IconeRecorrencia },
   { href: "/pacientes", label: "Pacientes", Icone: IconePaciente },
   { href: "/financeiro", label: "Financeiro", Icone: IconeFinanceiro },
+  { href: "/responsaveis-financeiros", label: "Responsáveis Financeiros", Icone: IconeFinanceiro },
   {
     grupo: "documentos",
     label: "Documentos",
