@@ -49,15 +49,34 @@ PacienteResponsavelFinanceiro  -- N:N
 - Um paciente pode ter vários responsáveis vinculados (ex.: pai e mãe).
 - Um responsável pode estar vinculado a vários pacientes (base do
   relatório do item 4).
-- **Migração do modelo antigo:** para todo `Paciente` com `dependente =
-  true` e `responsavel_financeiro` preenchido, criar um
-  `ResponsavelFinanceiro` com `paciente_vinculado` apontando para o
-  paciente que hoje é o responsável (reaproveitando nome/telefone/email
-  dele), e uma linha em `PacienteResponsavelFinanceiro` ligando o
-  dependente a esse responsável. Os campos `dependente` e
-  `responsavel_financeiro` em `Paciente` ficam obsoletos após a migração
-  (decidir na hora de implementar: remover ou manter por compatibilidade
-  de exibição em recibos já emitidos).
+- **Responsável "próprio" automático:** todo paciente (novo ou existente)
+  ganha automaticamente um `ResponsavelFinanceiro` com
+  `paciente_vinculado` apontando pra ele mesmo, e um vínculo
+  `PacienteResponsavelFinanceiro` (paciente_id = responsavel_id = ele
+  mesmo). Isso garante que o campo de responsável financeiro no
+  recebimento nunca fica sem opção — o caso comum (paciente não
+  dependente) sempre tem pelo menos esse responsável próprio,
+  pré-selecionado quando é o único vinculado. Pacientes dependentes
+  continuam recebendo, além do próprio, o vínculo ao(s) responsável(is)
+  configurado(s).
+- **Migração do modelo antigo:** para todo `Paciente`, criar seu
+  `ResponsavelFinanceiro` próprio (ver acima). Adicionalmente, para todo
+  `Paciente` com `dependente = true` e `responsavel_financeiro`
+  preenchido, vincular (`PacienteResponsavelFinanceiro`) o dependente ao
+  `ResponsavelFinanceiro` próprio do paciente que hoje é o responsável
+  (reaproveitando o registro próprio dele em vez de criar um novo). Os
+  campos `dependente` e `responsavel_financeiro` em `Paciente` ficam
+  obsoletos após a migração (decidir na hora de implementar: remover ou
+  manter por compatibilidade de exibição em recibos já emitidos).
+- **Migração dos recebimentos antigos:** para toda `PagamentoSessao`
+  existente, criar um `Recebimento` (`responsavel_financeiro_id` = o
+  responsável próprio do paciente da sessão, `paciente_id` = paciente da
+  sessão, `valor_total` = `PagamentoSessao.valor`,
+  `lancamento_financeiro_id` = `PagamentoSessao.lancamento` — reaproveita
+  o lançamento existente em vez de duplicar) e uma `RecebimentoSessao`
+  (valor_aplicado = `PagamentoSessao.valor`). Isso preserva o histórico e
+  evita que sessões já pagas apareçam como inadimplentes depois da troca
+  de regra.
 
 ### Valor da sessão
 
