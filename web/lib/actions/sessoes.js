@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { gerarSessoesAteHorizonte, horizonteAtual } from "@/lib/recorrencia";
-import { criarPagamentoSessao } from "@/lib/pagamento-sessao";
+import { criarRecebimento } from "@/lib/recebimento";
 
 export async function criarSessao(prevState, formData) {
   const supabase = await createClient();
@@ -105,6 +105,19 @@ export async function atualizarSessao(sessaoId, prevState, formData) {
 export async function cancelarSessao(sessaoId) {
   const supabase = await createClient();
 
+  const { data: alocacoes, error: erroAlocacoes } = await supabase
+    .from("RecebimentoSessao")
+    .select("id")
+    .eq("sessao", sessaoId);
+
+  if (erroAlocacoes) {
+    throw new Error(erroAlocacoes.message);
+  }
+
+  if (alocacoes.length > 0) {
+    throw new Error("Esta sessão já tem recebimento aplicado. Desfaça a alocação no recebimento antes de cancelar.");
+  }
+
   const { error } = await supabase
     .from("Sessao")
     .update({ status: "Cancelada" })
@@ -136,16 +149,28 @@ export async function marcarAtendimentoRealizado(sessaoId, prevState, formData) 
   }
 
   if (formData.get("pagou") === "on") {
-    const { error: erroPagamento } = await criarPagamentoSessao(supabase, {
-      sessaoId,
-      valor: Number(formData.get("valor")),
+    const { data: sessaoAtual, error: erroSessaoAtual } = await supabase
+      .from("Sessao")
+      .select("paciente, valor")
+      .eq("id", sessaoId)
+      .single();
+
+    if (erroSessaoAtual) {
+      return { error: "Não foi possível carregar a sessão." };
+    }
+
+    const { error: erroRecebimento } = await criarRecebimento(supabase, {
+      pacienteId: sessaoAtual.paciente,
+      responsavelFinanceiroId: Number(formData.get("responsavel_financeiro")),
+      sessoes: [{ id: sessaoId, valor: Number(sessaoAtual.valor) }],
+      valorTotal: Number(sessaoAtual.valor),
       contaId: Number(formData.get("conta")),
       formaPagamento: formData.get("forma_pagamento"),
-      dataPagamento: formData.get("data_pagamento"),
+      dataRecebimento: formData.get("data_pagamento"),
     });
 
-    if (erroPagamento) {
-      return { error: erroPagamento };
+    if (erroRecebimento) {
+      return { error: erroRecebimento };
     }
   }
 
