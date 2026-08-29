@@ -1,9 +1,7 @@
 # Gestão de Recebimentos de Sessão
 
-> **Status: PAUSADO** — brainstorming interrompido a pedido do usuário antes da
-> aprovação final. Há uma questão em aberto (ver "Questões em aberto" no
-> final). Retomar por aqui na próxima sessão, sem precisar reiniciar as
-> perguntas já respondidas.
+> **Status:** design aprovado. Falta apenas a autorrevisão e a revisão final
+> do usuário antes de seguir para o plano de implementação.
 
 ## Contexto
 
@@ -176,6 +174,15 @@ Nova tela "Responsáveis Financeiros" (lista + criar/editar):
   "Recebimento de Sessão".
 - Rota `/sessoes/[id]/pagamento` → `/sessoes/[id]/receber`.
 
+## Regras de negócio adicionais
+
+- **Exclusão/cancelamento de sessão com recebimento já aplicado**:
+  bloqueado. Para excluir ou cancelar uma `Sessao` que já tem
+  `RecebimentoSessao` vinculado, é preciso primeiro desfazer a alocação
+  daquela sessão no recebimento (o que devolve o valor como crédito
+  disponível no `Recebimento` de origem) — só então a exclusão/
+  cancelamento é permitido.
+
 ## Fora de escopo (nesta rodada)
 
 - Pagamento parcial de sessões já selecionadas (valor sempre cheio).
@@ -185,15 +192,7 @@ Nova tela "Responsáveis Financeiros" (lista + criar/editar):
 
 ## Questões em aberto
 
-1. **Exclusão/cancelamento de sessão com recebimento já aplicado**: o
-   que fazer quando alguém tenta excluir ou cancelar uma `Sessao` que já
-   tem `RecebimentoSessao` vinculado? Recomendação (ainda não
-   confirmada pelo usuário): bloquear a exclusão direta, exigindo
-   primeiro desfazer a alocação daquela sessão no recebimento (o que
-   devolve o valor como crédito disponível) antes de permitir excluir ou
-   cancelar a sessão. **Retomar esta pergunta antes de prosseguir para o
-   plano de implementação.**
-2. Decidir, na implementação, se os campos antigos `Paciente.dependente`
+1. Decidir, na implementação, se os campos antigos `Paciente.dependente`
    e `Paciente.responsavel_financeiro` são removidos após a migração de
    dados ou mantidos (ex.: por serem referenciados em recibos já
    emitidos).
