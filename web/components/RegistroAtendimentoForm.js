@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 
 const estadoInicial = {};
 
-export default function RegistroAtendimentoForm({ action, contas, valorInicial, dataInicial }) {
+export default function RegistroAtendimentoForm({ action, contas, responsaveis, valor, dataInicial }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const [pagou, setPagou] = useState(false);
 
@@ -14,12 +14,7 @@ export default function RegistroAtendimentoForm({ action, contas, valorInicial, 
         <label htmlFor="anotacoes" className="block text-sm font-semibold text-navy">
           Anotações
         </label>
-        <textarea
-          id="anotacoes"
-          name="anotacoes"
-          rows={4}
-          className="field"
-        />
+        <textarea id="anotacoes" name="anotacoes" rows={4} className="field" />
       </div>
 
       <div className="flex items-center gap-2">
@@ -38,34 +33,32 @@ export default function RegistroAtendimentoForm({ action, contas, valorInicial, 
 
       {pagou && (
         <div className="space-y-4 border-l-2 border-slate-200 pl-4">
+          <p className="text-sm text-muted">
+            Valor: <span className="font-semibold text-navy">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor)}</span>
+          </p>
+
+          <div>
+            <label htmlFor="responsavel_financeiro" className="block text-sm font-semibold text-navy">
+              Responsável financeiro
+            </label>
+            <select id="responsavel_financeiro" name="responsavel_financeiro" required={pagou} defaultValue={responsaveis.length === 1 ? responsaveis[0].id : ""} className="field">
+              <option value="" disabled>
+                Selecione
+              </option>
+              {responsaveis.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nome}
+                  {r.eh_proprio ? " (o próprio paciente)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label htmlFor="data_pagamento" className="block text-sm font-semibold text-navy">
               Data do pagamento
             </label>
-            <input
-              id="data_pagamento"
-              name="data_pagamento"
-              type="date"
-              required={pagou}
-              defaultValue={dataInicial}
-              className="field"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="valor" className="block text-sm font-semibold text-navy">
-              Valor
-            </label>
-            <input
-              id="valor"
-              name="valor"
-              type="number"
-              step="0.01"
-              min="0"
-              required={pagou}
-              defaultValue={valorInicial}
-              className="field"
-            />
+            <input id="data_pagamento" name="data_pagamento" type="date" required={pagou} defaultValue={dataInicial} className="field" />
           </div>
 
           <div>
@@ -99,11 +92,7 @@ export default function RegistroAtendimentoForm({ action, contas, valorInicial, 
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="btn-primary disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">
         {pending ? "Salvando..." : "Marcar como realizado"}
       </button>
     </form>

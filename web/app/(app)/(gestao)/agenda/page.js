@@ -102,8 +102,8 @@ export default async function PaginaAgenda({ searchParams }) {
                   </Link>
                 )}
                 {s.realizado && !s.pago && (
-                  <Link href={`/sessoes/${s.id}/pagamento`} className="link">
-                    Registrar Pagamento
+                  <Link href={`/sessoes/${s.id}/receber`} className="link">
+                    Receber
                   </Link>
                 )}
                 <Link href={`/sessoes/${s.id}/editar`} className="link">

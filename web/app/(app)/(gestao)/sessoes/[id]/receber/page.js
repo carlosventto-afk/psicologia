@@ -1,11 +1,11 @@
-import RegistroAtendimentoForm from "@/components/RegistroAtendimentoForm";
+import RecebimentoIndividualForm from "@/components/RecebimentoIndividualForm";
 import { buscarSessao } from "@/lib/data/sessoes";
 import { listarContas } from "@/lib/data/contas";
 import { listarResponsaveisDoPaciente } from "@/lib/data/responsaveis-financeiros";
-import { marcarAtendimentoRealizado } from "@/lib/actions/sessoes";
+import { registrarRecebimentoIndividual } from "@/lib/actions/recebimentos";
 import { hojeISO } from "@/lib/periodo-agenda";
 
-export default async function PaginaRegistrarAtendimento({ params }) {
+export default async function PaginaReceberSessao({ params }) {
   const { id } = await params;
   const sessaoId = Number(id);
   const sessao = await buscarSessao(sessaoId);
@@ -13,22 +13,22 @@ export default async function PaginaRegistrarAtendimento({ params }) {
     listarContas(),
     listarResponsaveisDoPaciente(sessao.paciente_id),
   ]);
-  const acaoComId = marcarAtendimentoRealizado.bind(null, sessaoId);
+  const acaoComIds = registrarRecebimentoIndividual.bind(null, sessaoId, sessao.paciente_id);
 
   return (
     <div className="space-y-4">
-      <h1 className="page-title">Registrar Atendimento</h1>
+      <h1 className="page-title">Receber</h1>
       <div className="text-sm text-muted">
         <p className="font-semibold text-navy">{sessao.paciente_nome}</p>
         <p>
-          {sessao.data} {sessao.horario}
+          Sessão de {sessao.data} {sessao.horario}
         </p>
       </div>
-      <RegistroAtendimentoForm
-        action={acaoComId}
+      <RecebimentoIndividualForm
+        action={acaoComIds}
+        valor={sessao.valor}
         contas={contas}
         responsaveis={responsaveis}
-        valor={sessao.valor}
         dataInicial={hojeISO()}
       />
     </div>
