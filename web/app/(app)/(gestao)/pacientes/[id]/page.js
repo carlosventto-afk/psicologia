@@ -40,6 +40,9 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
           <Link href={`/agenda/nova-sessao?paciente=${pacienteId}`} className="link">
             Nova Sessão
           </Link>
+          <Link href={`/pacientes/${pacienteId}/receber`} className="link">
+            Receber Sessões
+          </Link>
           <Link href="/recibos" className="link">
             Gerar Recibo
           </Link>
