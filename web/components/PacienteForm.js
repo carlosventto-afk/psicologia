@@ -1,13 +1,12 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef } from "react";
 
 const estadoInicial = {};
 
-export default function PacienteForm({ action, paciente, pacotes, consultorios, pacientes = [] }) {
+export default function PacienteForm({ action, paciente, pacotes, consultorios }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const valorSessaoRef = useRef(null);
-  const [dependente, setDependente] = useState(Boolean(paciente?.dependente));
 
   function aoTrocarPacote(event) {
     const pacoteId = Number(event.target.value);
@@ -220,47 +219,6 @@ export default function PacienteForm({ action, paciente, pacotes, consultorios, 
             />
           </div>
         </div>
-      </fieldset>
-
-      <fieldset className="space-y-3 border-t border-border pt-4">
-        <legend className="text-sm font-semibold text-navy px-0">Responsável financeiro</legend>
-        <div className="flex items-center gap-2">
-          <input
-            id="dependente"
-            name="dependente"
-            type="checkbox"
-            checked={dependente}
-            onChange={(e) => setDependente(e.target.checked)}
-            className="h-4 w-4"
-          />
-          <label htmlFor="dependente" className="text-sm font-semibold text-navy">
-            Este paciente é dependente de outra pessoa
-          </label>
-        </div>
-
-        {dependente && (
-          <div>
-            <label htmlFor="responsavel_financeiro" className="block text-sm font-semibold text-navy">
-              Responsável financeiro
-            </label>
-            <select
-              id="responsavel_financeiro"
-              name="responsavel_financeiro"
-              required={dependente}
-              defaultValue={paciente?.responsavel_financeiro ?? ""}
-              className="field"
-            >
-              <option value="" disabled>
-                Selecione
-              </option>
-              {pacientes.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       </fieldset>
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}

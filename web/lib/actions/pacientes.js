@@ -6,11 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import { verificarVinculosPaciente } from "@/lib/data/pacientes";
 
 function dadosDoFormulario(formData) {
-  const dependente = formData.get("dependente") === "on";
-  const responsavelFinanceiro = dependente && formData.get("responsavel_financeiro")
-    ? Number(formData.get("responsavel_financeiro"))
-    : null;
-
   return {
     nome: formData.get("nome"),
     data_nascimento: formData.get("data_nascimento") || null,
@@ -26,23 +21,11 @@ function dadosDoFormulario(formData) {
     rg_numero: formData.get("rg_numero") || null,
     rg_data_expedicao: formData.get("rg_data_expedicao") || null,
     rg_orgao_emissor: formData.get("rg_orgao_emissor") || null,
-    dependente,
-    responsavel_financeiro: responsavelFinanceiro,
   };
-}
-
-function validarResponsavelFinanceiro(dados) {
-  if (dados.dependente && !dados.responsavel_financeiro) {
-    return "Selecione o responsável financeiro.";
-  }
-  return null;
 }
 
 export async function criarPaciente(prevState, formData) {
   const dados = dadosDoFormulario(formData);
-  const erroValidacao = validarResponsavelFinanceiro(dados);
-  if (erroValidacao) return { error: erroValidacao };
-
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -55,15 +38,30 @@ export async function criarPaciente(prevState, formData) {
     return { error: "Não foi possível salvar o paciente." };
   }
 
+  const { data: responsavelProprio, error: erroResponsavel } = await supabase
+    .from("ResponsavelFinanceiro")
+    .insert({ nome: dados.nome, paciente_vinculado: data.id })
+    .select("id")
+    .single();
+
+  if (erroResponsavel) {
+    return { error: "Paciente criado, mas não foi possível provisionar o responsável financeiro próprio." };
+  }
+
+  const { error: erroVinculo } = await supabase
+    .from("PacienteResponsavelFinanceiro")
+    .insert({ paciente: data.id, responsavel: responsavelProprio.id });
+
+  if (erroVinculo) {
+    return { error: "Paciente criado, mas não foi possível vincular o responsável financeiro próprio." };
+  }
+
   revalidatePath("/pacientes");
   redirect(`/pacientes/${data.id}`);
 }
 
 export async function atualizarPaciente(id, prevState, formData) {
   const dados = dadosDoFormulario(formData);
-  const erroValidacao = validarResponsavelFinanceiro(dados);
-  if (erroValidacao) return { error: erroValidacao };
-
   const supabase = await createClient();
 
   const { error } = await supabase.from("Paciente").update(dados).eq("id", id);
