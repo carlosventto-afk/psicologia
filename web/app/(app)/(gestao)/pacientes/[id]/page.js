@@ -208,6 +208,16 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="text-muted">{s.tipo_sessao}</span>
                     <span>{s.status ?? "Marcada"}</span>
+                    <span className="text-muted">{formatarMoeda(s.valor)}</span>
+                    {s.saldo_devedor > 0 ? (
+                      s.status !== "Cancelada" && (
+                        <Link href={`/sessoes/${s.id}/receber`} className="link">
+                          Receber
+                        </Link>
+                      )
+                    ) : (
+                      <span className="text-green-700 font-semibold">Recebido</span>
+                    )}
                   </div>
                 </div>
               ))}
