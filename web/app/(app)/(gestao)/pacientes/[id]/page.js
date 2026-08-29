@@ -8,6 +8,9 @@ import { desativarPaciente, reativarPaciente } from "@/lib/actions/pacientes";
 import ExcluirPacienteBotao from "@/components/ExcluirPacienteBotao";
 import GerarLinkCadastroBotao from "@/components/GerarLinkCadastroBotao";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { calcularCreditoDisponivel } from "@/lib/data/recebimentos";
+import { usarCreditoNaSessao } from "@/lib/actions/recebimentos";
+import UsarCreditoBotao from "@/components/UsarCreditoBotao";
 
 const ABAS = [
   { chave: "dados", rotulo: "Dados" },
@@ -24,12 +27,13 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
   const { aba: abaParam } = await searchParams;
   const aba = ABAS.some((a) => a.chave === abaParam) ? abaParam : "dados";
   const pacienteId = Number(id);
-  const [paciente, sessoes, anamnese, followups, propostaAtiva] = await Promise.all([
+  const [paciente, sessoes, anamnese, followups, propostaAtiva, credito] = await Promise.all([
     buscarPaciente(pacienteId),
     listarSessoesDoPaciente(pacienteId),
     buscarAnamnese(pacienteId),
     listarFollowupsAnamnese(pacienteId),
     buscarPropostaAtiva(pacienteId),
+    calcularCreditoDisponivel(pacienteId),
   ]);
 
   return (
@@ -195,7 +199,12 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
       )}
 
       {aba === "sessoes" && (
-        <div>
+        <div className="space-y-4">
+          {credito.total > 0 && (
+            <div className="card border border-green-200 bg-green-50 p-4 text-sm">
+              <p className="text-navy font-semibold">Crédito disponível: {formatarMoeda(credito.total)}</p>
+            </div>
+          )}
           {sessoes.length === 0 ? (
             <p className="empty-state">Nenhuma sessão registrada.</p>
           ) : (
@@ -214,9 +223,25 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                     <span className="text-muted">{formatarMoeda(s.valor)}</span>
                     {s.saldo_devedor > 0 ? (
                       s.status !== "Cancelada" && (
-                        <Link href={`/sessoes/${s.id}/receber`} className="link">
-                          Receber
-                        </Link>
+                        <>
+                          <Link href={`/sessoes/${s.id}/receber`} className="link">
+                            Receber
+                          </Link>
+                          {(() => {
+                            const recebimentoSuficiente = credito.recebimentos.find((r) => r.saldo >= s.saldo_devedor);
+                            return (
+                              recebimentoSuficiente && (
+                                <UsarCreditoBotao
+                                  pacienteId={pacienteId}
+                                  sessaoId={s.id}
+                                  recebimentoId={recebimentoSuficiente.id}
+                                  valor={recebimentoSuficiente.saldo}
+                                  onUsarCredito={usarCreditoNaSessao}
+                                />
+                              )
+                            );
+                          })()}
+                        </>
                       )
                     ) : (
                       <span className="text-green-700 font-semibold">Recebido</span>
