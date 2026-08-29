@@ -72,9 +72,6 @@ export default async function PaginaFinanceiro() {
               >
                 <Link href={`/pacientes/${i.paciente_id}`} className="font-semibold text-navy">
                   {i.paciente_nome}
-                  {i.paciente_dependente && i.responsavel_nome && (
-                    <span className="text-muted font-normal"> (dependente de {i.responsavel_nome})</span>
-                  )}
                 </Link>
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-muted">{i.data}</span>

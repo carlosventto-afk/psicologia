@@ -1,23 +1,21 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIds } from "@/lib/normalizar-ids";
 
-// Soma de Paciente.valor_sessao das sessões marcadas/realizadas no período —
-// é o valor "provisório" (sessões futuras de recorrência entram aqui até
+// Soma de Sessao.valor das sessões marcadas/realizadas no período — é o
+// valor "provisório" (sessões futuras de recorrência entram aqui até
 // serem realizadas e viram um LancamentoFinanceiro de verdade).
 export async function calcularPrevisto({ dataInicio, dataFim }) {
   const supabase = await createClient();
-  // status <> 'Cancelada' exclui sessões com status nulo (dado legado) por
-  // causa do NULL de SQL — por isso o or() explícito incluindo status nulo.
   const { data, error } = await supabase
     .from("Sessao")
-    .select("Paciente!inner(valor_sessao)")
+    .select("valor")
     .or("status.neq.Cancelada,status.is.null")
     .gte("data", dataInicio)
     .lte("data", dataFim);
 
   if (error) throw new Error(error.message);
 
-  return data.reduce((soma, s) => soma + Number(s.Paciente?.valor_sessao || 0), 0);
+  return data.reduce((soma, s) => soma + Number(s.valor || 0), 0);
 }
 
 export async function resumoDoMes(mesReferencia) {
@@ -32,15 +30,15 @@ export async function resumoDoMes(mesReferencia) {
   return data ?? { total_receita: 0, total_despesa: 0, saldo_mes: 0 };
 }
 
-// Mesma regra de negócio da RPC agent_listar_inadimplentes do agente de
-// WhatsApp (sessão realizada sem PagamentoSessao vinculado), só que rodando
-// sob RLS (authenticated) em vez de service_role.
+// Sessao realizada com soma de RecebimentoSessao.valor_aplicado menor que
+// Sessao.valor (quitação parcial ou nenhuma) — substitui a antiga regra
+// baseada em existência de PagamentoSessao.
 export async function listarInadimplentes() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, Paciente!inner(id, nome, valor_sessao, dependente, ResponsavelFinanceiro:responsavel_financeiro(nome)), PagamentoSessao(id)"
+      "id, data, valor, Paciente!inner(id, nome), RecebimentoSessao(valor_aplicado)"
     )
     .eq("Realizado", true)
     .order("data");
@@ -48,7 +46,11 @@ export async function listarInadimplentes() {
   if (error) throw new Error(error.message);
 
   return data
-    .filter((s) => (s.PagamentoSessao?.length ?? 0) === 0)
+    .map((s) => {
+      const valorRecebido = (s.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+      return { ...s, saldo_devedor: Number(s.valor) - valorRecebido };
+    })
+    .filter((s) => s.saldo_devedor > 0)
     .map((s) =>
       normalizarIds(
         {
@@ -56,9 +58,7 @@ export async function listarInadimplentes() {
           data: s.data,
           paciente_id: s.Paciente.id,
           paciente_nome: s.Paciente.nome,
-          paciente_dependente: s.Paciente.dependente,
-          responsavel_nome: s.Paciente.ResponsavelFinanceiro?.nome ?? null,
-          valor_devido: s.Paciente.valor_sessao,
+          valor_devido: s.saldo_devedor,
         },
         ["sessao_id", "paciente_id"]
       )
