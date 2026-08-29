@@ -15,6 +15,16 @@ export async function criarSessao(prevState, formData) {
   const duracao_min = Number(formData.get("duracao_min"));
   const tipoSessao = formData.get("tipo_sessao");
 
+  const { data: pacienteRow, error: erroPaciente } = await supabase
+    .from("Paciente")
+    .select("valor_sessao")
+    .eq("id", paciente)
+    .single();
+
+  if (erroPaciente) {
+    return { error: "Paciente não encontrado." };
+  }
+
   let recorrenciaCriada = null;
 
   // Semanal/Quinzenal/Mensal: cria a série (Recorrencia) antes da sessão,
@@ -46,6 +56,7 @@ export async function criarSessao(prevState, formData) {
     horario,
     duracao_min,
     tipo_sessao: tipoSessao,
+    valor: Number(pacienteRow.valor_sessao),
     status: "Marcada",
     Realizado: false,
     recorrencia_id: recorrenciaCriada?.id ?? null,
@@ -78,6 +89,7 @@ export async function atualizarSessao(sessaoId, prevState, formData) {
       horario: formData.get("horario"),
       duracao_min: Number(formData.get("duracao_min")),
       tipo_sessao: formData.get("tipo_sessao"),
+      valor: Number(formData.get("valor")),
     })
     .eq("id", sessaoId);
 

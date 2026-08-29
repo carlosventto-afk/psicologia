@@ -36,6 +36,14 @@ export function calcularProximaData(dataISO, frequencia) {
 export async function gerarSessoesAteHorizonte(recorrencia, ateISO) {
   const supabase = await createClient();
 
+  const { data: pacienteRow, error: erroPaciente } = await supabase
+    .from("Paciente")
+    .select("valor_sessao")
+    .eq("id", recorrencia.paciente)
+    .single();
+
+  if (erroPaciente) throw new Error(erroPaciente.message);
+
   const novasSessoes = [];
   let dataCursor = recorrencia.gerado_ate;
   let proxima = calcularProximaData(dataCursor, recorrencia.frequencia);
@@ -47,6 +55,7 @@ export async function gerarSessoesAteHorizonte(recorrencia, ateISO) {
       horario: recorrencia.horario,
       duracao_min: recorrencia.duracao_min,
       tipo_sessao: recorrencia.tipo_sessao,
+      valor: Number(pacienteRow.valor_sessao),
       status: "Marcada",
       Realizado: false,
       recorrencia_id: recorrencia.id,

@@ -6,7 +6,7 @@ export async function listarAgenda({ dataInicio, dataFim }) {
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, horario, duracao_min, status, tipo_sessao, Realizado, Paciente!inner(id, nome, valor_sessao), PagamentoSessao(id)"
+      "id, data, horario, duracao_min, status, tipo_sessao, Realizado, valor, Paciente!inner(id, nome), RecebimentoSessao(valor_aplicado)"
     )
     .gte("data", dataInicio)
     .lte("data", dataFim)
@@ -15,8 +15,9 @@ export async function listarAgenda({ dataInicio, dataFim }) {
 
   if (error) throw new Error(error.message);
 
-  return data.map((s) =>
-    normalizarIds(
+  return data.map((s) => {
+    const valorRecebido = (s.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+    return normalizarIds(
       {
         id: s.id,
         data: s.data,
@@ -25,14 +26,14 @@ export async function listarAgenda({ dataInicio, dataFim }) {
         status: s.status,
         tipo_sessao: s.tipo_sessao,
         realizado: s.Realizado,
-        pago: (s.PagamentoSessao?.length ?? 0) > 0,
+        valor: Number(s.valor),
+        pago: valorRecebido >= Number(s.valor),
         paciente_id: s.Paciente.id,
         paciente_nome: s.Paciente.nome,
-        valor_sessao: s.Paciente.valor_sessao,
       },
       ["id", "paciente_id"]
-    )
-  );
+    );
+  });
 }
 
 export async function buscarSessao(id) {
@@ -40,7 +41,7 @@ export async function buscarSessao(id) {
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, horario, duracao_min, status, tipo_sessao, anotacoes, Realizado, Paciente!inner(id, nome, valor_sessao)"
+      "id, data, horario, duracao_min, status, tipo_sessao, anotacoes, Realizado, valor, Paciente!inner(id, nome)"
     )
     .eq("id", id)
     .single();
@@ -57,9 +58,9 @@ export async function buscarSessao(id) {
       tipo_sessao: data.tipo_sessao,
       anotacoes: data.anotacoes,
       realizado: data.Realizado,
+      valor: Number(data.valor),
       paciente_id: data.Paciente.id,
       paciente_nome: data.Paciente.nome,
-      valor_sessao: data.Paciente.valor_sessao,
     },
     ["id", "paciente_id"]
   );
