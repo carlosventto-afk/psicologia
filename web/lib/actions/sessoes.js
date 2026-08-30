@@ -40,12 +40,24 @@ export async function criarSessao(prevState, formData) {
     recorrenciaCriada = recorrencia;
   }
 
+  // Sessao.valor é not null (migration aplicada em produção).
+  const { data: pacienteRow, error: erroPaciente } = await supabase
+    .from("Paciente")
+    .select("valor_sessao")
+    .eq("id", paciente)
+    .single();
+
+  if (erroPaciente) {
+    return { error: "Paciente não encontrado." };
+  }
+
   const { error } = await supabase.from("Sessao").insert({
     paciente,
     data,
     horario,
     duracao_min,
     tipo_sessao: tipoSessao,
+    valor: Number(pacienteRow.valor_sessao),
     status: "Marcada",
     Realizado: false,
     recorrencia_id: recorrenciaCriada?.id ?? null,
