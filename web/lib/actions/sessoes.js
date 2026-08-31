@@ -151,7 +151,7 @@ export async function marcarAtendimentoRealizado(sessaoId, prevState, formData) 
   if (formData.get("pagou") === "on") {
     const { data: sessaoAtual, error: erroSessaoAtual } = await supabase
       .from("Sessao")
-      .select("paciente, valor")
+      .select("paciente, valor, RecebimentoSessao(valor_aplicado)")
       .eq("id", sessaoId)
       .single();
 
@@ -159,11 +159,14 @@ export async function marcarAtendimentoRealizado(sessaoId, prevState, formData) 
       return { error: "Não foi possível carregar a sessão." };
     }
 
+    const valorRecebido = (sessaoAtual.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+    const saldoDevedor = Number(sessaoAtual.valor) - valorRecebido;
+
     const { error: erroRecebimento } = await criarRecebimento(supabase, {
       pacienteId: sessaoAtual.paciente,
       responsavelFinanceiroId: Number(formData.get("responsavel_financeiro")),
-      sessoes: [{ id: sessaoId, valor: Number(sessaoAtual.valor) }],
-      valorTotal: Number(sessaoAtual.valor),
+      sessoes: [{ id: sessaoId, valor: saldoDevedor }],
+      valorTotal: saldoDevedor,
       contaId: Number(formData.get("conta")),
       formaPagamento: formData.get("forma_pagamento"),
       dataRecebimento: formData.get("data_pagamento"),

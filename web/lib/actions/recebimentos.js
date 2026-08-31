@@ -11,7 +11,7 @@ export async function registrarRecebimentoIndividual(sessaoId, pacienteId, prevS
 
   const { data: sessao, error: erroSessao } = await supabase
     .from("Sessao")
-    .select("valor")
+    .select("valor, RecebimentoSessao(valor_aplicado)")
     .eq("id", sessaoId)
     .single();
 
@@ -19,11 +19,14 @@ export async function registrarRecebimentoIndividual(sessaoId, pacienteId, prevS
     return { error: "Sessão não encontrada." };
   }
 
+  const valorRecebido = (sessao.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+  const saldoDevedor = Number(sessao.valor) - valorRecebido;
+
   const { error } = await criarRecebimento(supabase, {
     pacienteId,
     responsavelFinanceiroId: Number(formData.get("responsavel_financeiro")),
-    sessoes: [{ id: sessaoId, valor: Number(sessao.valor) }],
-    valorTotal: Number(sessao.valor),
+    sessoes: [{ id: sessaoId, valor: saldoDevedor }],
+    valorTotal: saldoDevedor,
     contaId: Number(formData.get("conta")),
     formaPagamento: formData.get("forma_pagamento"),
     dataRecebimento: formData.get("data_recebimento"),
@@ -54,14 +57,17 @@ export async function registrarRecebimentoLote(pacienteId, prevState, formData) 
   if (sessaoIds.length > 0) {
     const { data: sessoesBrutas, error: erroSessoes } = await supabase
       .from("Sessao")
-      .select("id, valor")
+      .select("id, valor, RecebimentoSessao(valor_aplicado)")
       .in("id", sessaoIds);
 
     if (erroSessoes) {
       return { error: "Não foi possível carregar as sessões selecionadas." };
     }
 
-    sessoes = sessoesBrutas.map((s) => ({ id: s.id, valor: Number(s.valor) }));
+    sessoes = sessoesBrutas.map((s) => {
+      const valorRecebido = (s.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+      return { id: s.id, valor: Number(s.valor) - valorRecebido };
+    });
     valorTotal = sessoes.reduce((soma, s) => soma + s.valor, 0);
   } else {
     valorTotal = Number(formData.get("valor_credito"));
@@ -95,7 +101,7 @@ export async function usarCreditoNaSessao(pacienteId, sessaoId, recebimentoId) {
 
   const { data: sessao, error: erroSessao } = await supabase
     .from("Sessao")
-    .select("valor")
+    .select("valor, RecebimentoSessao(valor_aplicado)")
     .eq("id", sessaoId)
     .single();
 
@@ -103,17 +109,20 @@ export async function usarCreditoNaSessao(pacienteId, sessaoId, recebimentoId) {
     throw new Error("Sessão não encontrada.");
   }
 
+  const valorRecebido = (sessao.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+  const saldoDevedor = Number(sessao.valor) - valorRecebido;
+
   const credito = await calcularCreditoDisponivel(pacienteId);
   const recebimento = credito.recebimentos.find((r) => r.id === recebimentoId);
 
-  if (!recebimento || recebimento.saldo < Number(sessao.valor)) {
+  if (!recebimento || recebimento.saldo < saldoDevedor) {
     throw new Error("Crédito insuficiente para quitar esta sessão.");
   }
 
   const { error } = await consumirCredito(supabase, {
     recebimentoId,
     sessaoId,
-    valorAplicado: Number(sessao.valor),
+    valorAplicado: saldoDevedor,
   });
 
   if (error) {
