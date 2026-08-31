@@ -6,7 +6,7 @@ import { cpfValido } from "@/lib/carne-leao-txt";
 // nome do campo mantido de proposito pra nao exigir mudanca nos 3
 // consumidores que so repassam esse id sem exibir o nome do campo.
 const SELECT_RECEBIMENTO_SESSAO =
-  "id, valor_aplicado, carne_leao_gerado_em, Recebimento!inner(data_recebimento), Sessao!inner(data, Paciente!inner(nome, cpf, dependente, documento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf)))";
+  "id, valor_aplicado, carne_leao_gerado_em, Recebimento!inner(data_recebimento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf_cnpj, paciente_vinculado)), Sessao!inner(data, Paciente!inner(id, nome, cpf, documento))";
 
 function elegivel(p) {
   return cpfValido(p.cpfPagador) && cpfValido(p.cpfBeneficiario);
@@ -14,8 +14,13 @@ function elegivel(p) {
 
 function resolverRecebimentoSessao(rs) {
   const paciente = rs.Sessao.Paciente;
-  const responsavel = paciente.ResponsavelFinanceiro;
-  const cpfPagador = paciente.dependente ? responsavel?.cpf || null : paciente.cpf || null;
+  const responsavel = rs.Recebimento.ResponsavelFinanceiro;
+  // "proprio" = o responsavel financeiro do recebimento é o auto-provisionado
+  // do proprio paciente (aponta pra ele mesmo) — nesse caso o CPF certo é o
+  // do Paciente, já que o ResponsavelFinanceiro "proprio" nunca tem cpf_cnpj
+  // preenchido (só nome, ver Tasks 4/17/27).
+  const ehProprio = responsavel?.paciente_vinculado === paciente.id;
+  const cpfPagador = ehProprio ? paciente.cpf || null : responsavel?.cpf_cnpj || null;
 
   return {
     pagamentoId: rs.id,
@@ -23,7 +28,7 @@ function resolverRecebimentoSessao(rs) {
     dataPagamento: rs.Recebimento.data_recebimento,
     dataAtendimento: rs.Sessao.data,
     pacienteNome: paciente.nome,
-    pagadorNome: paciente.dependente ? responsavel?.nome ?? paciente.nome : paciente.nome,
+    pagadorNome: ehProprio ? paciente.nome : responsavel?.nome ?? paciente.nome,
     cpfPagador,
     cpfBeneficiario: paciente.cpf || null,
     jaGerado: rs.carne_leao_gerado_em,
