@@ -5436,3 +5436,167 @@ Sem verificação automatizada possível (é `onSubmit` de um `<form>` cliente, 
 ```bash
 cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add "web/app/(app)/(gestao)/pacientes/[id]/page.js" && git commit -m "fix: pede confirmacao antes de excluir um recebimento (acao irreversivel)"
 ```
+
+# Adendo 3 (2026-08-31, pós-terceira revisão final)
+
+A terceira revisão final de branch (opus) confirmou que os itens NEW-C1 (RPCs de escrita do agente WhatsApp), I1/I2 (saldo devedor) e I3 (índice único) foram genuinamente resolvidos pelas Tasks 29-31. Encontrou, porém, 2 Críticos ainda abertos:
+
+- **NEW-C2 (nunca endereçado por nenhuma task)**: `web/lib/data/carne-leao.js` resolve o pagador/CPF do Carnê-Leão usando `Paciente.dependente` e o antigo FK auto-referencial `Paciente.responsavel_financeiro` — campos que a Task 17 tornou permanentemente não-graváveis daqui pra frente. Todo paciente novo (pago por si mesmo ou por terceiro) fica com `dependente` falso/nulo, então o pagador sempre resolve pro próprio paciente — errado quando um terceiro paga, e potencialmente `null`/sem CPF quando o paciente é menor sem CPF próprio (o que faz o recebimento cair silenciosamente em `semCpf`, sumindo do TXT do Carnê-Leão).
+- **NEW-I3 introduzida pela própria Task 32**: os dois `<form onSubmit={...}>` adicionados em `web/app/(app)/(gestao)/pacientes/[id]/page.js` (Server Component, sem `"use client"`, função `async`) violam uma regra dura do React Flight/RSC — nenhuma prop cujo nome bate `/^on[A-Z]/` pode ser passada de um Server Component. Isso faz a aba "Sessões" da tela do paciente lançar um erro de renderização no servidor sempre que o paciente tem crédito disponível ou qualquer sessão já quitada — ou seja, para praticamente todo paciente com histórico de pagamento. O `next build` não captura isso porque essa rota é `ƒ` (dinâmica, renderizada sob demanda), nunca renderizada durante o build.
+
+Ambos com correção pontual, de arquivo único, código completo abaixo.
+
+## Task 33: Corrige resolução do pagador no Carnê-Leão (NEW-C2)
+
+**Files:**
+- Modify: `web/lib/data/carne-leao.js`
+
+**Interfaces:**
+- Consumes: schema já existente — `Recebimento.responsavel_financeiro` (FK not null pra `ResponsavelFinanceiro`, criada na Task 3/migration `20260829000003_add_recebimento.sql`) e `ResponsavelFinanceiro.cpf_cnpj`/`paciente_vinculado` (migration `20260829000001_add_responsavel_financeiro.sql`). Todo paciente (auto-provisionado nas Tasks 4/17/27) tem um `ResponsavelFinanceiro` "próprio" com `paciente_vinculado = paciente.id`, mas **sem `cpf_cnpj` preenchido** (só `nome` é setado no auto-provisionamento) — por isso o pagador não pode vir cegamente de `ResponsavelFinanceiro.cpf_cnpj`; quando o responsável é o "próprio" do paciente, o CPF certo é o do próprio `Paciente.cpf`.
+- Produces: `resolverRecebimentoSessao` volta a resolver corretamente `cpfPagador`/`pagadorNome` para qualquer combinação (paciente paga por si mesmo, ou um `ResponsavelFinanceiro` de terceiro paga), usando o vínculo real do `Recebimento` em vez do campo congelado `Paciente.dependente`.
+
+Motivo da mudança: `Paciente.dependente` e o antigo FK auto-referencial `Paciente.responsavel_financeiro` não são mais escritos por nenhum fluxo (Task 17 removeu essas chaves do formulário/action de paciente) — usar esses campos aqui faz o Carnê-Leão silenciosamente resolver o pagador errado (ou nenhum) pra todo paciente cadastrado ou editado depois dessa migração.
+
+- [ ] **Step 1: Trocar o SELECT e o resolver**
+
+Em `web/lib/data/carne-leao.js`, substituir o bloco de `SELECT_RECEBIMENTO_SESSAO` e `resolverRecebimentoSessao` (linhas 8-31 atuais) por:
+
+```js
+// pagamentoId aqui é o id de RecebimentoSessao (nao mais PagamentoSessao) —
+// nome do campo mantido de proposito pra nao exigir mudanca nos 3
+// consumidores que so repassam esse id sem exibir o nome do campo.
+const SELECT_RECEBIMENTO_SESSAO =
+  "id, valor_aplicado, carne_leao_gerado_em, Recebimento!inner(data_recebimento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf_cnpj, paciente_vinculado)), Sessao!inner(data, Paciente!inner(id, nome, cpf, documento))";
+
+function elegivel(p) {
+  return cpfValido(p.cpfPagador) && cpfValido(p.cpfBeneficiario);
+}
+
+function resolverRecebimentoSessao(rs) {
+  const paciente = rs.Sessao.Paciente;
+  const responsavel = rs.Recebimento.ResponsavelFinanceiro;
+  // "proprio" = o responsavel financeiro do recebimento é o auto-provisionado
+  // do proprio paciente (aponta pra ele mesmo) — nesse caso o CPF certo é o
+  // do Paciente, já que o ResponsavelFinanceiro "proprio" nunca tem cpf_cnpj
+  // preenchido (só nome, ver Tasks 4/17/27).
+  const ehProprio = responsavel?.paciente_vinculado === paciente.id;
+  const cpfPagador = ehProprio ? paciente.cpf || null : responsavel?.cpf_cnpj || null;
+
+  return {
+    pagamentoId: rs.id,
+    valor: rs.valor_aplicado,
+    dataPagamento: rs.Recebimento.data_recebimento,
+    dataAtendimento: rs.Sessao.data,
+    pacienteNome: paciente.nome,
+    pagadorNome: ehProprio ? paciente.nome : responsavel?.nome ?? paciente.nome,
+    cpfPagador,
+    cpfBeneficiario: paciente.cpf || null,
+    jaGerado: rs.carne_leao_gerado_em,
+  };
+}
+```
+
+Note que `.eq("Sessao.Paciente.documento", "recibo")` (usado em `listarPagamentosElegiveis` e `buscarPagamentosPorIds`, mais abaixo no arquivo) continua funcionando sem mudança — `documento` segue no SELECT.
+
+- [ ] **Step 2: Verificação**
+
+Não há framework de teste automatizado neste repo (convenção já estabelecida no plano). Escrever um script Node throwaway usando `@supabase/supabase-js` com a service-role key (mesmo padrão das Tasks 21/22) que:
+
+1. Localiza (ou cria) 2 pacientes de teste: um SEM responsável de terceiro vinculado (paga por si mesmo) e outro COM um `ResponsavelFinanceiro` de terceiro vinculado via `PacienteResponsavelFinanceiro` (ex: um "pai" com `cpf_cnpj` preenchido).
+2. Cria (ou reaproveita) uma `Sessao` + `Recebimento` + `RecebimentoSessao` pra cada um, um `Recebimento.responsavel_financeiro` apontando pro "próprio" do paciente 1, e outro apontando pro responsável de terceiro do paciente 2.
+3. Chama `buscarPagamentosPorIds` (ou reimplementa a query inline, já que `require()` não resolve o alias `@/lib` fora do bundler Next — mesmo workaround já usado nas Tasks 7/9/22/24) para os 2 `RecebimentoSessao` criados.
+4. Confirma: paciente 1 (próprio) → `cpfPagador === paciente1.cpf`, `pagadorNome === paciente1.nome`. Paciente 2 (terceiro) → `cpfPagador === responsavelTerceiro.cpf_cnpj`, `pagadorNome === responsavelTerceiro.nome` (não o nome do paciente).
+5. Limpa os dados criados ao final (mesma convenção de todo o plano).
+
+Colar a saída real do script no relatório (não parafrasear).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add web/lib/data/carne-leao.js && git commit -m "fix: resolve pagador do carne-leao via responsavel financeiro do recebimento, nao mais via Paciente.dependente"
+```
+
+## Task 34: Corrige violacao de RSC nos botoes Desfazer (NEW-I3, regressao da Task 32)
+
+**Files:**
+- Create: `web/components/DesfazerRecebimentoBotao.js`
+- Modify: `web/app/(app)/(gestao)/pacientes/[id]/page.js`
+
+**Interfaces:**
+- Consumes: `excluirRecebimentoAcaoComId` (já definido em `page.js:46` como `excluirRecebimento.bind(null, pacienteId)`, Task 26).
+- Produces: `DesfazerRecebimentoBotao({ acao, mensagemConfirmacao, className, rotulo })`, um Client Component (mesmo molde de `web/components/ExcluirPacienteBotao.js`, que já faz exatamente esse `confirm()`-antes-do-submit num `<form action={...}>`) que recebe a Server Action já vinculada (`acao`) como prop — isso é permitido (uma Server Action é uma referência serializável), o que NÃO é permitido é passar a prop `onSubmit` (um event handler comum) de um Server Component pro DOM, que é exatamente o bug que a Task 32 introduziu.
+
+Motivo: `web/app/(app)/(gestao)/pacientes/[id]/page.js` é `export default async function` sem `"use client"` — um Server Component. A Task 32 adicionou `onSubmit={(e) => {...}}` diretamente nos dois `<form>` desse arquivo; o serializador React Flight lança `Error: Event handlers cannot be passed to Client Component props` pra qualquer prop `/^on[A-Z]/` vinda de um Server Component, o que quebra a aba "Sessões" pra qualquer paciente com crédito disponível ou sessão já quitada. A correção é mover a lógica de confirmação pra dentro de um novo Client Component dedicado, no mesmo molde já usado por `ExcluirPacienteBotao`.
+
+- [ ] **Step 1: Criar o Client Component**
+
+Criar `web/components/DesfazerRecebimentoBotao.js`:
+
+```jsx
+"use client";
+
+export default function DesfazerRecebimentoBotao({ acao, mensagemConfirmacao, className, rotulo = "Desfazer" }) {
+  function confirmarAntes(event) {
+    if (!window.confirm(mensagemConfirmacao)) {
+      event.preventDefault();
+    }
+  }
+
+  return (
+    <form action={acao} onSubmit={confirmarAntes}>
+      <button type="submit" className={className}>
+        {rotulo}
+      </button>
+    </form>
+  );
+}
+```
+
+- [ ] **Step 2: Usar o componente nos 2 pontos de `pacientes/[id]/page.js`**
+
+Adicionar o import (junto aos demais imports de componentes, perto de `UsarCreditoBotao`):
+
+```js
+import DesfazerRecebimentoBotao from "@/components/DesfazerRecebimentoBotao";
+```
+
+Substituir o `<form>` do banner de crédito disponível (bloco introduzido pela Task 32, dentro do `credito.recebimentos.map`):
+
+```jsx
+                    <DesfazerRecebimentoBotao
+                      acao={excluirRecebimentoAcaoComId.bind(null, r.id)}
+                      mensagemConfirmacao="Desfazer este recebimento? Sessões já quitadas com ele voltam a ficar pendentes."
+                      className="link text-red-600"
+                    />
+```
+
+Substituir o `<form>` do badge "Recebido" na aba Sessões (bloco introduzido pela Task 32, dentro de `{s.recebimento_id && (...)}`):
+
+```jsx
+                        {s.recebimento_id && (
+                          <DesfazerRecebimentoBotao
+                            acao={excluirRecebimentoAcaoComId.bind(null, s.recebimento_id)}
+                            mensagemConfirmacao="Desfazer este recebimento? Se ele cobrir mais de uma sessão, todas voltam a ficar pendentes."
+                            className="link text-red-600 text-xs"
+                            rotulo="Desfazer recebimento"
+                          />
+                        )}
+```
+
+Não alterar mais nada nesses dois blocos — só a substituição do `<form>...</form>` pelo componente, mantendo a mesma posição/indentação ao redor.
+
+- [ ] **Step 3: Verificação**
+
+Rodar `npm run build` dentro de `web/` e confirmar que builda sem erro (o build sozinho não pega esse tipo de erro de RSC porque a rota é dinâmica — não é suficiente, mas confirma que não há erro de sintaxe/import). Em seguida, rodar `npm run build && npm run start` (build+preview, nunca dev server, convenção já estabelecida no projeto) e usar Playwright via CLI (`npx playwright`, não MCP) OU, na ausência de credenciais de login locais, inspecionar via leitura de código que:
+
+1. `web/app/(app)/(gestao)/pacientes/[id]/page.js` não tem mais nenhuma prop `onSubmit`/`onClick` (grep por `onSubmit|onClick` no arquivo deve retornar zero ocorrências).
+2. `DesfazerRecebimentoBotao.js` tem `"use client"` na primeira linha.
+3. Os dois `action={...}` continuam exatamente os mesmos bindings de antes (`excluirRecebimentoAcaoComId.bind(null, r.id)` e `...bind(null, s.recebimento_id)`).
+
+Se houver credenciais/sessão de navegador disponíveis (ex: sessão persistente do chrome-devtools), navegar até `/pacientes/<id>?aba=sessoes` para um paciente com crédito disponível ou sessão quitada e confirmar que a página renderiza sem erro — essa é a evidência mais forte e deve ser preferida sobre a inspeção estática se for possível.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add web/components/DesfazerRecebimentoBotao.js "web/app/(app)/(gestao)/pacientes/[id]/page.js" && git commit -m "fix: move confirmacao dos botoes Desfazer para um Client Component (RSC nao aceita onSubmit)"
+```
