@@ -4697,3 +4697,150 @@ Expected: cada paciente importado tem um vínculo de responsável financeiro pr�
 ```bash
 cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add web/lib/actions/importar-pacientes.js && git commit -m "fix: importacao em lote provisiona responsavel financeiro proprio pra cada paciente"
 ```
+
+---
+
+## Task 28: Migration — corrige as duas outras RPCs do agente de WhatsApp que ainda leem `PagamentoSessao`
+
+**Files:**
+- Create: `supabase/migrations/20260830000005_fix_agent_debitos_status_pagamento.sql`
+
+**Interfaces:**
+- Consumes: `RecebimentoSessao`, `Recebimento` (Task 3).
+- Produces: `agent_listar_debitos_paciente` e `agent_status_pagamento_paciente` passam a usar `RecebimentoSessao`/`Sessao.valor` em vez de `PagamentoSessao`/`Paciente.valor_sessao`. Achado pela revisão do Task 20 (não estava nas Global Constraints originais) — mesma categoria de bug do Task 20, duas funções que passaram batido na varredura inicial.
+
+- [ ] **Step 1: Escrever a migration**
+
+```sql
+-- Duas outras RPCs do agente de WhatsApp tinham o mesmo problema do
+-- Task 20 (leem PagamentoSessao, que ninguem mais escreve) e tambem
+-- usavam Paciente.valor_sessao em vez de Sessao.valor (a fonte da
+-- verdade desde o Task 2/7 deste plano) — corrigindo os dois problemas
+-- juntos, ja que sao a mesma causa raiz.
+CREATE OR REPLACE FUNCTION public.agent_listar_debitos_paciente(p_whatsapp_number text, p_paciente_id bigint, p_consultorio_id bigint DEFAULT NULL::bigint)
+ RETURNS TABLE(sessao_id bigint, data date, valor_devido real)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_owner uuid;
+begin
+  v_owner := public._agent_get_owner_uuid(p_whatsapp_number);
+
+  return query
+  select s.id, s.data, (s.valor - coalesce(sum(rs.valor_aplicado), 0))::real
+  from "Sessao" s
+  left join "RecebimentoSessao" rs on rs.sessao = s.id
+  where s.owner = v_owner
+    and s.paciente = p_paciente_id
+    and s."Realizado" = true
+  group by s.id, s.data, s.valor
+  having s.valor - coalesce(sum(rs.valor_aplicado), 0) > 0
+  order by s.data;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.agent_status_pagamento_paciente(p_whatsapp_number text, p_paciente_id bigint, p_consultorio_id bigint DEFAULT NULL::bigint)
+ RETURNS TABLE(sessao_id bigint, data date, valor_sessao real, pago boolean, valor_pago real, forma_pagamento text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_owner uuid;
+begin
+  v_owner := public._agent_get_owner_uuid(p_whatsapp_number);
+
+  return query
+  select
+    s.id,
+    s.data,
+    s.valor::real,
+    coalesce(sum(rs.valor_aplicado), 0) >= s.valor as pago,
+    nullif(sum(rs.valor_aplicado), 0)::real,
+    (array_agg(r.forma_pagamento) filter (where r.forma_pagamento is not null))[1]
+  from "Sessao" s
+  left join "RecebimentoSessao" rs on rs.sessao = s.id
+  left join "Recebimento" r on r.id = rs.recebimento
+  where s.owner = v_owner
+    and s.paciente = p_paciente_id
+  group by s.id, s.data, s.valor
+  order by s.data desc
+  limit 20;
+end;
+$function$;
+```
+
+- [ ] **Step 2: Aplicar a migration**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { Client } = require('pg');
+const fs = require('fs');
+const sql = fs.readFileSync('../supabase/migrations/20260830000005_fix_agent_debitos_status_pagamento.sql', 'utf8');
+const client = new Client({
+  connectionString: 'postgresql://postgres:' + encodeURIComponent(process.env.SUPABASE_DB_PASSWORD) + '@db.rohulajgyxdangxfurha.supabase.co:5432/postgres',
+  ssl: { rejectUnauthorized: false }
+});
+client.connect().then(async () => {
+  await client.query(sql);
+  console.log('migration aplicada');
+  await client.end();
+}).catch(e => { console.error(e); process.exit(1); });
+"
+```
+
+- [ ] **Step 3: Verificar com dados descartáveis**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+(async () => {
+  const { data: usuario } = await admin.from('Usuarios').select('id_user, whatsapp_number').not('whatsapp_number', 'is', null).limit(1).maybeSingle();
+  if (!usuario) { console.log('nenhum usuario com whatsapp_number cadastrado — pular teste de RPC, nao bloqueia'); return; }
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste RPC Debitos Status', valor_sessao: 140, owner: usuario.id_user }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  const { data: resp } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste RPC Debitos Status', paciente_vinculado: paciente.id, owner: usuario.id_user }).select('id').single();
+  const { data: sessaoPaga } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-10', horario: '09:00', valor: 140, Realizado: true, owner: usuario.id_user }).select('id').single();
+  const { data: sessaoNaoPaga } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-11', horario: '09:00', valor: 140, Realizado: true, owner: usuario.id_user }).select('id').single();
+  const { data: lancamento } = await admin.from('LancamentoFinanceiro').insert({ data: '2026-09-10', descricao: 'Teste', valor: 140, tipo: 'Receita', conta: conta.id, owner: usuario.id_user }).select('id').single();
+  const { data: recebimento } = await admin.from('Recebimento').insert({ paciente: paciente.id, responsavel_financeiro: resp.id, data_recebimento: '2026-09-10', valor_total: 140, forma_pagamento: 'Pix', conta: conta.id, lancamento: lancamento.id, owner: usuario.id_user }).select('id').single();
+  await admin.from('RecebimentoSessao').insert({ recebimento: recebimento.id, sessao: sessaoPaga.id, valor_aplicado: 140, owner: usuario.id_user });
+
+  const { data: debitos, error: erroDebitos } = await admin.rpc('agent_listar_debitos_paciente', { p_whatsapp_number: usuario.whatsapp_number, p_paciente_id: paciente.id });
+  console.log('erro debitos (esperado null):', erroDebitos?.message || 'nenhum');
+  console.log('sessao paga fora dos debitos (esperado true):', !debitos.some((d) => d.sessao_id === sessaoPaga.id));
+  console.log('sessao nao paga nos debitos (esperado true):', debitos.some((d) => d.sessao_id === sessaoNaoPaga.id));
+
+  const { data: status, error: erroStatus } = await admin.rpc('agent_status_pagamento_paciente', { p_whatsapp_number: usuario.whatsapp_number, p_paciente_id: paciente.id });
+  console.log('erro status (esperado null):', erroStatus?.message || 'nenhum');
+  const statusPaga = status.find((s) => s.sessao_id === sessaoPaga.id);
+  console.log('sessao paga: pago (esperado true), valor_pago (esperado 140), forma (esperado Pix):', statusPaga.pago, statusPaga.valor_pago, statusPaga.forma_pagamento);
+  const statusNaoPaga = status.find((s) => s.sessao_id === sessaoNaoPaga.id);
+  console.log('sessao nao paga: pago (esperado false):', statusNaoPaga.pago);
+
+  await admin.from('RecebimentoSessao').delete().eq('recebimento', recebimento.id);
+  await admin.from('Recebimento').delete().eq('id', recebimento.id);
+  await admin.from('LancamentoFinanceiro').delete().eq('id', lancamento.id);
+  await admin.from('Sessao').delete().in('id', [sessaoPaga.id, sessaoNaoPaga.id]);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: `agent_listar_debitos_paciente` exclui a sessão paga e inclui a não paga; `agent_status_pagamento_paciente` mostra `pago: true, valor_pago: 140, forma_pagamento: 'Pix'` pra sessão paga e `pago: false` pra não paga. Se não houver usuário com `whatsapp_number`, script avisa e não bloqueia.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add supabase/migrations/20260830000005_fix_agent_debitos_status_pagamento.sql && git commit -m "fix: corrige duas RPCs restantes do agente de WhatsApp pro novo modelo de recebimento"
+```
