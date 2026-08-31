@@ -229,7 +229,14 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                     <span>
                       {r.data_recebimento} · {formatarMoeda(r.saldo)} disponível
                     </span>
-                    <form action={excluirRecebimentoAcaoComId.bind(null, r.id)}>
+                    <form
+                      action={excluirRecebimentoAcaoComId.bind(null, r.id)}
+                      onSubmit={(e) => {
+                        if (!confirm("Desfazer este recebimento? Sessões já quitadas com ele voltam a ficar pendentes.")) {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
                       <button type="submit" className="link text-red-600">
                         Desfazer
                       </button>
@@ -281,7 +288,14 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                       <span className="flex items-center gap-2">
                         <span className="text-green-700 font-semibold">Recebido</span>
                         {s.recebimento_id && (
-                          <form action={excluirRecebimentoAcaoComId.bind(null, s.recebimento_id)}>
+                          <form
+                            action={excluirRecebimentoAcaoComId.bind(null, s.recebimento_id)}
+                            onSubmit={(e) => {
+                              if (!confirm("Desfazer este recebimento? Se ele cobrir mais de uma sessão, todas voltam a ficar pendentes.")) {
+                                e.preventDefault();
+                              }
+                            }}
+                          >
                             <button type="submit" className="link text-red-600 text-xs">
                               Desfazer recebimento
                             </button>
