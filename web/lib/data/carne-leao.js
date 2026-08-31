@@ -2,28 +2,31 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizarIdsLista } from "@/lib/normalizar-ids";
 import { cpfValido } from "@/lib/carne-leao-txt";
 
-const SELECT_PAGAMENTO =
-  "id, valor, data_pagamento, carne_leao_gerado_em, Sessao!inner(data, Paciente!inner(nome, cpf, dependente, documento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf)))";
+// pagamentoId aqui é o id de RecebimentoSessao (nao mais PagamentoSessao) —
+// nome do campo mantido de proposito pra nao exigir mudanca nos 3
+// consumidores que so repassam esse id sem exibir o nome do campo.
+const SELECT_RECEBIMENTO_SESSAO =
+  "id, valor_aplicado, carne_leao_gerado_em, Recebimento!inner(data_recebimento), Sessao!inner(data, Paciente!inner(nome, cpf, dependente, documento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf)))";
 
 function elegivel(p) {
   return cpfValido(p.cpfPagador) && cpfValido(p.cpfBeneficiario);
 }
 
-function resolverPagamento(p) {
-  const paciente = p.Sessao.Paciente;
+function resolverRecebimentoSessao(rs) {
+  const paciente = rs.Sessao.Paciente;
   const responsavel = paciente.ResponsavelFinanceiro;
   const cpfPagador = paciente.dependente ? responsavel?.cpf || null : paciente.cpf || null;
 
   return {
-    pagamentoId: p.id,
-    valor: p.valor,
-    dataPagamento: p.data_pagamento,
-    dataAtendimento: p.Sessao.data,
+    pagamentoId: rs.id,
+    valor: rs.valor_aplicado,
+    dataPagamento: rs.Recebimento.data_recebimento,
+    dataAtendimento: rs.Sessao.data,
     pacienteNome: paciente.nome,
     pagadorNome: paciente.dependente ? responsavel?.nome ?? paciente.nome : paciente.nome,
     cpfPagador,
     cpfBeneficiario: paciente.cpf || null,
-    jaGerado: p.carne_leao_gerado_em,
+    jaGerado: rs.carne_leao_gerado_em,
   };
 }
 
@@ -40,12 +43,12 @@ export async function listarPagamentosElegiveis({ dataInicio, dataFim }, opcoes 
   const supabase = opcoes.supabase ?? (await createClient());
 
   let query = supabase
-    .from("PagamentoSessao")
-    .select(SELECT_PAGAMENTO)
+    .from("RecebimentoSessao")
+    .select(SELECT_RECEBIMENTO_SESSAO)
     .eq("Sessao.Paciente.documento", "recibo")
-    .gte("data_pagamento", dataInicio)
-    .lte("data_pagamento", dataFim)
-    .order("data_pagamento");
+    .gte("Recebimento.data_recebimento", dataInicio)
+    .lte("Recebimento.data_recebimento", dataFim)
+    .order("data_recebimento", { referencedTable: "Recebimento" });
 
   if (opcoes.ownerId) {
     query = query.eq("Sessao.owner", opcoes.ownerId);
@@ -62,7 +65,7 @@ export async function listarPagamentosElegiveis({ dataInicio, dataFim }, opcoes 
 
   if (error) throw new Error(error.message);
 
-  const resolvidos = normalizarIdsLista(data, ["id"]).map(resolverPagamento);
+  const resolvidos = normalizarIdsLista(data, ["id"]).map(resolverRecebimentoSessao);
 
   return {
     elegiveis: resolvidos.filter(elegivel),
@@ -75,17 +78,17 @@ export async function buscarPagamentosPorIds(ids, { dataInicio, dataFim }) {
 
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("PagamentoSessao")
-    .select(SELECT_PAGAMENTO)
+    .from("RecebimentoSessao")
+    .select(SELECT_RECEBIMENTO_SESSAO)
     .in("id", ids)
     .eq("Sessao.Paciente.documento", "recibo")
-    .gte("data_pagamento", dataInicio)
-    .lte("data_pagamento", dataFim);
+    .gte("Recebimento.data_recebimento", dataInicio)
+    .lte("Recebimento.data_recebimento", dataFim);
 
   if (error) throw new Error(error.message);
 
   return normalizarIdsLista(data, ["id"])
-    .map(resolverPagamento)
+    .map(resolverRecebimentoSessao)
     .filter(elegivel);
 }
 
@@ -96,7 +99,7 @@ export async function marcarPagamentosGerados(ids, opcoes = {}) {
 
   const supabase = opcoes.supabase ?? (await createClient());
   const { error } = await supabase
-    .from("PagamentoSessao")
+    .from("RecebimentoSessao")
     .update({ carne_leao_gerado_em: new Date().toISOString() })
     .in("id", ids);
 
@@ -106,7 +109,7 @@ export async function marcarPagamentosGerados(ids, opcoes = {}) {
 export async function desmarcarPagamentoGerado(id) {
   const supabase = await createClient();
   const { error } = await supabase
-    .from("PagamentoSessao")
+    .from("RecebimentoSessao")
     .update({ carne_leao_gerado_em: null })
     .eq("id", id);
 
