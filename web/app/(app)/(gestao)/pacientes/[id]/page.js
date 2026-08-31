@@ -11,6 +11,7 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { calcularCreditoDisponivel } from "@/lib/data/recebimentos";
 import { usarCreditoNaSessao, excluirRecebimento } from "@/lib/actions/recebimentos";
 import UsarCreditoBotao from "@/components/UsarCreditoBotao";
+import DesfazerRecebimentoBotao from "@/components/DesfazerRecebimentoBotao";
 import { listarResponsaveisDoPaciente, listarResponsaveisParaVincular } from "@/lib/data/responsaveis-financeiros";
 import { vincularResponsavelExistente, criarEVincularResponsavel, desvincularResponsavel } from "@/lib/actions/responsaveis-financeiros";
 import ResponsaveisFinanceirosPaciente from "@/components/ResponsaveisFinanceirosPaciente";
@@ -229,18 +230,11 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                     <span>
                       {r.data_recebimento} · {formatarMoeda(r.saldo)} disponível
                     </span>
-                    <form
-                      action={excluirRecebimentoAcaoComId.bind(null, r.id)}
-                      onSubmit={(e) => {
-                        if (!confirm("Desfazer este recebimento? Sessões já quitadas com ele voltam a ficar pendentes.")) {
-                          e.preventDefault();
-                        }
-                      }}
-                    >
-                      <button type="submit" className="link text-red-600">
-                        Desfazer
-                      </button>
-                    </form>
+                    <DesfazerRecebimentoBotao
+                      acao={excluirRecebimentoAcaoComId.bind(null, r.id)}
+                      mensagemConfirmacao="Desfazer este recebimento? Sessões já quitadas com ele voltam a ficar pendentes."
+                      className="link text-red-600"
+                    />
                   </div>
                 ))}
               </div>
@@ -288,18 +282,12 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                       <span className="flex items-center gap-2">
                         <span className="text-green-700 font-semibold">Recebido</span>
                         {s.recebimento_id && (
-                          <form
-                            action={excluirRecebimentoAcaoComId.bind(null, s.recebimento_id)}
-                            onSubmit={(e) => {
-                              if (!confirm("Desfazer este recebimento? Se ele cobrir mais de uma sessão, todas voltam a ficar pendentes.")) {
-                                e.preventDefault();
-                              }
-                            }}
-                          >
-                            <button type="submit" className="link text-red-600 text-xs">
-                              Desfazer recebimento
-                            </button>
-                          </form>
+                          <DesfazerRecebimentoBotao
+                            acao={excluirRecebimentoAcaoComId.bind(null, s.recebimento_id)}
+                            mensagemConfirmacao="Desfazer este recebimento? Se ele cobrir mais de uma sessão, todas voltam a ficar pendentes."
+                            className="link text-red-600 text-xs"
+                            rotulo="Desfazer recebimento"
+                          />
                         )}
                       </span>
                     )}
