@@ -82,6 +82,33 @@ export async function excluirPaciente(id, prevState, formData) {
   }
 
   const supabase = await createClient();
+
+  const { data: responsavelProprio } = await supabase
+    .from("ResponsavelFinanceiro")
+    .select("id")
+    .eq("paciente_vinculado", id)
+    .maybeSingle();
+
+  if (responsavelProprio) {
+    const { error: erroVinculo } = await supabase
+      .from("PacienteResponsavelFinanceiro")
+      .delete()
+      .or(`paciente.eq.${id},responsavel.eq.${responsavelProprio.id}`);
+
+    if (erroVinculo) {
+      return { error: "Não foi possível excluir o paciente." };
+    }
+
+    const { error: erroResponsavel } = await supabase
+      .from("ResponsavelFinanceiro")
+      .delete()
+      .eq("id", responsavelProprio.id);
+
+    if (erroResponsavel) {
+      return { error: "Não foi possível excluir o paciente." };
+    }
+  }
+
   const { error } = await supabase.from("Paciente").delete().eq("id", id);
 
   if (error) {

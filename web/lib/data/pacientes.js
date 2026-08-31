@@ -78,24 +78,39 @@ export async function listarPacientesParaSelect(excluirId, incluirId) {
 export async function verificarVinculosPaciente(id) {
   const supabase = await createClient();
 
-  const [sessoes, recibos, recorrencias, dependentes] = await Promise.all([
+  const [sessoes, recibos, recorrencias, recebimentos, responsavelProprio] = await Promise.all([
     supabase.from("Sessao").select("id", { count: "exact", head: true }).eq("paciente", id),
     supabase.from("Recibo").select("id", { count: "exact", head: true }).eq("paciente", id),
     supabase.from("Recorrencia").select("id", { count: "exact", head: true }).eq("paciente", id),
-    supabase.from("Paciente").select("nome").eq("responsavel_financeiro", id),
+    supabase.from("Recebimento").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("ResponsavelFinanceiro").select("id").eq("paciente_vinculado", id).maybeSingle(),
   ]);
 
   if (sessoes.error) throw new Error(sessoes.error.message);
   if (recibos.error) throw new Error(recibos.error.message);
   if (recorrencias.error) throw new Error(recorrencias.error.message);
-  if (dependentes.error) throw new Error(dependentes.error.message);
+  if (recebimentos.error) throw new Error(recebimentos.error.message);
+  if (responsavelProprio.error) throw new Error(responsavelProprio.error.message);
 
   const vinculos = [];
   if (sessoes.count > 0) vinculos.push({ tipo: "sessão(ões)", quantidade: sessoes.count });
   if (recibos.count > 0) vinculos.push({ tipo: "recibo(s)", quantidade: recibos.count });
   if (recorrencias.count > 0) vinculos.push({ tipo: "recorrência(s)", quantidade: recorrencias.count });
-  if (dependentes.data?.length > 0) {
-    vinculos.push({ tipo: "é responsável financeiro de", nomes: dependentes.data.map((d) => d.nome) });
+  if (recebimentos.count > 0) {
+    vinculos.push({ tipo: "recebimento(s) (crédito antecipado)", quantidade: recebimentos.count });
+  }
+
+  if (responsavelProprio.data) {
+    const { data: outrosPacientes, error: erroOutros } = await supabase
+      .from("PacienteResponsavelFinanceiro")
+      .select("Paciente:paciente(nome)")
+      .eq("responsavel", responsavelProprio.data.id)
+      .neq("paciente", id);
+
+    if (erroOutros) throw new Error(erroOutros.message);
+    if (outrosPacientes.length > 0) {
+      vinculos.push({ tipo: "é responsável financeiro de", nomes: outrosPacientes.map((v) => v.Paciente.nome) });
+    }
   }
 
   return vinculos;
