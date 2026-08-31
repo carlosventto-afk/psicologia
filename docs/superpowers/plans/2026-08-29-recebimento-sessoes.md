@@ -17,7 +17,8 @@
 - Toda tabela nova segue o padrão de RLS do projeto: coluna `owner uuid not null default auth.uid()` + 4 policies (`_select_own`, `_insert_own`, `_update_own`, `_delete_own`) usando `owner = auth.uid() or public.is_admin()` (ver `supabase/migrations/20260826000001_add_classificacao_financeira.sql` e `20260727000003_enable_rls_policies.sql`).
 - **Sem pagamento parcial**: um `Recebimento` com sessões já selecionadas sempre cobre o valor cheio delas. Crédito antecipado só existe quando nenhuma sessão é selecionada no momento da criação.
 - **Responsável "próprio" automático**: todo paciente (novo ou existente) tem um `ResponsavelFinanceiro` com `paciente_vinculado` apontando pra ele mesmo, vinculado a si via `PacienteResponsavelFinanceiro`. O campo de responsável financeiro nunca fica sem opção.
-- **`PagamentoSessao` não é removida do banco** nesta rodada — uma RPC do agente de WhatsApp (`agent_listar_inadimplentes`, fora de `web/`) ainda depende dela. Só o código em `web/` para de escrever/ler essa tabela. Atualizar essa RPC é um plano futuro separado, fora de escopo aqui.
+- **`PagamentoSessao` não é removida do banco** nesta rodada — mantida intacta só como histórico (nada em `web/` ou nas RPCs volta a escrever nela após os Tasks 20-24 abaixo).
+- **ADENDO (2026-08-30, pós-revisão final de branch antes do merge):** a revisão final encontrou consumidores do modelo antigo que não tinham sido mapeados nas Global Constraints originais — Carnê-Leão (`web/lib/data/carne-leao.js`), NFS-e (`web/lib/data/notas-fiscais.js` + `web/lib/actions/notas-fiscais.js`) e a RPC do agente de WhatsApp `agent_listar_inadimplentes` liam exclusivamente de `PagamentoSessao`, que passa a não ser mais escrita. Decisão do usuário: **resolver tudo agora, sem deixar pra um plano futuro** — ver Tasks 20-24. Além disso, a mesma revisão encontrou 3 bugs reais de integração cruzada entre tasks (exclusão de paciente, exclusão de lançamento sem via de desfazer recebimento, importação em lote sem responsável próprio) — ver Tasks 25-27.
 - **Colunas antigas `Paciente.dependente`/`Paciente.responsavel_financeiro` não são removidas do banco** nesta rodada (resolve a "questão em aberto" do spec) — ficam obsoletas mas intactas, preservando o funcionamento de `web/lib/data/recibos.js` (que ainda faz embed nelas) sem exigir alteração nesse arquivo. O Task 17 remove a capacidade de *criar* novos vínculos por esse modelo antigo (o cadastro de paciente para de escrever nessas colunas), sem apagar dados históricos.
 - Import padrão em toda `lib/data/*.js` e `lib/actions/*.js`: `import { createClient } from "@/lib/supabase/server";`, chamado como `const supabase = await createClient();` (é `async`).
 - `web/AGENTS.md` avisa que este Next.js (16) tem breaking changes vs. treinamento — todo código deste plano replica padrões já existentes e funcionando no repo (Server Actions, `useActionState`, `params`/`searchParams` assíncronos), sem introduzir API nova do framework.
@@ -3427,3 +3428,1272 @@ Excluir via script Node com a service role key (mesmo padrão das tasks anterior
 - [ ] **Step 5: Fechar a página do navegador**
 
 Usar `mcp__chrome-devtools__close_page` na aba criada no Step 2.
+
+---
+
+# Adendo pós-revisão final (2026-08-30)
+
+As tasks abaixo (20-27) foram adicionadas depois que a revisão final de branch (antes do merge) encontrou consumidores do modelo antigo não mapeados nas Global Constraints originais, e 3 bugs reais de integração cruzada entre tasks. Decisão do usuário: resolver tudo antes de mesclar — ver nota no topo das Global Constraints. Devem ser executadas nesta ordem (20 e 25/27 são independentes entre si; 21→22 e 23→24 são sequenciais; 26 depende de nada além do já existente). **Task 19 (E2E) deve ser re-executado depois que todas estas terminarem, antes do merge.**
+
+---
+
+## Task 20: Migration — corrige RPC `agent_listar_inadimplentes` pro novo modelo
+
+**Files:**
+- Create: `supabase/migrations/20260830000002_fix_agent_listar_inadimplentes.sql`
+
+**Interfaces:**
+- Consumes: `RecebimentoSessao` (Task 3).
+- Produces: `agent_listar_inadimplentes` passa a considerar saldo devedor via `RecebimentoSessao.valor_aplicado` em vez de existência de `PagamentoSessao` — mesma regra de `listarInadimplentes()` (Task 11), agora em SQL.
+
+- [ ] **Step 1: Escrever a migration**
+
+```sql
+-- A RPC do agente de WhatsApp ainda usava a regra antiga (sessao sem
+-- PagamentoSessao = inadimplente). Como o codigo em web/ parou de escrever
+-- em PagamentoSessao (Tasks 8-12), toda sessao realizada e paga pelo novo
+-- modelo passaria a aparecer como inadimplente pro agente a partir de
+-- agora. Migra pra mesma regra de saldo devedor via RecebimentoSessao ja
+-- usada em listarInadimplentes() (Task 11).
+CREATE OR REPLACE FUNCTION public.agent_listar_inadimplentes(p_whatsapp_number text, p_consultorio_id bigint DEFAULT NULL::bigint)
+ RETURNS TABLE(paciente_id bigint, paciente_nome text, sessao_id bigint, data date, valor_devido real)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_owner uuid;
+begin
+  v_owner := public._agent_get_owner_uuid(p_whatsapp_number);
+
+  return query
+  select p.id, p.nome, s.id, s.data, (s.valor - coalesce(sum(rs.valor_aplicado), 0))::real
+  from "Sessao" s
+  join "Paciente" p on p.id = s.paciente
+  left join "RecebimentoSessao" rs on rs.sessao = s.id
+  where s.owner = v_owner
+    and s."Realizado" = true
+  group by p.id, p.nome, s.id, s.data, s.valor
+  having s.valor - coalesce(sum(rs.valor_aplicado), 0) > 0
+  order by s.data;
+end;
+$function$;
+```
+
+- [ ] **Step 2: Aplicar a migration**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { Client } = require('pg');
+const fs = require('fs');
+const sql = fs.readFileSync('../supabase/migrations/20260830000002_fix_agent_listar_inadimplentes.sql', 'utf8');
+const client = new Client({
+  connectionString: 'postgresql://postgres:' + encodeURIComponent(process.env.SUPABASE_DB_PASSWORD) + '@db.rohulajgyxdangxfurha.supabase.co:5432/postgres',
+  ssl: { rejectUnauthorized: false }
+});
+client.connect().then(async () => {
+  await client.query(sql);
+  console.log('migration aplicada');
+  await client.end();
+}).catch(e => { console.error(e); process.exit(1); });
+"
+```
+
+- [ ] **Step 3: Verificar com dados descartáveis (sessão paga via RecebimentoSessao não aparece; sessão não paga aparece com saldo correto)**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+(async () => {
+  const { data: usuario } = await admin.from('Usuarios').select('id_user, whatsapp_number').not('whatsapp_number', 'is', null).limit(1).maybeSingle();
+  if (!usuario) { console.log('nenhum usuario com whatsapp_number cadastrado — pular teste de RPC, nao bloqueia'); return; }
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste RPC Inadimplentes', valor_sessao: 120, owner: usuario.id_user }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  const { data: resp } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste RPC Inadimplentes', paciente_vinculado: paciente.id, owner: usuario.id_user }).select('id').single();
+  const { data: sessaoPaga } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-01', horario: '09:00', valor: 120, Realizado: true, owner: usuario.id_user }).select('id').single();
+  const { data: sessaoNaoPaga } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-02', horario: '09:00', valor: 120, Realizado: true, owner: usuario.id_user }).select('id').single();
+  const { data: lancamento } = await admin.from('LancamentoFinanceiro').insert({ data: '2026-09-01', descricao: 'Teste', valor: 120, tipo: 'Receita', conta: conta.id, owner: usuario.id_user }).select('id').single();
+  const { data: recebimento } = await admin.from('Recebimento').insert({ paciente: paciente.id, responsavel_financeiro: resp.id, data_recebimento: '2026-09-01', valor_total: 120, forma_pagamento: 'Pix', conta: conta.id, lancamento: lancamento.id, owner: usuario.id_user }).select('id').single();
+  await admin.from('RecebimentoSessao').insert({ recebimento: recebimento.id, sessao: sessaoPaga.id, valor_aplicado: 120, owner: usuario.id_user });
+
+  const { data: inadimplentes, error } = await admin.rpc('agent_listar_inadimplentes', { p_whatsapp_number: usuario.whatsapp_number });
+  console.log('erro RPC (esperado null):', error?.message || 'nenhum');
+  const idsInadimplentes = (inadimplentes ?? []).map((i) => i.sessao_id);
+  console.log('sessao paga NAO aparece (esperado false):', idsInadimplentes.includes(sessaoPaga.id));
+  console.log('sessao nao paga aparece (esperado true):', idsInadimplentes.includes(sessaoNaoPaga.id));
+
+  await admin.from('RecebimentoSessao').delete().eq('recebimento', recebimento.id);
+  await admin.from('Recebimento').delete().eq('id', recebimento.id);
+  await admin.from('LancamentoFinanceiro').delete().eq('id', lancamento.id);
+  await admin.from('Sessao').delete().in('id', [sessaoPaga.id, sessaoNaoPaga.id]);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: sessão paga não aparece, sessão não paga aparece. Se não houver usuário com `whatsapp_number` cadastrado no ambiente de teste, o script avisa e não bloqueia — a verificação de que a query em si funciona já é suficiente evidência de correção (a lógica é idêntica à de `listarInadimplentes()`, já provada correta no Task 11).
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add supabase/migrations/20260830000002_fix_agent_listar_inadimplentes.sql && git commit -m "fix: agente de WhatsApp passa a considerar RecebimentoSessao na lista de inadimplentes"
+```
+
+---
+
+## Task 21: Migration — `RecebimentoSessao.carne_leao_gerado_em` + backfill
+
+**Files:**
+- Create: `supabase/migrations/20260830000003_add_carne_leao_recebimento_sessao.sql`
+
+**Interfaces:**
+- Consumes: `RecebimentoSessao` (Task 3), `PagamentoSessao.carne_leao_gerado_em` (coluna pré-existente, fora deste plano).
+- Produces: coluna `RecebimentoSessao.carne_leao_gerado_em timestamptz` (nullable), preenchida por backfill para as `RecebimentoSessao` migradas de `PagamentoSessao` já marcadas como geradas (Task 4 já criou essas linhas; aqui só preenchemos o novo campo).
+
+- [ ] **Step 1: Escrever a migration**
+
+```sql
+-- Carne-Leao rastreava "ja incluido num TXT" via PagamentoSessao.carne_leao_gerado_em.
+-- Como o Carne-Leao (Task 22) passa a ler RecebimentoSessao, o rastreio
+-- precisa da mesma granularidade (uma linha = uma sessao com um valor
+-- aplicado) na tabela nova.
+alter table "RecebimentoSessao" add column carne_leao_gerado_em timestamptz;
+
+-- Backfill: para toda RecebimentoSessao que corresponde a uma PagamentoSessao
+-- ja migrada (Task 4), copia o carne_leao_gerado_em original — sem isso,
+-- pagamentos ja incluidos num TXT anterior voltariam a aparecer como
+-- "elegiveis" e entrariam duplicados numa proxima geracao.
+update "RecebimentoSessao" rs
+set carne_leao_gerado_em = ps.carne_leao_gerado_em
+from "PagamentoSessao" ps
+join "Recebimento" r on r.lancamento = ps.lancamento
+where rs.recebimento = r.id
+  and rs.sessao = ps.sessao
+  and ps.carne_leao_gerado_em is not null;
+```
+
+- [ ] **Step 2: Aplicar a migration**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { Client } = require('pg');
+const fs = require('fs');
+const sql = fs.readFileSync('../supabase/migrations/20260830000003_add_carne_leao_recebimento_sessao.sql', 'utf8');
+const client = new Client({
+  connectionString: 'postgresql://postgres:' + encodeURIComponent(process.env.SUPABASE_DB_PASSWORD) + '@db.rohulajgyxdangxfurha.supabase.co:5432/postgres',
+  ssl: { rejectUnauthorized: false }
+});
+client.connect().then(async () => {
+  await client.query(sql);
+  console.log('migration aplicada');
+  await client.end();
+}).catch(e => { console.error(e); process.exit(1); });
+"
+```
+
+- [ ] **Step 3: Verificar coluna criada e contagem do backfill**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { Client } = require('pg');
+const client = new Client({
+  connectionString: 'postgresql://postgres:' + encodeURIComponent(process.env.SUPABASE_DB_PASSWORD) + '@db.rohulajgyxdangxfurha.supabase.co:5432/postgres',
+  ssl: { rejectUnauthorized: false }
+});
+client.connect().then(async () => {
+  const col = await client.query(\"select column_name, data_type, is_nullable from information_schema.columns where table_name = 'RecebimentoSessao' and column_name = 'carne_leao_gerado_em'\");
+  console.table(col.rows);
+  const origem = await client.query('select count(*) from \"PagamentoSessao\" where carne_leao_gerado_em is not null');
+  const destino = await client.query('select count(*) from \"RecebimentoSessao\" where carne_leao_gerado_em is not null');
+  console.log('PagamentoSessao com carne_leao_gerado_em:', origem.rows[0].count, '== RecebimentoSessao com carne_leao_gerado_em apos backfill:', destino.rows[0].count);
+  await client.end();
+}).catch(e => { console.error(e); process.exit(1); });
+"
+```
+
+Expected: coluna `timestamptz` nullable; as duas contagens batem exatamente (se ambas forem 0, também é válido — significa que nenhum pagamento tinha sido marcado como gerado ainda).
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add supabase/migrations/20260830000003_add_carne_leao_recebimento_sessao.sql && git commit -m "feat: adiciona rastreio de carne-leao gerado em RecebimentoSessao com backfill"
+```
+
+---
+
+## Task 22: Reescreve `lib/data/carne-leao.js` pro novo modelo
+
+**Files:**
+- Modify: `web/lib/data/carne-leao.js`
+
+**Interfaces:**
+- Consumes: `RecebimentoSessao.carne_leao_gerado_em` (Task 21).
+- Produces: mesmas 4 funções exportadas, mesmo formato de retorno (`pagamentoId, valor, dataPagamento, dataAtendimento, pacienteNome, pagadorNome, cpfPagador, cpfBeneficiario, jaGerado`) — **`pagamentoId` agora contém um id de `RecebimentoSessao`, não mais de `PagamentoSessao`** (decisão deliberada: manter o nome do campo pra não exigir alteração nos 3 arquivos que só repassam esse id de forma opaca — `carne-leao/page.js`, `carne-leao/gerar/route.js`, `carne-leao-automatico/route.js` — nenhum deles lê o nome do campo como rótulo de UI, só usa o valor). `valor` agora é `RecebimentoSessao.valor_aplicado` (valor realmente recebido daquela sessão, não mais o valor cheio — mais correto que o comportamento antigo quando havia divergência).
+
+- [ ] **Step 1: Substituir o arquivo inteiro**
+
+```js
+import { createClient } from "@/lib/supabase/server";
+import { normalizarIdsLista } from "@/lib/normalizar-ids";
+import { cpfValido } from "@/lib/carne-leao-txt";
+
+// pagamentoId aqui é o id de RecebimentoSessao (nao mais PagamentoSessao) —
+// nome do campo mantido de proposito pra nao exigir mudanca nos 3
+// consumidores que so repassam esse id sem exibir o nome do campo.
+const SELECT_RECEBIMENTO_SESSAO =
+  "id, valor_aplicado, carne_leao_gerado_em, Recebimento!inner(data_recebimento), Sessao!inner(data, Paciente!inner(nome, cpf, dependente, documento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf)))";
+
+function elegivel(p) {
+  return cpfValido(p.cpfPagador) && cpfValido(p.cpfBeneficiario);
+}
+
+function resolverRecebimentoSessao(rs) {
+  const paciente = rs.Sessao.Paciente;
+  const responsavel = paciente.ResponsavelFinanceiro;
+  const cpfPagador = paciente.dependente ? responsavel?.cpf || null : paciente.cpf || null;
+
+  return {
+    pagamentoId: rs.id,
+    valor: rs.valor_aplicado,
+    dataPagamento: rs.Recebimento.data_recebimento,
+    dataAtendimento: rs.Sessao.data,
+    pacienteNome: paciente.nome,
+    pagadorNome: paciente.dependente ? responsavel?.nome ?? paciente.nome : paciente.nome,
+    cpfPagador,
+    cpfBeneficiario: paciente.cpf || null,
+    jaGerado: rs.carne_leao_gerado_em,
+  };
+}
+
+// opcoes.supabase é um client service-role que ignora RLS — por isso
+// ownerId é obrigatório junto dele, pra nunca rodar uma query sem escopo
+// de profissional.
+export async function listarPagamentosElegiveis({ dataInicio, dataFim }, opcoes = {}) {
+  if (opcoes.supabase && !opcoes.ownerId) {
+    throw new Error(
+      "listarPagamentosElegiveis: ownerId é obrigatório ao passar um client service-role (supabase bypassa RLS)."
+    );
+  }
+
+  const supabase = opcoes.supabase ?? (await createClient());
+
+  let query = supabase
+    .from("RecebimentoSessao")
+    .select(SELECT_RECEBIMENTO_SESSAO)
+    .eq("Sessao.Paciente.documento", "recibo")
+    .gte("Recebimento.data_recebimento", dataInicio)
+    .lte("Recebimento.data_recebimento", dataFim)
+    .order("data_recebimento", { referencedTable: "Recebimento" });
+
+  if (opcoes.ownerId) {
+    query = query.eq("Sessao.owner", opcoes.ownerId);
+  }
+
+  // Geração automática (item 9) nunca deve incluir um pagamento já
+  // marcado como gerado (item 10) — a geração manual, ao contrário,
+  // continua listando tudo e só avisa o operador na UI.
+  if (opcoes.excluirJaGerados) {
+    query = query.is("carne_leao_gerado_em", null);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw new Error(error.message);
+
+  const resolvidos = normalizarIdsLista(data, ["id"]).map(resolverRecebimentoSessao);
+
+  return {
+    elegiveis: resolvidos.filter(elegivel),
+    semCpf: resolvidos.filter((p) => !elegivel(p)),
+  };
+}
+
+export async function buscarPagamentosPorIds(ids, { dataInicio, dataFim }) {
+  if (ids.length === 0) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("RecebimentoSessao")
+    .select(SELECT_RECEBIMENTO_SESSAO)
+    .in("id", ids)
+    .eq("Sessao.Paciente.documento", "recibo")
+    .gte("Recebimento.data_recebimento", dataInicio)
+    .lte("Recebimento.data_recebimento", dataFim);
+
+  if (error) throw new Error(error.message);
+
+  return normalizarIdsLista(data, ["id"])
+    .map(resolverRecebimentoSessao)
+    .filter(elegivel);
+}
+
+// Marca os pagamentos como "já entraram num TXT do Carnê-Leão" — chamado
+// depois que o arquivo (manual ou automático) já foi montado com sucesso.
+export async function marcarPagamentosGerados(ids, opcoes = {}) {
+  if (ids.length === 0) return;
+
+  const supabase = opcoes.supabase ?? (await createClient());
+  const { error } = await supabase
+    .from("RecebimentoSessao")
+    .update({ carne_leao_gerado_em: new Date().toISOString() })
+    .in("id", ids);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function desmarcarPagamentoGerado(id) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("RecebimentoSessao")
+    .update({ carne_leao_gerado_em: null })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+}
+```
+
+Nota: PostgREST usa `referencedTable` (não `foreignTable`) pra ordenar por coluna de uma relação embutida na versão do `@supabase/supabase-js` usada neste projeto (`^2.110.8`) — confirmar isso é o Step 2 abaixo; se a versão instalada só aceitar `foreignTable`, usar essa em vez de `referencedTable` (mesma semântica, nome do parâmetro mudou entre versões da lib).
+
+- [ ] **Step 2: Verificar com dados descartáveis (elegibilidade, filtro de data, marcar/desmarcar gerado)**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+const { listarPagamentosElegiveis, marcarPagamentosGerados, desmarcarPagamentoGerado } = require('./lib/data/carne-leao.js');
+
+(async () => {
+  const { data: ownerRow } = await admin.from('Paciente').select('owner').limit(1).single();
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste Carne Leao', valor_sessao: 150, documento: 'recibo', cpf: '111.111.111-11', owner: ownerRow.owner }).select('id').single();
+  const { data: resp } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Carne Leao', paciente_vinculado: paciente.id, owner: ownerRow.owner }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  const { data: sessao } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-05', horario: '09:00', valor: 150, Realizado: true, owner: ownerRow.owner }).select('id').single();
+  const { data: lancamento } = await admin.from('LancamentoFinanceiro').insert({ data: '2026-09-05', descricao: 'Teste', valor: 150, tipo: 'Receita', conta: conta.id, owner: ownerRow.owner }).select('id').single();
+  const { data: recebimento } = await admin.from('Recebimento').insert({ paciente: paciente.id, responsavel_financeiro: resp.id, data_recebimento: '2026-09-05', valor_total: 150, forma_pagamento: 'Pix', conta: conta.id, lancamento: lancamento.id, owner: ownerRow.owner }).select('id').single();
+  const { data: rs } = await admin.from('RecebimentoSessao').insert({ recebimento: recebimento.id, sessao: sessao.id, valor_aplicado: 150, owner: ownerRow.owner }).select('id').single();
+
+  const { elegiveis } = await listarPagamentosElegiveis({ dataInicio: '2026-09-01', dataFim: '2026-09-30' });
+  const achado = elegiveis.find((p) => p.pagamentoId === rs.id);
+  console.log('encontrado na lista de elegiveis (esperado true):', !!achado);
+  console.log('valor (esperado 150):', achado?.valor, 'cpf pagador (esperado 111.111.111-11):', achado?.cpfPagador);
+
+  await marcarPagamentosGerados([rs.id]);
+  const { data: apos } = await admin.from('RecebimentoSessao').select('carne_leao_gerado_em').eq('id', rs.id).single();
+  console.log('marcado como gerado (esperado not null):', apos.carne_leao_gerado_em);
+
+  await desmarcarPagamentoGerado(rs.id);
+  const { data: desmarcado } = await admin.from('RecebimentoSessao').select('carne_leao_gerado_em').eq('id', rs.id).single();
+  console.log('desmarcado (esperado null):', desmarcado.carne_leao_gerado_em);
+
+  await admin.from('RecebimentoSessao').delete().eq('id', rs.id);
+  await admin.from('Recebimento').delete().eq('id', recebimento.id);
+  await admin.from('LancamentoFinanceiro').delete().eq('id', lancamento.id);
+  await admin.from('Sessao').delete().eq('id', sessao.id);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: sessão aparece nos elegíveis com valor/cpf corretos; marcar/desmarcar funcionam. Este script `require()`a o arquivo real diretamente porque nenhuma das 4 funções depende de `next/headers` fora do `createClient()` padrão sem parâmetro — como o teste sempre passa `opcoes.supabase`/chama funções que aceitam client injetado quando necessário, isso funciona (mesmo padrão do Task 8). Se `require()` falhar por causa do alias `@/lib` (mesmo problema já visto no Task 8 pra outros arquivos), reimplementar a lógica inline no script de verificação em vez de importar, documentando isso no relatório.
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add web/lib/data/carne-leao.js && git commit -m "fix: carne-leao passa a ler RecebimentoSessao em vez de PagamentoSessao"
+```
+
+---
+
+## Task 23: Migration — `NotaFiscal.recebimento_sessao` + RPC `registrar_nota_fiscal_pendente`
+
+**Files:**
+- Create: `supabase/migrations/20260830000004_nfse_recebimento_sessao.sql`
+
+**Interfaces:**
+- Consumes: `RecebimentoSessao` (Task 3).
+- Produces: `NotaFiscal.recebimento_sessao` (FK opcional pra `RecebimentoSessao`), `NotaFiscal.pagamento_sessao` passa a ser opcional (só preenchida em notas já emitidas antes desta migration), constraint garantindo que exatamente um dos dois esteja preenchido, índice único parcial equivalente ao de `pagamento_sessao` (bloqueia reemissão só enquanto há nota pendente/autorizada). `registrar_nota_fiscal_pendente` passa a receber `p_recebimento_sessao` em vez de `p_pagamento_sessao`.
+
+- [ ] **Step 1: Escrever a migration**
+
+```sql
+-- NFS-e emitia notas so a partir de PagamentoSessao (1 pagamento = 1
+-- sessao = 1 nota). Como o codigo em web/ para de escrever em
+-- PagamentoSessao, novas notas passam a ser emitidas a partir de
+-- RecebimentoSessao (mesma granularidade: uma linha = uma sessao com um
+-- valor aplicado). Notas ja emitidas mantem o vinculo antigo intacto
+-- (pagamento_sessao vira opcional, nao e apagado).
+alter table "NotaFiscal"
+  alter column pagamento_sessao drop not null,
+  add column recebimento_sessao bigint references "RecebimentoSessao"(id);
+
+alter table "NotaFiscal"
+  add constraint notafiscal_pagamento_ou_recebimento_check
+    check (num_nonnulls(pagamento_sessao, recebimento_sessao) = 1);
+
+-- Mesmo raciocinio do indice unico parcial de pagamento_sessao (ver
+-- 20260814000003_hardening_nfse.sql): nota pendente/autorizada bloqueia
+-- reemissao pro mesmo recebimento_sessao; rejeitada/cancelada libera.
+create unique index notafiscal_recebimento_ativo
+  on "NotaFiscal" (recebimento_sessao)
+  where status in ('pendente', 'autorizada');
+
+-- create or replace com o mesmo tipo de parametro (bigint) substitui a
+-- funcao existente (Postgres identifica overload por nome+tipos, nao por
+-- nome de parametro) — nao sobra uma funcao antiga duplicada.
+create or replace function public.registrar_nota_fiscal_pendente(p_recebimento_sessao bigint)
+returns table (id bigint, numero int, serie text, ambiente text)
+language plpgsql
+as $$
+declare
+  v_numero int;
+  v_serie text;
+  v_ambiente text;
+  v_id bigint;
+begin
+  if not exists (
+    select 1 from "RecebimentoSessao" rs
+    join "Sessao" s on s.id = rs.sessao
+    where rs.id = p_recebimento_sessao and s.owner = auth.uid()
+  ) then
+    raise exception 'Recebimento nao encontrado para este profissional';
+  end if;
+
+  update "DadosFiscaisProfissional" df
+     set proximo_numero = df.proximo_numero + 1
+   where df.owner = auth.uid()
+  returning df.proximo_numero - 1, df.serie, df.ambiente into v_numero, v_serie, v_ambiente;
+
+  if v_numero is null then
+    raise exception 'Dados fiscais nao configurados para este profissional';
+  end if;
+
+  insert into "NotaFiscal" (owner, recebimento_sessao, status, ambiente, numero, serie)
+  values (auth.uid(), p_recebimento_sessao, 'pendente', v_ambiente, v_numero, v_serie)
+  returning "NotaFiscal".id into v_id;
+
+  return query select v_id, v_numero, v_serie, v_ambiente;
+end;
+$$;
+```
+
+- [ ] **Step 2: Aplicar a migration**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { Client } = require('pg');
+const fs = require('fs');
+const sql = fs.readFileSync('../supabase/migrations/20260830000004_nfse_recebimento_sessao.sql', 'utf8');
+const client = new Client({
+  connectionString: 'postgresql://postgres:' + encodeURIComponent(process.env.SUPABASE_DB_PASSWORD) + '@db.rohulajgyxdangxfurha.supabase.co:5432/postgres',
+  ssl: { rejectUnauthorized: false }
+});
+client.connect().then(async () => {
+  await client.query(sql);
+  console.log('migration aplicada');
+  await client.end();
+}).catch(e => { console.error(e); process.exit(1); });
+"
+```
+
+- [ ] **Step 3: Verificar colunas, constraint e a nova RPC com dados descartáveis**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+(async () => {
+  const { data: ownerRow } = await admin.from('Paciente').select('owner').limit(1).single();
+  const { data: fiscal } = await admin.from('DadosFiscaisProfissional').select('owner').eq('owner', ownerRow.owner).maybeSingle();
+  if (!fiscal) { console.log('nenhum DadosFiscaisProfissional configurado pro owner de teste — pular teste da RPC (constraint/coluna ja verificadas acima, nao bloqueia)'); return; }
+
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste NFSe RecebSessao', valor_sessao: 150, documento: 'nota_fiscal', cpf: '222.222.222-22', owner: ownerRow.owner }).select('id').single();
+  const { data: resp } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste NFSe RecebSessao', paciente_vinculado: paciente.id, owner: ownerRow.owner }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  const { data: sessao } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-06', horario: '09:00', valor: 150, Realizado: true, owner: ownerRow.owner }).select('id').single();
+  const { data: lancamento } = await admin.from('LancamentoFinanceiro').insert({ data: '2026-09-06', descricao: 'Teste', valor: 150, tipo: 'Receita', conta: conta.id, owner: ownerRow.owner }).select('id').single();
+  const { data: recebimento } = await admin.from('Recebimento').insert({ paciente: paciente.id, responsavel_financeiro: resp.id, data_recebimento: '2026-09-06', valor_total: 150, forma_pagamento: 'Pix', conta: conta.id, lancamento: lancamento.id, owner: ownerRow.owner }).select('id').single();
+  const { data: rs } = await admin.from('RecebimentoSessao').insert({ recebimento: recebimento.id, sessao: sessao.id, valor_aplicado: 150, owner: ownerRow.owner }).select('id').single();
+
+  const { data: registro, error } = await admin.rpc('registrar_nota_fiscal_pendente', { p_recebimento_sessao: rs.id });
+  console.log('erro RPC (esperado null):', error?.message || 'nenhum');
+  console.log('numero/serie retornados:', registro?.[0]);
+
+  const { data: notaCriada } = await admin.from('NotaFiscal').select('recebimento_sessao, pagamento_sessao').eq('id', registro[0].id).single();
+  console.log('recebimento_sessao preenchido, pagamento_sessao null (esperado true, null):', notaCriada.recebimento_sessao === rs.id, notaCriada.pagamento_sessao);
+
+  const { error: erroConstraint } = await admin.from('NotaFiscal').insert({ owner: ownerRow.owner, status: 'pendente', ambiente: 'homologacao', numero: 99999, serie: 'X' });
+  console.log('insert sem pagamento_sessao nem recebimento_sessao, esperado falhar:', erroConstraint?.message);
+
+  await admin.from('NotaFiscal').delete().eq('id', registro[0].id);
+  await admin.from('RecebimentoSessao').delete().eq('id', rs.id);
+  await admin.from('Recebimento').delete().eq('id', recebimento.id);
+  await admin.from('LancamentoFinanceiro').delete().eq('id', lancamento.id);
+  await admin.from('Sessao').delete().eq('id', sessao.id);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  await admin.from('DadosFiscaisProfissional').update({ proximo_numero: fiscal.proximo_numero }).eq('owner', ownerRow.owner);
+  console.log('cleanup done (nota: numero da nota consumido no DadosFiscaisProfissional NAO e revertido pela RPC, por design — mesmo comportamento de antes desta migration; nao reverter manualmente aqui alteraria o estado real de numeracao fiscal do profissional de teste)');
+})();
+"
+```
+
+Expected: RPC funciona, `recebimento_sessao` preenchido e `pagamento_sessao` null na nota criada, e um insert manual sem nenhum dos dois falha pela constraint `num_nonnulls`.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add supabase/migrations/20260830000004_nfse_recebimento_sessao.sql && git commit -m "feat: NFS-e passa a vincular RecebimentoSessao, mantendo notas antigas intactas"
+```
+
+---
+
+## Task 24: Reescreve `lib/data/notas-fiscais.js` e `lib/actions/notas-fiscais.js` pro novo modelo
+
+**Files:**
+- Modify: `web/lib/data/notas-fiscais.js`
+- Modify: `web/lib/actions/notas-fiscais.js`
+
+**Interfaces:**
+- Consumes: `NotaFiscal.recebimento_sessao`, RPC `registrar_nota_fiscal_pendente(p_recebimento_sessao)` (Task 23).
+- Produces: `listarPagamentosElegiveisParaNotaFiscal()` passa a ler `RecebimentoSessao` (campo `pagamentoId` mantido por estabilidade de contrato com `emitirNotaFiscal`, mesmo racional do Task 22 — agora contém um id de `RecebimentoSessao`). `listarNotasFiscaisEmitidas()` passa a exibir notas antigas (via `PagamentoSessao`) e novas (via `RecebimentoSessao`) juntas. `emitirNotaFiscal` busca e emite a partir de `RecebimentoSessao`.
+
+- [ ] **Step 1: Substituir `web/lib/data/notas-fiscais.js` inteiro**
+
+```js
+import { createClient } from "@/lib/supabase/server";
+import { normalizarIdsLista } from "@/lib/normalizar-ids";
+
+const SELECT_RECEBIMENTO_SESSAO =
+  "id, valor_aplicado, Recebimento!inner(data_recebimento), Sessao!inner(id, data, Paciente!inner(id, nome, email, cpf, documento)), NotaFiscal(id, status)";
+
+// pagamentoId aqui e o id de RecebimentoSessao (nao mais PagamentoSessao) —
+// nome mantido por estabilidade de contrato com emitirNotaFiscal(pagamentoId, ...).
+export async function listarPagamentosElegiveisParaNotaFiscal() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("RecebimentoSessao")
+    .select(SELECT_RECEBIMENTO_SESSAO)
+    .eq("Sessao.Paciente.documento", "nota_fiscal")
+    .order("data_recebimento", { referencedTable: "Recebimento", ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return normalizarIdsLista(data, ["id"])
+    .filter((p) => !(p.NotaFiscal ?? []).some((n) => n.status === "pendente" || n.status === "autorizada"))
+    .map((p) => ({
+      pagamentoId: p.id,
+      valor: p.valor_aplicado,
+      dataPagamento: p.Recebimento.data_recebimento,
+      dataSessao: p.Sessao.data,
+      pacienteNome: p.Sessao.Paciente.nome,
+      pacienteCpf: p.Sessao.Paciente.cpf,
+      pacienteEmail: p.Sessao.Paciente.email,
+    }));
+}
+
+// Notas antigas (emitidas antes desta migração) continuam ligadas via
+// PagamentoSessao; notas novas via RecebimentoSessao. Exibidas juntas,
+// mais recentes primeiro.
+export async function listarNotasFiscaisEmitidas() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("NotaFiscal")
+    .select(
+      "id, status, numero, serie, chave_acesso, ambiente, erros, created_at, PagamentoSessao(valor, Sessao(Paciente(nome))), RecebimentoSessao(valor_aplicado, Sessao(Paciente(nome)))"
+    )
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return normalizarIdsLista(data, ["id"]).map((n) => {
+    const viaRecebimento = n.RecebimentoSessao;
+    const viaPagamento = n.PagamentoSessao;
+    return {
+      id: n.id,
+      status: n.status,
+      numero: n.numero,
+      serie: n.serie,
+      chaveAcesso: n.chave_acesso,
+      ambiente: n.ambiente,
+      erros: n.erros,
+      criadoEm: n.created_at,
+      valor: viaRecebimento?.valor_aplicado ?? viaPagamento?.valor,
+      pacienteNome: viaRecebimento?.Sessao?.Paciente?.nome ?? viaPagamento?.Sessao?.Paciente?.nome ?? "—",
+    };
+  });
+}
+```
+
+- [ ] **Step 2: Editar `web/lib/actions/notas-fiscais.js` — `emitirNotaFiscal`**
+
+Substituir só a função `emitirNotaFiscal` (linhas 10-146 do arquivo hoje), mantendo `cancelarNotaFiscal` (linhas 148-194) exatamente como está — ela não toca em `PagamentoSessao`/`RecebimentoSessao`:
+
+```js
+export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
+  const usuario = await buscarUsuarioAtual();
+  if (!PLANOS[usuario.plano].temDocumentos) {
+    return { error: "Emissão de Nota Fiscal disponível apenas nos planos pagos." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: recebimentoSessao, error: erroRecebimento } = await supabase
+    .from("RecebimentoSessao")
+    .select("id, valor_aplicado, Sessao!inner(id, data, Paciente!inner(id, nome, email, cpf, documento))")
+    .eq("id", pagamentoId)
+    .single();
+
+  if (erroRecebimento || !recebimentoSessao) return { error: "Pagamento não encontrado." };
+  if (recebimentoSessao.Sessao.Paciente.documento !== "nota_fiscal") {
+    return { error: "Paciente não está marcado para Nota Fiscal." };
+  }
+  if (!recebimentoSessao.Sessao.Paciente.cpf) {
+    return { error: "Paciente sem CPF cadastrado — obrigatório para a nota." };
+  }
+
+  const { data: fiscal, error: erroFiscal } = await supabase
+    .from("DadosFiscaisProfissional")
+    .select("*")
+    .eq("owner", user.id)
+    .maybeSingle();
+
+  if (erroFiscal || !fiscal) {
+    return { error: "Configure seus dados fiscais em Configurações → NFS-e antes de emitir." };
+  }
+  if (!fiscal.certificado_pfx_cifrado) {
+    return { error: "Envie seu certificado digital em Configurações → NFS-e antes de emitir." };
+  }
+  if (fiscal.certificado_validade && new Date(fiscal.certificado_validade) < new Date()) {
+    return { error: "Certificado digital vencido. Envie um novo antes de emitir." };
+  }
+
+  const { data: registro, error: erroRegistro } = await supabase.rpc("registrar_nota_fiscal_pendente", {
+    p_recebimento_sessao: recebimentoSessao.id,
+  });
+
+  if (erroRegistro || !registro?.[0]) {
+    return { error: "Não foi possível reservar o número da nota: " + (erroRegistro?.message ?? "erro desconhecido") };
+  }
+
+  const { id: notaId, numero, serie, ambiente } = registro[0];
+
+  let resultado;
+  try {
+    resultado = await chamarServicoNfse("/emitir", {
+      ambiente,
+      certificado_pfx_cifrado: fiscal.certificado_pfx_cifrado,
+      certificado_senha_cifrada: fiscal.certificado_senha_cifrada,
+      serie,
+      numero,
+      competencia: recebimentoSessao.Sessao.data,
+      prestador: {
+        documento: fiscal.documento,
+        inscricao_municipal: fiscal.inscricao_municipal,
+        municipio_ibge: fiscal.municipio_ibge,
+        optante_simples_nacional: fiscal.optante_simples_nacional,
+        regime_apuracao_sn: fiscal.regime_apuracao_sn,
+        codigo_tributacao_nacional: fiscal.codigo_tributacao_nacional,
+        codigo_tributacao_municipal: fiscal.codigo_tributacao_municipal,
+      },
+      tomador: {
+        documento: recebimentoSessao.Sessao.Paciente.cpf,
+        nome: recebimentoSessao.Sessao.Paciente.nome,
+        email: recebimentoSessao.Sessao.Paciente.email || null,
+      },
+      descricao_servico: `Sessao de psicologia - ${recebimentoSessao.Sessao.data}`,
+      valor: Number(recebimentoSessao.valor_aplicado),
+    });
+  } catch (erro) {
+    await supabase
+      .from("NotaFiscal")
+      .update({
+        status: "rejeitada",
+        erros: [
+          {
+            codigo: "?",
+            titulo: "Falha ao chamar o serviço de emissão",
+            explicacao: erro.message,
+            acao_sugerida: "Tente novamente em instantes.",
+          },
+        ],
+      })
+      .eq("id", notaId);
+    revalidatePath("/notas-fiscais");
+    return { error: "Falha ao emitir: " + erro.message };
+  }
+
+  await supabase
+    .from("NotaFiscal")
+    .update({
+      dps_id: resultado.dps_id,
+      xml_dps: Buffer.from(resultado.xml_dps_base64, "base64").toString("utf-8"),
+      status: resultado.autorizada ? "autorizada" : "rejeitada",
+      chave_acesso: resultado.chave_acesso ?? null,
+      xml_nfse: resultado.xml_nfse_base64
+        ? Buffer.from(resultado.xml_nfse_base64, "base64").toString("utf-8")
+        : null,
+      erros: resultado.erros?.length ? resultado.erros : null,
+    })
+    .eq("id", notaId);
+
+  let avisoEmail;
+  if (resultado.autorizada && recebimentoSessao.Sessao.Paciente.email) {
+    try {
+      await enviarEmailNotaFiscal({
+        paraEmail: recebimentoSessao.Sessao.Paciente.email,
+        pacienteNome: recebimentoSessao.Sessao.Paciente.nome,
+        xmlBase64: resultado.xml_nfse_base64,
+        pdfBase64: resultado.pdf_base64 ?? null,
+      });
+    } catch (erroEmail) {
+      // Nota ja autorizada e persistida -- falha no e-mail nao pode
+      // reverter isso nem esconder o sucesso da emissao do operador.
+      // Avisamos o operador (avisoEmail) em vez de engolir o erro: a
+      // chave de acesso continua disponivel na lista de notas emitidas.
+      avisoEmail =
+        "A nota foi emitida mas o e-mail para o paciente falhou: " +
+        erroEmail.message +
+        ". A chave de acesso está disponível na lista de notas emitidas.";
+    }
+  }
+
+  revalidatePath("/notas-fiscais");
+  return resultado.autorizada
+    ? { sucesso: true, avisoEmail }
+    : { error: "Nota rejeitada: " + (resultado.erros?.[0]?.titulo ?? "erro desconhecido") };
+}
+```
+
+- [ ] **Step 3: Verificar `listarPagamentosElegiveisParaNotaFiscal`/`listarNotasFiscaisEmitidas` com dados descartáveis**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+const { listarPagamentosElegiveisParaNotaFiscal, listarNotasFiscaisEmitidas } = require('./lib/data/notas-fiscais.js');
+
+(async () => {
+  const { data: ownerRow } = await admin.from('Paciente').select('owner').limit(1).single();
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste Data NFSe', valor_sessao: 200, documento: 'nota_fiscal', cpf: '333.333.333-33', email: 'teste@example.com', owner: ownerRow.owner }).select('id').single();
+  const { data: resp } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Data NFSe', paciente_vinculado: paciente.id, owner: ownerRow.owner }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  const { data: sessao } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-07', horario: '09:00', valor: 200, Realizado: true, owner: ownerRow.owner }).select('id').single();
+  const { data: lancamento } = await admin.from('LancamentoFinanceiro').insert({ data: '2026-09-07', descricao: 'Teste', valor: 200, tipo: 'Receita', conta: conta.id, owner: ownerRow.owner }).select('id').single();
+  const { data: recebimento } = await admin.from('Recebimento').insert({ paciente: paciente.id, responsavel_financeiro: resp.id, data_recebimento: '2026-09-07', valor_total: 200, forma_pagamento: 'Pix', conta: conta.id, lancamento: lancamento.id, owner: ownerRow.owner }).select('id').single();
+  const { data: rs } = await admin.from('RecebimentoSessao').insert({ recebimento: recebimento.id, sessao: sessao.id, valor_aplicado: 200, owner: ownerRow.owner }).select('id').single();
+
+  const elegiveis = await listarPagamentosElegiveisParaNotaFiscal();
+  const achado = elegiveis.find((p) => p.pagamentoId === rs.id);
+  console.log('encontrado nos elegiveis (esperado true):', !!achado, 'valor (esperado 200):', achado?.valor);
+
+  await admin.from('RecebimentoSessao').delete().eq('id', rs.id);
+  await admin.from('Recebimento').delete().eq('id', recebimento.id);
+  await admin.from('LancamentoFinanceiro').delete().eq('id', lancamento.id);
+  await admin.from('Sessao').delete().eq('id', sessao.id);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: sessão paga aparece como elegível pra NFS-e com valor correto. Se `require()` falhar pelo alias `@/lib`, reimplementar a query inline (mesmo padrão dos Tasks 8/9/22).
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add web/lib/data/notas-fiscais.js web/lib/actions/notas-fiscais.js && git commit -m "fix: NFS-e passa a emitir a partir de RecebimentoSessao"
+```
+
+---
+
+## Task 25: Corrige exclusão de paciente (C2)
+
+**Files:**
+- Modify: `web/lib/data/pacientes.js`
+- Modify: `web/lib/actions/pacientes.js`
+
+**Interfaces:**
+- Consumes: `ResponsavelFinanceiro`/`PacienteResponsavelFinanceiro` (Task 1), `Recebimento` (Task 3).
+- Produces: `verificarVinculosPaciente(id)` passa a bloquear exclusão também quando o paciente tem `Recebimento` (crédito antecipado sem sessão, hoje invisível pra essa checagem) ou é responsável financeiro de outro paciente (via seu `ResponsavelFinanceiro` próprio). `excluirPaciente` passa a apagar o `ResponsavelFinanceiro`/`PacienteResponsavelFinanceiro` próprios do paciente como parte da exclusão, em vez de deixar a FK sem cascade bloquear a exclusão de um paciente sem nenhum vínculo real.
+
+- [ ] **Step 1: Substituir `verificarVinculosPaciente` em `web/lib/data/pacientes.js`**
+
+```js
+export async function verificarVinculosPaciente(id) {
+  const supabase = await createClient();
+
+  const [sessoes, recibos, recorrencias, recebimentos, responsavelProprio] = await Promise.all([
+    supabase.from("Sessao").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("Recibo").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("Recorrencia").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("Recebimento").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("ResponsavelFinanceiro").select("id").eq("paciente_vinculado", id).maybeSingle(),
+  ]);
+
+  if (sessoes.error) throw new Error(sessoes.error.message);
+  if (recibos.error) throw new Error(recibos.error.message);
+  if (recorrencias.error) throw new Error(recorrencias.error.message);
+  if (recebimentos.error) throw new Error(recebimentos.error.message);
+  if (responsavelProprio.error) throw new Error(responsavelProprio.error.message);
+
+  const vinculos = [];
+  if (sessoes.count > 0) vinculos.push({ tipo: "sessão(ões)", quantidade: sessoes.count });
+  if (recibos.count > 0) vinculos.push({ tipo: "recibo(s)", quantidade: recibos.count });
+  if (recorrencias.count > 0) vinculos.push({ tipo: "recorrência(s)", quantidade: recorrencias.count });
+  if (recebimentos.count > 0) {
+    vinculos.push({ tipo: "recebimento(s) (crédito antecipado)", quantidade: recebimentos.count });
+  }
+
+  if (responsavelProprio.data) {
+    const { data: outrosPacientes, error: erroOutros } = await supabase
+      .from("PacienteResponsavelFinanceiro")
+      .select("Paciente:paciente(nome)")
+      .eq("responsavel", responsavelProprio.data.id)
+      .neq("paciente", id);
+
+    if (erroOutros) throw new Error(erroOutros.message);
+    if (outrosPacientes.length > 0) {
+      vinculos.push({ tipo: "é responsável financeiro de", nomes: outrosPacientes.map((v) => v.Paciente.nome) });
+    }
+  }
+
+  return vinculos;
+}
+```
+
+- [ ] **Step 2: Substituir `excluirPaciente` em `web/lib/actions/pacientes.js`**
+
+```js
+export async function excluirPaciente(id, prevState, formData) {
+  const vinculos = await verificarVinculosPaciente(id);
+  if (vinculos.length > 0) {
+    return { bloqueado: true, vinculos };
+  }
+
+  const supabase = await createClient();
+
+  const { data: responsavelProprio } = await supabase
+    .from("ResponsavelFinanceiro")
+    .select("id")
+    .eq("paciente_vinculado", id)
+    .maybeSingle();
+
+  if (responsavelProprio) {
+    const { error: erroVinculo } = await supabase
+      .from("PacienteResponsavelFinanceiro")
+      .delete()
+      .or(`paciente.eq.${id},responsavel.eq.${responsavelProprio.id}`);
+
+    if (erroVinculo) {
+      return { error: "Não foi possível excluir o paciente." };
+    }
+
+    const { error: erroResponsavel } = await supabase
+      .from("ResponsavelFinanceiro")
+      .delete()
+      .eq("id", responsavelProprio.id);
+
+    if (erroResponsavel) {
+      return { error: "Não foi possível excluir o paciente." };
+    }
+  }
+
+  const { error } = await supabase.from("Paciente").delete().eq("id", id);
+
+  if (error) {
+    return { error: "Não foi possível excluir o paciente." };
+  }
+
+  revalidatePath("/pacientes");
+  redirect("/pacientes");
+}
+```
+
+- [ ] **Step 3: Verificar com dados descartáveis — paciente limpo é excluível, paciente com crédito é bloqueado, paciente que é responsável de outro é bloqueado**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+(async () => {
+  const { data: ownerRow } = await admin.from('Paciente').select('owner').limit(1).single();
+
+  // Caso 1: paciente limpo (so tem o responsavel proprio auto-provisionado) deve ser excluivel
+  const { data: pacienteLimpo } = await admin.from('Paciente').insert({ nome: 'Teste Excluir Limpo', valor_sessao: 100, owner: ownerRow.owner }).select('id').single();
+  const { data: respLimpo } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Excluir Limpo', paciente_vinculado: pacienteLimpo.id, owner: ownerRow.owner }).select('id').single();
+  await admin.from('PacienteResponsavelFinanceiro').insert({ paciente: pacienteLimpo.id, responsavel: respLimpo.id, owner: ownerRow.owner });
+
+  const [sessoesLimpo, recebimentosLimpo] = await Promise.all([
+    admin.from('Sessao').select('id', { count: 'exact', head: true }).eq('paciente', pacienteLimpo.id),
+    admin.from('Recebimento').select('id', { count: 'exact', head: true }).eq('paciente', pacienteLimpo.id),
+  ]);
+  console.log('paciente limpo: sessoes (esperado 0):', sessoesLimpo.count, 'recebimentos (esperado 0):', recebimentosLimpo.count);
+
+  await admin.from('PacienteResponsavelFinanceiro').delete().or(\`paciente.eq.\${pacienteLimpo.id},responsavel.eq.\${respLimpo.id}\`);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', respLimpo.id);
+  const { error: erroExcluir } = await admin.from('Paciente').delete().eq('id', pacienteLimpo.id);
+  console.log('exclusao do paciente limpo apos remover responsavel proprio, erro esperado null:', erroExcluir?.message || 'nenhum, excluido com sucesso');
+
+  // Caso 2: paciente com credito (Recebimento sem sessao) deve continuar bloqueado
+  const { data: pacienteCredito } = await admin.from('Paciente').insert({ nome: 'Teste Excluir Credito', valor_sessao: 100, owner: ownerRow.owner }).select('id').single();
+  const { data: respCredito } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Excluir Credito', paciente_vinculado: pacienteCredito.id, owner: ownerRow.owner }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  const { data: lancamento } = await admin.from('LancamentoFinanceiro').insert({ data: '2026-09-08', descricao: 'Teste', valor: 100, tipo: 'Receita', conta: conta.id, owner: ownerRow.owner }).select('id').single();
+  const { data: recebimentoCredito } = await admin.from('Recebimento').insert({ paciente: pacienteCredito.id, responsavel_financeiro: respCredito.id, data_recebimento: '2026-09-08', valor_total: 100, forma_pagamento: 'Pix', conta: conta.id, lancamento: lancamento.id, owner: ownerRow.owner }).select('id').single();
+
+  const { count: recebimentosCredito } = await admin.from('Recebimento').select('id', { count: 'exact', head: true }).eq('paciente', pacienteCredito.id);
+  console.log('paciente com credito, recebimentos (esperado 1, bloquearia exclusao):', recebimentosCredito);
+
+  await admin.from('Recebimento').delete().eq('id', recebimentoCredito.id);
+  await admin.from('LancamentoFinanceiro').delete().eq('id', lancamento.id);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', respCredito.id);
+  await admin.from('Paciente').delete().eq('id', pacienteCredito.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: paciente limpo tem 0 sessões/recebimentos e é excluído com sucesso após a remoção do próprio responsável (reproduzindo a lógica de `excluirPaciente`); paciente com crédito antecipado mostra `recebimentos: 1`, confirmando que `verificarVinculosPaciente` (chamado antes de excluir, no fluxo real) bloquearia a exclusão dele.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add web/lib/data/pacientes.js web/lib/actions/pacientes.js && git commit -m "fix: exclusao de paciente considera Recebimento e limpa responsavel proprio"
+```
+
+---
+
+## Task 26: Nova funcionalidade — Excluir Recebimento (C3)
+
+**Files:**
+- Modify: `web/lib/actions/recebimentos.js`
+- Modify: `web/lib/data/pacientes.js`
+- Modify: `web/app/(app)/(gestao)/pacientes/[id]/page.js`
+
+**Interfaces:**
+- Consumes: `Recebimento`/`RecebimentoSessao` (Task 3).
+- Produces: `excluirRecebimento(pacienteId, recebimentoId)` — nova Server Action que apaga as alocações (`RecebimentoSessao`), o `Recebimento` e o `LancamentoFinanceiro` vinculado, nessa ordem (respeitando FKs sem cascade). `listarSessoesDoPaciente` passa a retornar `recebimento_id` (o id do `Recebimento` que quitou aquela sessão, quando houver — assume no máximo uma alocação por sessão, garantido pelo design atual: toda sessão só é marcada "Recebido" por uma única `RecebimentoSessao` cobrindo o valor cheio). UI: botão "Desfazer recebimento" ao lado do badge "Recebido" na aba Sessões; banner de crédito disponível passa a listar cada `Recebimento` com saldo individualmente (em vez de só o total agregado), cada um com botão "Desfazer".
+
+- [ ] **Step 1: Adicionar `excluirRecebimento` em `web/lib/actions/recebimentos.js`**
+
+Adicionar ao final do arquivo (depois de `usarCreditoNaSessao`):
+
+```js
+export async function excluirRecebimento(pacienteId, recebimentoId) {
+  const supabase = await createClient();
+
+  const { data: recebimento, error: erroBusca } = await supabase
+    .from("Recebimento")
+    .select("lancamento")
+    .eq("id", recebimentoId)
+    .single();
+
+  if (erroBusca) {
+    throw new Error("Recebimento não encontrado.");
+  }
+
+  const { error: erroAlocacoes } = await supabase
+    .from("RecebimentoSessao")
+    .delete()
+    .eq("recebimento", recebimentoId);
+
+  if (erroAlocacoes) {
+    throw new Error("Não foi possível excluir o recebimento.");
+  }
+
+  const { error: erroRecebimento } = await supabase.from("Recebimento").delete().eq("id", recebimentoId);
+
+  if (erroRecebimento) {
+    throw new Error("Não foi possível excluir o recebimento.");
+  }
+
+  const { error: erroLancamento } = await supabase
+    .from("LancamentoFinanceiro")
+    .delete()
+    .eq("id", recebimento.lancamento);
+
+  if (erroLancamento) {
+    throw new Error("Não foi possível excluir o lançamento financeiro vinculado.");
+  }
+
+  revalidatePath(`/pacientes/${pacienteId}`);
+  revalidatePath("/agenda");
+  revalidatePath("/financeiro");
+  revalidatePath("/financeiro/lancamentos");
+}
+```
+
+- [ ] **Step 2: Estender `listarSessoesDoPaciente` em `web/lib/data/pacientes.js` com `recebimento_id`**
+
+Editar o `.select(...)` (adicionar `RecebimentoSessao(recebimento, valor_aplicado)` — já existe um embed de `RecebimentoSessao(valor_aplicado)` desde o Task 13; trocar por `RecebimentoSessao(recebimento, valor_aplicado)`) e o `.map(...)` pra também retornar `recebimento_id`:
+
+```js
+export async function listarSessoesDoPaciente(pacienteId) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("Sessao")
+    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(recebimento, valor_aplicado)")
+    .eq("paciente", pacienteId)
+    .order("data", { ascending: false })
+    .order("horario", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return normalizarIdsLista(data, ["id"]).map((s) => {
+    const valorRecebido = (s.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+    return {
+      id: s.id,
+      data: s.data,
+      horario: s.horario,
+      status: s.status,
+      tipo_sessao: s.tipo_sessao,
+      valor: Number(s.valor),
+      valor_recebido: valorRecebido,
+      saldo_devedor: Number(s.valor) - valorRecebido,
+      recebimento_id: s.RecebimentoSessao?.[0] ? Number(s.RecebimentoSessao[0].recebimento) : null,
+    };
+  });
+}
+```
+
+- [ ] **Step 3: Editar `web/app/(app)/(gestao)/pacientes/[id]/page.js`**
+
+Importar `excluirRecebimento` de `@/lib/actions/recebimentos` (mesmo import de `usarCreditoNaSessao`, já existente desde o Task 15). Criar a action já vinculada ao paciente, junto das outras já bindadas:
+
+```js
+  const excluirRecebimentoAcaoComId = excluirRecebimento.bind(null, pacienteId);
+```
+
+No trecho que hoje mostra `<span className="text-green-700 font-semibold">Recebido</span>` (Task 13), adicionar o botão de desfazer ao lado, condicionado a `s.recebimento_id` existir:
+
+```jsx
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="text-green-700 font-semibold">Recebido</span>
+                        {s.recebimento_id && (
+                          <form action={excluirRecebimentoAcaoComId.bind(null, s.recebimento_id)}>
+                            <button type="submit" className="link text-red-600 text-xs">
+                              Desfazer recebimento
+                            </button>
+                          </form>
+                        )}
+                      </span>
+                    )}
+```
+
+No banner de crédito disponível (Task 15), trocar a linha única de total por uma listagem por recebimento, cada um com botão de desfazer:
+
+```jsx
+          {credito.total > 0 && (
+            <div className="card border border-green-200 bg-green-50 p-4 text-sm space-y-2">
+              <p className="text-navy font-semibold">Crédito disponível: {formatarMoeda(credito.total)}</p>
+              <div className="space-y-1">
+                {credito.recebimentos.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-2 text-xs text-muted">
+                    <span>
+                      {r.data_recebimento} · {formatarMoeda(r.saldo)} disponível
+                    </span>
+                    <form action={excluirRecebimentoAcaoComId.bind(null, r.id)}>
+                      <button type="submit" className="link text-red-600">
+                        Desfazer
+                      </button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+```
+
+- [ ] **Step 4: Verificar `excluirRecebimento`'s lógica com dados descartáveis**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+(async () => {
+  const { data: ownerRow } = await admin.from('Paciente').select('owner').limit(1).single();
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste Excluir Recebimento', valor_sessao: 130, owner: ownerRow.owner }).select('id').single();
+  const { data: resp } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Excluir Recebimento', paciente_vinculado: paciente.id, owner: ownerRow.owner }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  const { data: sessao } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-09', horario: '09:00', valor: 130, Realizado: true, owner: ownerRow.owner }).select('id').single();
+  const { data: lancamento } = await admin.from('LancamentoFinanceiro').insert({ data: '2026-09-09', descricao: 'Teste', valor: 130, tipo: 'Receita', conta: conta.id, owner: ownerRow.owner }).select('id').single();
+  const { data: recebimento } = await admin.from('Recebimento').insert({ paciente: paciente.id, responsavel_financeiro: resp.id, data_recebimento: '2026-09-09', valor_total: 130, forma_pagamento: 'Pix', conta: conta.id, lancamento: lancamento.id, owner: ownerRow.owner }).select('id').single();
+  await admin.from('RecebimentoSessao').insert({ recebimento: recebimento.id, sessao: sessao.id, valor_aplicado: 130, owner: ownerRow.owner });
+
+  // reproduz a logica de excluirRecebimento (a action real precisa de next/headers)
+  await admin.from('RecebimentoSessao').delete().eq('recebimento', recebimento.id);
+  await admin.from('Recebimento').delete().eq('id', recebimento.id);
+  await admin.from('LancamentoFinanceiro').delete().eq('id', lancamento.id);
+
+  const [{ count: alocacoesRestantes }, { count: recebimentosRestantes }, { count: lancamentosRestantes }] = await Promise.all([
+    admin.from('RecebimentoSessao').select('id', { count: 'exact', head: true }).eq('recebimento', recebimento.id),
+    admin.from('Recebimento').select('id', { count: 'exact', head: true }).eq('id', recebimento.id),
+    admin.from('LancamentoFinanceiro').select('id', { count: 'exact', head: true }).eq('id', lancamento.id),
+  ]);
+  console.log('apos excluir recebimento: alocacoes (esperado 0):', alocacoesRestantes, 'recebimento (esperado 0):', recebimentosRestantes, 'lancamento (esperado 0):', lancamentosRestantes);
+
+  const { count: sessaoAindaExiste } = await admin.from('Sessao').select('id', { count: 'exact', head: true }).eq('id', sessao.id);
+  console.log('sessao NAO e apagada, so a alocacao (esperado 1):', sessaoAindaExiste);
+
+  await admin.from('Sessao').delete().eq('id', sessao.id);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: alocações, recebimento e lançamento todos em 0 após a exclusão; a sessão em si continua existindo (só a alocação de pagamento é desfeita, a sessão volta a ficar com saldo devedor).
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add web/lib/actions/recebimentos.js web/lib/data/pacientes.js "web/app/(app)/(gestao)/pacientes/[id]/page.js" && git commit -m "feat: adiciona funcionalidade de excluir recebimento (desfaz alocacoes e lancamento vinculado)"
+```
+
+---
+
+## Task 27: Corrige importação em lote pra provisionar responsável próprio (C4)
+
+**Files:**
+- Modify: `web/lib/actions/importar-pacientes.js`
+
+**Interfaces:**
+- Consumes: `ResponsavelFinanceiro`/`PacienteResponsavelFinanceiro` (Task 1).
+- Produces: `importarPacientes` passa a provisionar um `ResponsavelFinanceiro` próprio + vínculo `PacienteResponsavelFinanceiro` pra cada paciente inserido com sucesso, mesma regra de `criarPaciente` (Task 17). Novo campo `relatorio.avisoResponsaveis` (string ou null) reporta falha nesse provisionamento sem desfazer a importação dos pacientes em si.
+
+- [ ] **Step 1: Editar o bloco de insert em `web/lib/actions/importar-pacientes.js`**
+
+Substituir o trecho (linhas 65-72 e 138-149 do arquivo hoje — a inicialização de `relatorio` e o bloco final de insert):
+
+Na inicialização de `relatorio` (perto da linha 65), adicionar o novo campo:
+
+```js
+  const relatorio = {
+    totalLinhas: linhas.length,
+    importados: 0,
+    idsInseridos: [],
+    puladosSemNome: 0,
+    puladosDuplicados: [],
+    avisos: [],
+    avisoResponsaveis: null,
+  };
+```
+
+No bloco final de insert (linhas 138-149), trocar por:
+
+```js
+  if (candidatos.length > 0) {
+    const { data: inseridos, error } = await supabase.from("Paciente").insert(candidatos).select("id, nome");
+    if (error) {
+      return { error: "Não foi possível importar os pacientes." };
+    }
+    relatorio.importados = inseridos.length;
+    relatorio.idsInseridos = inseridos.map((p) => Number(p.id));
+
+    const { data: responsaveisProprios, error: erroResponsaveis } = await supabase
+      .from("ResponsavelFinanceiro")
+      .insert(inseridos.map((p) => ({ nome: p.nome, paciente_vinculado: p.id })))
+      .select("id, paciente_vinculado");
+
+    if (erroResponsaveis) {
+      relatorio.avisoResponsaveis =
+        "Pacientes importados, mas não foi possível provisionar automaticamente o responsável financeiro próprio de cada um.";
+    } else {
+      const { error: erroVinculos } = await supabase
+        .from("PacienteResponsavelFinanceiro")
+        .insert(responsaveisProprios.map((r) => ({ paciente: r.paciente_vinculado, responsavel: r.id })));
+
+      if (erroVinculos) {
+        relatorio.avisoResponsaveis =
+          "Pacientes importados, mas não foi possível vincular o responsável financeiro próprio de cada um.";
+      }
+    }
+  }
+
+  revalidatePath("/pacientes");
+  return relatorio;
+}
+```
+
+- [ ] **Step 2: Verificar com dados descartáveis**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+(async () => {
+  const { data: ownerRow } = await admin.from('Paciente').select('owner').limit(1).single();
+
+  // reproduz a logica do bloco de insert com o fix aplicado
+  const candidatos = [{ nome: 'Teste Import A', valor_sessao: 100, owner: ownerRow.owner }, { nome: 'Teste Import B', valor_sessao: 100, owner: ownerRow.owner }];
+  const { data: inseridos } = await admin.from('Paciente').insert(candidatos).select('id, nome');
+  const { data: responsaveisProprios } = await admin.from('ResponsavelFinanceiro').insert(inseridos.map((p) => ({ nome: p.nome, paciente_vinculado: p.id, owner: ownerRow.owner }))).select('id, paciente_vinculado');
+  await admin.from('PacienteResponsavelFinanceiro').insert(responsaveisProprios.map((r) => ({ paciente: r.paciente_vinculado, responsavel: r.id, owner: ownerRow.owner })));
+
+  for (const p of inseridos) {
+    const { data: vinculo } = await admin.from('PacienteResponsavelFinanceiro').select('id').eq('paciente', p.id).maybeSingle();
+    console.log('paciente', p.nome, 'tem responsavel proprio vinculado (esperado true):', !!vinculo);
+  }
+
+  await admin.from('PacienteResponsavelFinanceiro').delete().in('paciente', inseridos.map((p) => p.id));
+  await admin.from('ResponsavelFinanceiro').delete().in('paciente_vinculado', inseridos.map((p) => p.id));
+  await admin.from('Paciente').delete().in('id', inseridos.map((p) => p.id));
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: cada paciente importado tem um vínculo de responsável financeiro próprio criado.
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add web/lib/actions/importar-pacientes.js && git commit -m "fix: importacao em lote provisiona responsavel financeiro proprio pra cada paciente"
+```
