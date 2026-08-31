@@ -9,7 +9,7 @@ import ExcluirPacienteBotao from "@/components/ExcluirPacienteBotao";
 import GerarLinkCadastroBotao from "@/components/GerarLinkCadastroBotao";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { calcularCreditoDisponivel } from "@/lib/data/recebimentos";
-import { usarCreditoNaSessao } from "@/lib/actions/recebimentos";
+import { usarCreditoNaSessao, excluirRecebimento } from "@/lib/actions/recebimentos";
 import UsarCreditoBotao from "@/components/UsarCreditoBotao";
 import { listarResponsaveisDoPaciente, listarResponsaveisParaVincular } from "@/lib/data/responsaveis-financeiros";
 import { vincularResponsavelExistente, criarEVincularResponsavel, desvincularResponsavel } from "@/lib/actions/responsaveis-financeiros";
@@ -43,6 +43,7 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
   const vincularAcaoComId = vincularResponsavelExistente.bind(null, pacienteId);
   const criarEVincularAcaoComId = criarEVincularResponsavel.bind(null, pacienteId);
   const desvincularAcaoComId = desvincularResponsavel.bind(null, pacienteId);
+  const excluirRecebimentoAcaoComId = excluirRecebimento.bind(null, pacienteId);
 
   return (
     <div className="space-y-6">
@@ -220,8 +221,22 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
       {aba === "sessoes" && (
         <div className="space-y-4">
           {credito.total > 0 && (
-            <div className="card border border-green-200 bg-green-50 p-4 text-sm">
+            <div className="card border border-green-200 bg-green-50 p-4 text-sm space-y-2">
               <p className="text-navy font-semibold">Crédito disponível: {formatarMoeda(credito.total)}</p>
+              <div className="space-y-1">
+                {credito.recebimentos.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-2 text-xs text-muted">
+                    <span>
+                      {r.data_recebimento} · {formatarMoeda(r.saldo)} disponível
+                    </span>
+                    <form action={excluirRecebimentoAcaoComId.bind(null, r.id)}>
+                      <button type="submit" className="link text-red-600">
+                        Desfazer
+                      </button>
+                    </form>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {sessoes.length === 0 ? (
@@ -263,7 +278,16 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                         </>
                       )
                     ) : (
-                      <span className="text-green-700 font-semibold">Recebido</span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-green-700 font-semibold">Recebido</span>
+                        {s.recebimento_id && (
+                          <form action={excluirRecebimentoAcaoComId.bind(null, s.recebimento_id)}>
+                            <button type="submit" className="link text-red-600 text-xs">
+                              Desfazer recebimento
+                            </button>
+                          </form>
+                        )}
+                      </span>
                     )}
                   </div>
                 </div>

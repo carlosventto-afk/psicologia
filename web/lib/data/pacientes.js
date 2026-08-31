@@ -139,7 +139,7 @@ export async function listarSessoesDoPaciente(pacienteId) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Sessao")
-    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(valor_aplicado)")
+    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(recebimento, valor_aplicado)")
     .eq("paciente", pacienteId)
     .order("data", { ascending: false })
     .order("horario", { ascending: false });
@@ -157,6 +157,7 @@ export async function listarSessoesDoPaciente(pacienteId) {
       valor: Number(s.valor),
       valor_recebido: valorRecebido,
       saldo_devedor: Number(s.valor) - valorRecebido,
+      recebimento_id: s.RecebimentoSessao?.[0] ? Number(s.RecebimentoSessao[0].recebimento) : null,
     };
   });
 }

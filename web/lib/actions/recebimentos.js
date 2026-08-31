@@ -123,3 +123,46 @@ export async function usarCreditoNaSessao(pacienteId, sessaoId, recebimentoId) {
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/agenda");
 }
+
+export async function excluirRecebimento(pacienteId, recebimentoId) {
+  const supabase = await createClient();
+
+  const { data: recebimento, error: erroBusca } = await supabase
+    .from("Recebimento")
+    .select("lancamento")
+    .eq("id", recebimentoId)
+    .single();
+
+  if (erroBusca) {
+    throw new Error("Recebimento não encontrado.");
+  }
+
+  const { error: erroAlocacoes } = await supabase
+    .from("RecebimentoSessao")
+    .delete()
+    .eq("recebimento", recebimentoId);
+
+  if (erroAlocacoes) {
+    throw new Error("Não foi possível excluir o recebimento.");
+  }
+
+  const { error: erroRecebimento } = await supabase.from("Recebimento").delete().eq("id", recebimentoId);
+
+  if (erroRecebimento) {
+    throw new Error("Não foi possível excluir o recebimento.");
+  }
+
+  const { error: erroLancamento } = await supabase
+    .from("LancamentoFinanceiro")
+    .delete()
+    .eq("id", recebimento.lancamento);
+
+  if (erroLancamento) {
+    throw new Error("Não foi possível excluir o lançamento financeiro vinculado.");
+  }
+
+  revalidatePath(`/pacientes/${pacienteId}`);
+  revalidatePath("/agenda");
+  revalidatePath("/financeiro");
+  revalidatePath("/financeiro/lancamentos");
+}
