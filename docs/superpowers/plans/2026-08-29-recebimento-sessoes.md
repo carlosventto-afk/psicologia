@@ -4844,3 +4844,595 @@ Expected: `agent_listar_debitos_paciente` exclui a sessão paga e inclui a não 
 ```bash
 cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add supabase/migrations/20260830000005_fix_agent_debitos_status_pagamento.sql && git commit -m "fix: corrige duas RPCs restantes do agente de WhatsApp pro novo modelo de recebimento"
 ```
+
+---
+
+# Adendo 2 (2026-08-30, pós-segunda revisão final)
+
+A segunda revisão final (depois das Tasks 20-28) encontrou 2 problemas Críticos novos introduzidos/expostos pela própria onda de correção, e confirmou que I1/I2 (cobrança do valor cheio em vez do saldo devedor) e I3 (responsável "próprio" duplicado) nunca tinham sido de fato resolvidos — só C1 e I4 tinham sido expandidos antes. Decisão do usuário: migrar totalmente as RPCs de escrita do agente, corrigir I1/I2, e travar I3. As Tasks 29-32 abaixo cobrem isso, mais uma correção de segurança (confirmação antes de excluir um recebimento) que a própria Task 26 introduziu como risco.
+
+---
+
+## Task 29: Migration — migra as RPCs de escrita do agente de WhatsApp (`agent_registrar_pagamento_sessao`, `agent_excluir_pagamento`) pro novo modelo
+
+**Files:**
+- Create: `supabase/migrations/20260830000006_agent_registrar_excluir_pagamento_recebimento.sql`
+
+**Interfaces:**
+- Consumes: `Recebimento`/`RecebimentoSessao` (Task 3), `ResponsavelFinanceiro` (Task 1).
+- Produces: `agent_registrar_pagamento_sessao` passa a criar `Recebimento`/`RecebimentoSessao` (usando o responsável "próprio" do paciente da sessão) em vez de `PagamentoSessao`, e a cobrar sempre o saldo devedor real da sessão (não o `p_valor` recebido — mesma regra "sem pagamento parcial" aplicada em todo o resto do app). `agent_excluir_pagamento` passa a receber um id de `Recebimento` (não mais de `PagamentoSessao`) e desfazer a alocação completa (mesma lógica de `excluirRecebimento`, Task 26, em SQL). Achado pela segunda revisão final — essas duas RPCs continuavam escrevendo/lendo `PagamentoSessao` mesmo depois das Tasks 20/28 corrigirem as três RPCs de leitura; o agente registrando um pagamento hoje deixaria a sessão devedora pra sempre no modelo novo, e sumiria do Carnê-Leão/NFS-e (Tasks 22/24).
+
+- [ ] **Step 1: Escrever a migration**
+
+```sql
+-- agent_registrar_pagamento_sessao e agent_excluir_pagamento ainda
+-- escreviam/liam PagamentoSessao, mesmo depois das RPCs de leitura
+-- (Tasks 20/28) ja terem migrado pro modelo novo. Um pagamento
+-- registrado pelo agente ficaria invisivel pro resto do sistema
+-- (sessao continuaria devedora, sumiria do Carne-Leao/NFS-e).
+--
+-- registrar: cobra sempre o saldo devedor real da sessao (Sessao.valor
+-- menos o que ja foi aplicado via RecebimentoSessao), ignorando p_valor
+-- pro calculo — mesma regra "sem pagamento parcial" do resto do app.
+-- Mantido como parametro por estabilidade de assinatura da ferramenta do
+-- agente. Usa o ResponsavelFinanceiro "proprio" do paciente da sessao
+-- como responsavel (todo paciente tem um, garantido desde o Task 17/27).
+-- O retorno mantem a chave "pagamento_id" (agora contendo o id do
+-- Recebimento) pelo mesmo motivo de estabilidade de contrato usado nas
+-- Tasks 22/24 pro campo pagamentoId em carne-leao.js/notas-fiscais.js.
+CREATE OR REPLACE FUNCTION public.agent_registrar_pagamento_sessao(p_whatsapp_number text, p_sessao_id bigint, p_valor numeric, p_forma_pagamento text, p_conta_id bigint, p_consultorio_id bigint DEFAULT NULL::bigint)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_owner uuid;
+  v_paciente_id bigint;
+  v_valor_sessao numeric;
+  v_saldo_devedor numeric;
+  v_responsavel_id bigint;
+  v_lancamento_id bigint;
+  v_recebimento_id bigint;
+begin
+  v_owner := public._agent_get_owner_uuid(p_whatsapp_number);
+
+  select s.paciente, s.valor into v_paciente_id, v_valor_sessao
+  from "Sessao" s
+  where s.id = p_sessao_id and s.owner = v_owner;
+
+  if v_paciente_id is null then
+    raise exception 'SESSAO_NAO_ENCONTRADA' using errcode = 'P0001';
+  end if;
+
+  select v_valor_sessao - coalesce(sum(rs.valor_aplicado), 0) into v_saldo_devedor
+  from "RecebimentoSessao" rs
+  where rs.sessao = p_sessao_id;
+
+  if v_saldo_devedor is null or v_saldo_devedor <= 0 then
+    raise exception 'SESSAO_JA_QUITADA' using errcode = 'P0001';
+  end if;
+
+  select id into v_responsavel_id
+  from "ResponsavelFinanceiro"
+  where paciente_vinculado = v_paciente_id;
+
+  if v_responsavel_id is null then
+    raise exception 'RESPONSAVEL_FINANCEIRO_NAO_ENCONTRADO' using errcode = 'P0001';
+  end if;
+
+  insert into "LancamentoFinanceiro" (data, descricao, valor, tipo, conta, sessao, owner)
+  values (current_date, 'Recebimento de sessão', v_saldo_devedor, 'receita', p_conta_id, null, v_owner)
+  returning id into v_lancamento_id;
+
+  insert into "Recebimento" (paciente, responsavel_financeiro, data_recebimento, valor_total, forma_pagamento, conta, lancamento, owner)
+  values (v_paciente_id, v_responsavel_id, current_date, v_saldo_devedor, p_forma_pagamento, p_conta_id, v_lancamento_id, v_owner)
+  returning id into v_recebimento_id;
+
+  insert into "RecebimentoSessao" (recebimento, sessao, valor_aplicado, owner)
+  values (v_recebimento_id, p_sessao_id, v_saldo_devedor, v_owner);
+
+  update "Sessao"
+  set status = 'realizada', "Realizado" = true
+  where id = p_sessao_id;
+
+  return jsonb_build_object('pagamento_id', v_recebimento_id, 'lancamento_id', v_lancamento_id);
+end;
+$function$;
+
+-- excluir: p_pagamento_id agora e um id de Recebimento (o que a funcao
+-- acima retorna em "pagamento_id"). Desfaz na mesma ordem de
+-- excluirRecebimento (Task 26): alocacoes -> cabecalho -> lancamento.
+CREATE OR REPLACE FUNCTION public.agent_excluir_pagamento(p_whatsapp_number text, p_pagamento_id bigint, p_consultorio_id bigint DEFAULT NULL::bigint)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_owner uuid;
+  v_recebimento_id bigint;
+  v_lancamento_id bigint;
+begin
+  v_owner := public._agent_get_owner_uuid(p_whatsapp_number);
+
+  select r.id, r.lancamento into v_recebimento_id, v_lancamento_id
+  from "Recebimento" r
+  where r.id = p_pagamento_id and r.owner = v_owner;
+
+  if v_recebimento_id is null then
+    raise exception 'PAGAMENTO_NAO_ENCONTRADO' using errcode = 'P0001';
+  end if;
+
+  delete from "RecebimentoSessao" where recebimento = v_recebimento_id;
+  delete from "Recebimento" where id = v_recebimento_id;
+
+  if v_lancamento_id is not null then
+    delete from "LancamentoFinanceiro" where id = v_lancamento_id;
+  end if;
+
+  return true;
+exception
+  when foreign_key_violation then
+    raise exception 'PAGAMENTO_TEM_NOTA_FISCAL' using errcode = 'P0001';
+end;
+$function$;
+```
+
+- [ ] **Step 2: Aplicar a migration**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { Client } = require('pg');
+const fs = require('fs');
+const sql = fs.readFileSync('../supabase/migrations/20260830000006_agent_registrar_excluir_pagamento_recebimento.sql', 'utf8');
+const client = new Client({
+  connectionString: 'postgresql://postgres:' + encodeURIComponent(process.env.SUPABASE_DB_PASSWORD) + '@db.rohulajgyxdangxfurha.supabase.co:5432/postgres',
+  ssl: { rejectUnauthorized: false }
+});
+client.connect().then(async () => {
+  await client.query(sql);
+  console.log('migration aplicada');
+  await client.end();
+}).catch(e => { console.error(e); process.exit(1); });
+"
+```
+
+Nota: se `CREATE OR REPLACE FUNCTION` falhar com erro `42P13` (não deveria — nenhum parâmetro está sendo renomeado nas duas funções, só os corpos mudam), usar `drop function if exists <assinatura exata>; create function ...` no lugar, mesmo padrão do Task 23.
+
+- [ ] **Step 3: Verificar com dados descartáveis — registrar via RPC cria Recebimento/RecebimentoSessao (não PagamentoSessao), cobra o saldo devedor real, e excluir via RPC desfaz tudo**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+(async () => {
+  const { data: usuario } = await admin.from('Usuarios').select('id_user, whatsapp_number').not('whatsapp_number', 'is', null).limit(1).maybeSingle();
+  if (!usuario) { console.log('nenhum usuario com whatsapp_number cadastrado — pular teste de RPC, nao bloqueia'); return; }
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste RPC Registrar Pagamento', valor_sessao: 160, owner: usuario.id_user }).select('id').single();
+  const { data: resp } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste RPC Registrar Pagamento', paciente_vinculado: paciente.id, owner: usuario.id_user }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  const { data: sessao } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-20', horario: '09:00', valor: 160, Realizado: false, owner: usuario.id_user }).select('id').single();
+
+  const { data: registro, error: erroRegistrar } = await admin.rpc('agent_registrar_pagamento_sessao', {
+    p_whatsapp_number: usuario.whatsapp_number, p_sessao_id: sessao.id, p_valor: 160, p_forma_pagamento: 'Pix', p_conta_id: conta.id,
+  });
+  console.log('erro registrar (esperado null):', erroRegistrar?.message || 'nenhum');
+
+  const { count: pagamentoSessaoCriado } = await admin.from('PagamentoSessao').select('id', { count: 'exact', head: true }).eq('sessao', sessao.id);
+  console.log('nenhuma PagamentoSessao criada (esperado 0):', pagamentoSessaoCriado);
+
+  const { data: recebimentoCriado } = await admin.from('Recebimento').select('id, valor_total, responsavel_financeiro').eq('id', registro.pagamento_id).single();
+  console.log('Recebimento criado com valor_total=160 e responsavel correto (esperado true, true):', Number(recebimentoCriado.valor_total) === 160, recebimentoCriado.responsavel_financeiro === resp.id);
+
+  const { data: sessaoAtualizada } = await admin.from('Sessao').select('Realizado').eq('id', sessao.id).single();
+  console.log('sessao marcada como realizada (esperado true):', sessaoAtualizada.Realizado);
+
+  const { data: excluiu, error: erroExcluir } = await admin.rpc('agent_excluir_pagamento', { p_whatsapp_number: usuario.whatsapp_number, p_pagamento_id: registro.pagamento_id });
+  console.log('erro excluir (esperado null):', erroExcluir?.message || 'nenhum', 'retorno (esperado true):', excluiu);
+
+  const [{ count: alocacoesRestantes }, { count: recebimentosRestantes }, { count: lancamentosRestantes }] = await Promise.all([
+    admin.from('RecebimentoSessao').select('id', { count: 'exact', head: true }).eq('recebimento', registro.pagamento_id),
+    admin.from('Recebimento').select('id', { count: 'exact', head: true }).eq('id', registro.pagamento_id),
+    admin.from('LancamentoFinanceiro').select('id', { count: 'exact', head: true }).eq('id', registro.lancamento_id),
+  ]);
+  console.log('apos excluir via RPC: alocacoes/recebimento/lancamento (esperado 0, 0, 0):', alocacoesRestantes, recebimentosRestantes, lancamentosRestantes);
+
+  await admin.from('Sessao').delete().eq('id', sessao.id);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: nenhuma `PagamentoSessao` criada; `Recebimento` criado com o valor e responsável corretos; sessão marcada como realizada; exclusão via RPC zera alocações/recebimento/lançamento.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add supabase/migrations/20260830000006_agent_registrar_excluir_pagamento_recebimento.sql && git commit -m "fix: migra RPCs de registrar/excluir pagamento do agente de WhatsApp pro modelo de recebimento"
+```
+
+---
+
+## Task 30: Corrige cobrança pro saldo devedor real em vez do valor cheio da sessão (I1/I2)
+
+**Files:**
+- Modify: `web/lib/actions/recebimentos.js`
+- Modify: `web/lib/actions/sessoes.js`
+
+**Interfaces:**
+- Consumes: `RecebimentoSessao` (Task 3).
+- Produces: `registrarRecebimentoIndividual`, `registrarRecebimentoLote`, `marcarAtendimentoRealizado` (em `sessoes.js`) e `usarCreditoNaSessao` passam a calcular e cobrar/alocar sempre o saldo devedor real de cada sessão (`Sessao.valor` menos o que já foi aplicado via `RecebimentoSessao`) em vez do valor cheio da sessão — corrige o caso de sessões com histórico migrado divergente ou valor editado depois de um recebimento parcial, e corrige um botão "Usar crédito" que hoje pode aparecer habilitado na UI e falhar no servidor (a UI já usa `saldo_devedor` desde o Task 15; só o servidor ainda comparava contra `valor`).
+
+- [ ] **Step 1: Editar `registrarRecebimentoIndividual` em `web/lib/actions/recebimentos.js`**
+
+```js
+export async function registrarRecebimentoIndividual(sessaoId, pacienteId, prevState, formData) {
+  const supabase = await createClient();
+
+  const { data: sessao, error: erroSessao } = await supabase
+    .from("Sessao")
+    .select("valor, RecebimentoSessao(valor_aplicado)")
+    .eq("id", sessaoId)
+    .single();
+
+  if (erroSessao) {
+    return { error: "Sessão não encontrada." };
+  }
+
+  const valorRecebido = (sessao.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+  const saldoDevedor = Number(sessao.valor) - valorRecebido;
+
+  const { error } = await criarRecebimento(supabase, {
+    pacienteId,
+    responsavelFinanceiroId: Number(formData.get("responsavel_financeiro")),
+    sessoes: [{ id: sessaoId, valor: saldoDevedor }],
+    valorTotal: saldoDevedor,
+    contaId: Number(formData.get("conta")),
+    formaPagamento: formData.get("forma_pagamento"),
+    dataRecebimento: formData.get("data_recebimento"),
+  });
+
+  if (error) {
+    return { error };
+  }
+
+  revalidatePath("/financeiro");
+  revalidatePath("/agenda");
+  revalidatePath(`/pacientes/${pacienteId}`);
+  redirect("/agenda");
+}
+```
+
+- [ ] **Step 2: Editar `registrarRecebimentoLote` em `web/lib/actions/recebimentos.js`**
+
+Substituir só o bloco que busca as sessões selecionadas (a parte `if (sessaoIds.length > 0) { ... }`):
+
+```js
+  if (sessaoIds.length > 0) {
+    const { data: sessoesBrutas, error: erroSessoes } = await supabase
+      .from("Sessao")
+      .select("id, valor, RecebimentoSessao(valor_aplicado)")
+      .in("id", sessaoIds);
+
+    if (erroSessoes) {
+      return { error: "Não foi possível carregar as sessões selecionadas." };
+    }
+
+    sessoes = sessoesBrutas.map((s) => {
+      const valorRecebido = (s.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+      return { id: s.id, valor: Number(s.valor) - valorRecebido };
+    });
+    valorTotal = sessoes.reduce((soma, s) => soma + s.valor, 0);
+  } else {
+```
+
+(o resto da função — o `else` do crédito antecipado, a chamada final a `criarRecebimento` — continua igual.)
+
+- [ ] **Step 3: Editar `usarCreditoNaSessao` em `web/lib/actions/recebimentos.js`**
+
+```js
+export async function usarCreditoNaSessao(pacienteId, sessaoId, recebimentoId) {
+  const supabase = await createClient();
+
+  const { data: sessao, error: erroSessao } = await supabase
+    .from("Sessao")
+    .select("valor, RecebimentoSessao(valor_aplicado)")
+    .eq("id", sessaoId)
+    .single();
+
+  if (erroSessao) {
+    throw new Error("Sessão não encontrada.");
+  }
+
+  const valorRecebido = (sessao.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+  const saldoDevedor = Number(sessao.valor) - valorRecebido;
+
+  const credito = await calcularCreditoDisponivel(pacienteId);
+  const recebimento = credito.recebimentos.find((r) => r.id === recebimentoId);
+
+  if (!recebimento || recebimento.saldo < saldoDevedor) {
+    throw new Error("Crédito insuficiente para quitar esta sessão.");
+  }
+
+  const { error } = await consumirCredito(supabase, {
+    recebimentoId,
+    sessaoId,
+    valorAplicado: saldoDevedor,
+  });
+
+  if (error) {
+    throw new Error(error);
+  }
+
+  revalidatePath(`/pacientes/${pacienteId}`);
+  revalidatePath("/agenda");
+}
+```
+
+- [ ] **Step 4: Editar `marcarAtendimentoRealizado` em `web/lib/actions/sessoes.js`**
+
+Trocar o `.select("paciente, valor")` e o cálculo de valor dentro do bloco `if (formData.get("pagou") === "on")`:
+
+```js
+  if (formData.get("pagou") === "on") {
+    const { data: sessaoAtual, error: erroSessaoAtual } = await supabase
+      .from("Sessao")
+      .select("paciente, valor, RecebimentoSessao(valor_aplicado)")
+      .eq("id", sessaoId)
+      .single();
+
+    if (erroSessaoAtual) {
+      return { error: "Não foi possível carregar a sessão." };
+    }
+
+    const valorRecebido = (sessaoAtual.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+    const saldoDevedor = Number(sessaoAtual.valor) - valorRecebido;
+
+    const { error: erroRecebimento } = await criarRecebimento(supabase, {
+      pacienteId: sessaoAtual.paciente,
+      responsavelFinanceiroId: Number(formData.get("responsavel_financeiro")),
+      sessoes: [{ id: sessaoId, valor: saldoDevedor }],
+      valorTotal: saldoDevedor,
+      contaId: Number(formData.get("conta")),
+      formaPagamento: formData.get("forma_pagamento"),
+      dataRecebimento: formData.get("data_pagamento"),
+    });
+
+    if (erroRecebimento) {
+      return { error: erroRecebimento };
+    }
+  }
+```
+
+- [ ] **Step 5: Verificar com dados descartáveis — sessão com valor divergente do já aplicado é cobrada pelo saldo real, não pelo valor cheio**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+const { criarRecebimento } = require('./lib/recebimento.js');
+
+(async () => {
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste Saldo Devedor', valor_sessao: 200, owner: (await admin.from('Paciente').select('owner').limit(1).single()).data.owner }).select('id').single();
+  const { data: resp } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Saldo Devedor', paciente_vinculado: paciente.id, owner: paciente.owner }).select('id').single();
+  const { data: conta } = await admin.from('ContaFinanceira').select('id').limit(1).single();
+  // sessao com valor 200, mas ja tem 50 aplicados (simula um historico divergente) — saldo devedor real deveria ser 150, nao 200.
+  const { data: sessao } = await admin.from('Sessao').insert({ paciente: paciente.id, data: '2026-09-21', horario: '09:00', valor: 200, Realizado: true, owner: paciente.owner }).select('id').single();
+  const { data: lancamentoParcial } = await admin.from('LancamentoFinanceiro').insert({ data: '2026-09-21', descricao: 'Teste parcial historico', valor: 50, tipo: 'Receita', conta: conta.id, owner: paciente.owner }).select('id').single();
+  const { recebimentoId: recebimentoParcial } = await criarRecebimento(admin, { pacienteId: paciente.id, responsavelFinanceiroId: resp.id, sessoes: [{ id: sessao.id, valor: 50 }], valorTotal: 50, contaId: conta.id, formaPagamento: 'Pix', dataRecebimento: '2026-09-21' });
+
+  // reproduz a logica corrigida de registrarRecebimentoIndividual
+  const { data: sessaoLida } = await admin.from('Sessao').select('valor, RecebimentoSessao(valor_aplicado)').eq('id', sessao.id).single();
+  const valorRecebido = (sessaoLida.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+  const saldoDevedor = Number(sessaoLida.valor) - valorRecebido;
+  console.log('saldo devedor calculado (esperado 150, NAO 200):', saldoDevedor);
+
+  const { data: recebimentosParaLimpar } = await admin.from('Recebimento').select('id, lancamento').eq('paciente', paciente.id);
+  await admin.from('RecebimentoSessao').delete().in('recebimento', recebimentosParaLimpar.map((r) => r.id));
+  await admin.from('Recebimento').delete().in('id', recebimentosParaLimpar.map((r) => r.id));
+  await admin.from('LancamentoFinanceiro').delete().in('id', recebimentosParaLimpar.map((r) => r.lancamento));
+  await admin.from('Sessao').delete().eq('id', sessao.id);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: `saldo devedor calculado: 150` — confirma que a lógica corrigida cobra o saldo real, não o valor cheio da sessão.
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add web/lib/actions/recebimentos.js web/lib/actions/sessoes.js && git commit -m "fix: cobranca e alocacao de credito usam sempre o saldo devedor real da sessao"
+```
+
+---
+
+## Task 31: Trava responsável financeiro "próprio" duplicado (I3)
+
+**Files:**
+- Create: `supabase/migrations/20260830000007_unique_responsavel_proprio.sql`
+
+**Interfaces:**
+- Consumes: `ResponsavelFinanceiro` (Task 1).
+- Produces: índice único parcial em `ResponsavelFinanceiro.paciente_vinculado` (só quando não nulo) — impede criar um segundo responsável "próprio" pro mesmo paciente. Sem isso, um duplicado criado via `/responsaveis-financeiros/novo` faz `verificarVinculosPaciente` (Task 25) lançar erro em `.maybeSingle()`, quebrando a exclusão de paciente pra esse paciente especificamente.
+
+- [ ] **Step 1: Escrever a migration**
+
+```sql
+-- Sem essa trava, criar um responsavel financeiro avulso vinculado a um
+-- paciente que ja tem seu "proprio" automatico (Task 4/17/27) produz um
+-- segundo ResponsavelFinanceiro com o mesmo paciente_vinculado. Isso
+-- quebra verificarVinculosPaciente (Task 25), que usa .maybeSingle() e
+-- lanca erro quando ha mais de uma linha — travando a exclusao desse
+-- paciente permanentemente.
+--
+-- Antes de criar o indice, verifica se ja existe algum duplicado em
+-- producao. Se existir, a migration falha de proposito (nao tenta
+-- mesclar/escolher um automaticamente) — investigar manualmente qual
+-- responsavel manter antes de prosseguir.
+do $$
+declare
+  v_duplicados int;
+begin
+  select count(*) into v_duplicados
+  from (
+    select paciente_vinculado
+    from "ResponsavelFinanceiro"
+    where paciente_vinculado is not null
+    group by paciente_vinculado
+    having count(*) > 1
+  ) t;
+
+  if v_duplicados > 0 then
+    raise exception 'Encontrados % paciente(s) com mais de um ResponsavelFinanceiro proprio — resolver manualmente antes de aplicar esta migration.', v_duplicados;
+  end if;
+end;
+$$;
+
+create unique index responsavelfinanceiro_paciente_vinculado_unico
+  on "ResponsavelFinanceiro" (paciente_vinculado)
+  where paciente_vinculado is not null;
+```
+
+- [ ] **Step 2: Aplicar a migration**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { Client } = require('pg');
+const fs = require('fs');
+const sql = fs.readFileSync('../supabase/migrations/20260830000007_unique_responsavel_proprio.sql', 'utf8');
+const client = new Client({
+  connectionString: 'postgresql://postgres:' + encodeURIComponent(process.env.SUPABASE_DB_PASSWORD) + '@db.rohulajgyxdangxfurha.supabase.co:5432/postgres',
+  ssl: { rejectUnauthorized: false }
+});
+client.connect().then(async () => {
+  await client.query(sql);
+  console.log('migration aplicada');
+  await client.end();
+}).catch(e => { console.error(e); process.exit(1); });
+"
+```
+
+Se a migration falhar com a mensagem "Encontrados N paciente(s) com mais de um ResponsavelFinanceiro proprio", **não tentar resolver sozinho** — reportar BLOCKED com a lista exata de pacientes afetados (consultar `select paciente_vinculado, array_agg(id) from "ResponsavelFinanceiro" where paciente_vinculado is not null group by paciente_vinculado having count(*) > 1;`) pra decisão humana sobre qual registro manter.
+
+- [ ] **Step 3: Verificar o índice e o bloqueio de duplicata com dados descartáveis**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia\web" && node -e "
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const env = fs.readFileSync('.env.local','utf8');
+const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
+const serviceKey = env.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim();
+const admin = createClient(url, serviceKey);
+
+(async () => {
+  const { data: ownerRow } = await admin.from('Paciente').select('owner').limit(1).single();
+  const { data: paciente } = await admin.from('Paciente').insert({ nome: 'Teste Unique Responsavel', valor_sessao: 100, owner: ownerRow.owner }).select('id').single();
+  const { data: resp1 } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Unique Responsavel', paciente_vinculado: paciente.id, owner: ownerRow.owner }).select('id').single();
+  console.log('primeiro responsavel proprio criado, erro esperado null:', 'OK id=' + resp1.id);
+
+  const { error: erroDuplicado } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Unique Responsavel Duplicado', paciente_vinculado: paciente.id, owner: ownerRow.owner });
+  console.log('segundo responsavel proprio pro mesmo paciente, esperado falhar:', erroDuplicado?.message);
+
+  const { error: erroAvulso1 } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Avulso 1', owner: ownerRow.owner });
+  const { error: erroAvulso2 } = await admin.from('ResponsavelFinanceiro').insert({ nome: 'Teste Avulso 2', owner: ownerRow.owner });
+  console.log('dois responsaveis avulsos (paciente_vinculado null) coexistem, erro esperado null em ambos:', erroAvulso1?.message, erroAvulso2?.message);
+
+  await admin.from('ResponsavelFinanceiro').delete().eq('nome', 'Teste Avulso 1').is('paciente_vinculado', null);
+  await admin.from('ResponsavelFinanceiro').delete().eq('nome', 'Teste Avulso 2').is('paciente_vinculado', null);
+  await admin.from('ResponsavelFinanceiro').delete().eq('id', resp1.id);
+  await admin.from('Paciente').delete().eq('id', paciente.id);
+  console.log('cleanup done');
+})();
+"
+```
+
+Expected: primeiro responsável próprio criado normalmente; segundo pro mesmo paciente falha pela constraint; dois responsáveis avulsos (`paciente_vinculado` nulo) coexistem sem problema (o índice é parcial, só se aplica a valores não nulos).
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add supabase/migrations/20260830000007_unique_responsavel_proprio.sql && git commit -m "fix: adiciona indice unico impedindo responsavel financeiro proprio duplicado"
+```
+
+---
+
+## Task 32: Confirmação antes de excluir um recebimento
+
+**Files:**
+- Modify: `web/app/(app)/(gestao)/pacientes/[id]/page.js`
+
+**Interfaces:**
+- Consumes: `excluirRecebimento` (Task 26).
+- Produces: os dois botões "Desfazer"/"Desfazer recebimento" (badge "Recebido" na aba Sessões, e listagem de crédito disponível) passam a pedir confirmação antes de excluir — ação irreversível que pode desfazer múltiplas sessões de uma vez (um recebimento em lote) ou reverter uma alocação parcial de crédito, achado pela segunda revisão final como risco de clique acidental sem aviso.
+
+- [ ] **Step 1: Adicionar confirmação ao botão da aba Sessões**
+
+No trecho do badge "Recebido" (Task 26), trocar o `<form action={...}>` simples por um formulário com confirmação via `onSubmit`:
+
+```jsx
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="text-green-700 font-semibold">Recebido</span>
+                        {s.recebimento_id && (
+                          <form
+                            action={excluirRecebimentoAcaoComId.bind(null, s.recebimento_id)}
+                            onSubmit={(e) => {
+                              if (!confirm("Desfazer este recebimento? Se ele cobrir mais de uma sessão, todas voltam a ficar pendentes.")) {
+                                e.preventDefault();
+                              }
+                            }}
+                          >
+                            <button type="submit" className="link text-red-600 text-xs">
+                              Desfazer recebimento
+                            </button>
+                          </form>
+                        )}
+                      </span>
+                    )}
+```
+
+- [ ] **Step 2: Adicionar confirmação ao botão da listagem de crédito disponível**
+
+No trecho do banner de crédito (Task 26), mesma alteração:
+
+```jsx
+                    <form
+                      action={excluirRecebimentoAcaoComId.bind(null, r.id)}
+                      onSubmit={(e) => {
+                        if (!confirm("Desfazer este recebimento? Sessões já quitadas com ele voltam a ficar pendentes.")) {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
+                      <button type="submit" className="link text-red-600">
+                        Desfazer
+                      </button>
+                    </form>
+```
+
+- [ ] **Step 3: Verificação**
+
+Sem verificação automatizada possível (é `onSubmit` de um `<form>` cliente, comportamento só observável no navegador). Confirmar por leitura: os dois `<form>` continuam com o mesmo `action` de antes (só ganharam `onSubmit`), e `confirm(...)` bloqueia o submit (via `e.preventDefault()`) quando o usuário cancela — comportamento padrão do `window.confirm` do navegador, sem necessidade de estado React adicional.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd "c:\Users\Administrador\Desktop\Projetos\Psicologia" && git add "web/app/(app)/(gestao)/pacientes/[id]/page.js" && git commit -m "fix: pede confirmacao antes de excluir um recebimento (acao irreversivel)"
+```
