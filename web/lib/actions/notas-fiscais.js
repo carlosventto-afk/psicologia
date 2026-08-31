@@ -19,17 +19,17 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Não autorizado." };
 
-  const { data: pagamento, error: erroPagamento } = await supabase
-    .from("PagamentoSessao")
-    .select("id, valor, Sessao!inner(id, data, Paciente!inner(id, nome, email, cpf, documento))")
+  const { data: recebimentoSessao, error: erroRecebimento } = await supabase
+    .from("RecebimentoSessao")
+    .select("id, valor_aplicado, Sessao!inner(id, data, Paciente!inner(id, nome, email, cpf, documento))")
     .eq("id", pagamentoId)
     .single();
 
-  if (erroPagamento || !pagamento) return { error: "Pagamento não encontrado." };
-  if (pagamento.Sessao.Paciente.documento !== "nota_fiscal") {
+  if (erroRecebimento || !recebimentoSessao) return { error: "Pagamento não encontrado." };
+  if (recebimentoSessao.Sessao.Paciente.documento !== "nota_fiscal") {
     return { error: "Paciente não está marcado para Nota Fiscal." };
   }
-  if (!pagamento.Sessao.Paciente.cpf) {
+  if (!recebimentoSessao.Sessao.Paciente.cpf) {
     return { error: "Paciente sem CPF cadastrado — obrigatório para a nota." };
   }
 
@@ -50,7 +50,7 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
   }
 
   const { data: registro, error: erroRegistro } = await supabase.rpc("registrar_nota_fiscal_pendente", {
-    p_pagamento_sessao: pagamento.id,
+    p_recebimento_sessao: recebimentoSessao.id,
   });
 
   if (erroRegistro || !registro?.[0]) {
@@ -67,7 +67,7 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
       certificado_senha_cifrada: fiscal.certificado_senha_cifrada,
       serie,
       numero,
-      competencia: pagamento.Sessao.data,
+      competencia: recebimentoSessao.Sessao.data,
       prestador: {
         documento: fiscal.documento,
         inscricao_municipal: fiscal.inscricao_municipal,
@@ -78,12 +78,12 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
         codigo_tributacao_municipal: fiscal.codigo_tributacao_municipal,
       },
       tomador: {
-        documento: pagamento.Sessao.Paciente.cpf,
-        nome: pagamento.Sessao.Paciente.nome,
-        email: pagamento.Sessao.Paciente.email || null,
+        documento: recebimentoSessao.Sessao.Paciente.cpf,
+        nome: recebimentoSessao.Sessao.Paciente.nome,
+        email: recebimentoSessao.Sessao.Paciente.email || null,
       },
-      descricao_servico: `Sessao de psicologia - ${pagamento.Sessao.data}`,
-      valor: Number(pagamento.valor),
+      descricao_servico: `Sessao de psicologia - ${recebimentoSessao.Sessao.data}`,
+      valor: Number(recebimentoSessao.valor_aplicado),
     });
   } catch (erro) {
     await supabase
@@ -119,11 +119,11 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
     .eq("id", notaId);
 
   let avisoEmail;
-  if (resultado.autorizada && pagamento.Sessao.Paciente.email) {
+  if (resultado.autorizada && recebimentoSessao.Sessao.Paciente.email) {
     try {
       await enviarEmailNotaFiscal({
-        paraEmail: pagamento.Sessao.Paciente.email,
-        pacienteNome: pagamento.Sessao.Paciente.nome,
+        paraEmail: recebimentoSessao.Sessao.Paciente.email,
+        pacienteNome: recebimentoSessao.Sessao.Paciente.nome,
         xmlBase64: resultado.xml_nfse_base64,
         pdfBase64: resultado.pdf_base64 ?? null,
       });
