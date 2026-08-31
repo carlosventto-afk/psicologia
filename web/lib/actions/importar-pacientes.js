@@ -69,6 +69,7 @@ export async function importarPacientes(consultorioId, linhas) {
     puladosSemNome: 0,
     puladosDuplicados: [],
     avisos: [],
+    avisoResponsaveis: null,
   };
 
   for (const linha of linhas) {
@@ -136,12 +137,31 @@ export async function importarPacientes(consultorioId, linhas) {
   }
 
   if (candidatos.length > 0) {
-    const { data: inseridos, error } = await supabase.from("Paciente").insert(candidatos).select("id");
+    const { data: inseridos, error } = await supabase.from("Paciente").insert(candidatos).select("id, nome");
     if (error) {
       return { error: "Não foi possível importar os pacientes." };
     }
     relatorio.importados = inseridos.length;
     relatorio.idsInseridos = inseridos.map((p) => Number(p.id));
+
+    const { data: responsaveisProprios, error: erroResponsaveis } = await supabase
+      .from("ResponsavelFinanceiro")
+      .insert(inseridos.map((p) => ({ nome: p.nome, paciente_vinculado: p.id })))
+      .select("id, paciente_vinculado");
+
+    if (erroResponsaveis) {
+      relatorio.avisoResponsaveis =
+        "Pacientes importados, mas não foi possível provisionar automaticamente o responsável financeiro próprio de cada um.";
+    } else {
+      const { error: erroVinculos } = await supabase
+        .from("PacienteResponsavelFinanceiro")
+        .insert(responsaveisProprios.map((r) => ({ paciente: r.paciente_vinculado, responsavel: r.id })));
+
+      if (erroVinculos) {
+        relatorio.avisoResponsaveis =
+          "Pacientes importados, mas não foi possível vincular o responsável financeiro próprio de cada um.";
+      }
+    }
   }
 
   revalidatePath("/pacientes");
