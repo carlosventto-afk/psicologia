@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { entrar } from "@/lib/actions/auth";
+import { entrar, entrarComGoogle } from "@/lib/actions/auth";
 
 const estadoInicial = {};
 
@@ -57,6 +57,18 @@ export default function PaginaLogin() {
         <Link href="/cadastro" className="block text-sm link text-center">
           Não tem conta? Cadastre-se
         </Link>
+      </form>
+
+      <div className="w-full max-w-sm flex items-center gap-2 text-xs text-muted -mt-2">
+        <div className="h-px flex-1 bg-gray-200" />
+        ou
+        <div className="h-px flex-1 bg-gray-200" />
+      </div>
+
+      <form action={entrarComGoogle.bind(null, null)} className="w-full max-w-sm">
+        <button type="submit" className="btn-outline w-full">
+          Entrar com Google
+        </button>
       </form>
     </div>
   );
