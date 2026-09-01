@@ -154,7 +154,67 @@ export async function alterarPlano(id, novoPlano) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.from("Usuarios").update({ plano: novoPlano }).eq("id", id);
+  const { error } = await admin
+    .from("Usuarios")
+    .update({ plano: novoPlano, plano_teste_expira_em: null })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/admin/profissionais");
+}
+
+async function checarAdmin(supabase) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Não autorizado.");
+  }
+
+  const { data: usuarioAtual, error } = await supabase
+    .from("Usuarios")
+    .select("role")
+    .eq("id_user", user.id)
+    .single();
+
+  if (error || usuarioAtual?.role !== "admin") {
+    throw new Error("Não autorizado.");
+  }
+}
+
+export async function liberarTeste(id, formData) {
+  const supabase = await createClient();
+  await checarAdmin(supabase);
+
+  const planoTeste = formData.get("plano");
+  const dataExpiracao = formData.get("data");
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("Usuarios")
+    .update({ plano: planoTeste, plano_teste_expira_em: new Date(`${dataExpiracao}T23:59:59`).toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/admin/profissionais");
+}
+
+export async function encerrarTeste(id, planoPago) {
+  const supabase = await createClient();
+  await checarAdmin(supabase);
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("Usuarios")
+    .update({ plano: planoPago ?? "gratis", plano_teste_expira_em: null })
+    .eq("id", id);
 
   if (error) {
     throw new Error(error.message);
