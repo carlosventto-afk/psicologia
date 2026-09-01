@@ -58,9 +58,20 @@ export async function searchByRegistro(page, registro, _retried = false) {
   // This is transient (confirmed live: retrying shortly after succeeds with
   // a freshly generated token), so retry once before surfacing it as a real
   // captcha_failure.
-  const isEmptyTokenValidationError =
-    status === 422 && body && Array.isArray(body.recaptchaToken);
-  if (isEmptyTokenValidationError && !_retried) {
+  //
+  // IMPORTANT: the API reuses the same {recaptchaToken: [...]} body shape for
+  // a genuine failed reCAPTCHA verification ("Não foi possível confirmar o
+  // teste do reCaptcha." — the canonical captcha_failure case in
+  // classifyBuscaResponse / test/parsing.test.js). We must only retry the
+  // "token not sent yet" race, and let a real verification failure fall
+  // through un-retried so the caller sees captcha_failure — never silently
+  // paper over an actual reCAPTCHA rejection.
+  const isEmptyTokenRace =
+    status === 422 &&
+    body &&
+    Array.isArray(body.recaptchaToken) &&
+    body.recaptchaToken.some((m) => /obrigat[óo]rio/i.test(m));
+  if (isEmptyTokenRace && !_retried) {
     await page.waitForTimeout(2000);
     return searchByRegistro(page, registro, true);
   }
