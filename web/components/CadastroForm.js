@@ -1,13 +1,24 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { cadastrar, entrarComGoogle } from "@/lib/actions/auth";
 
 const estadoInicial = {};
 
 export default function CadastroForm({ origem }) {
+  return (
+    <Suspense fallback={null}>
+      <FormularioCadastro origem={origem} />
+    </Suspense>
+  );
+}
+
+function FormularioCadastro({ origem }) {
   const [state, formAction, pending] = useActionState(cadastrar, estadoInicial);
+  const searchParams = useSearchParams();
+  const erroGoogle = searchParams.get("erro") === "google";
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
@@ -16,6 +27,12 @@ export default function CadastroForm({ origem }) {
         <h1 className="page-title">Criar Conta</h1>
 
         {origem && <input type="hidden" name="origem" value={origem} />}
+
+        {erroGoogle && (
+          <p className="text-sm text-red-600">
+            Não foi possível cadastrar com o Google. Tente novamente ou use e-mail e senha.
+          </p>
+        )}
 
         <div>
           <label htmlFor="nome" className="block text-sm font-semibold text-navy">

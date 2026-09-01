@@ -1,8 +1,13 @@
+import { redirect } from "next/navigation";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import SidebarNav from "@/components/SidebarNav";
 
 export default async function LayoutApp({ children }) {
   const usuario = await buscarUsuarioAtual();
+
+  if (!usuario) {
+    redirect("/completar-perfil");
+  }
 
   return (
     <div className="min-h-screen lg:flex">

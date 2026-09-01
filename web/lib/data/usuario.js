@@ -16,6 +16,7 @@ export async function buscarUsuarioAtual() {
     .eq("id_user", user.id)
     .single();
 
+  if (error?.code === "PGRST116") return null;
   if (error) throw new Error(error.message);
 
   // Cron preguiçoso: teste temporário concedido pelo admin (item 22) expira

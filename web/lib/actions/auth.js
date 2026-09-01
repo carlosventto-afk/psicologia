@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
+import { caminhoInterno } from "@/lib/caminho-interno";
 
 export async function entrar(prevState, formData) {
   const email = formData.get("email");
@@ -114,7 +115,7 @@ export async function entrarComGoogle(origem) {
   });
 
   if (error || !data?.url) {
-    redirect("/login?erro=google");
+    redirect(origem === "busca" ? "/cadastro?origem=busca&erro=google" : "/login?erro=google");
   }
 
   redirect(data.url);
@@ -134,7 +135,7 @@ export async function completarPerfilGoogle(prevState, formData) {
   const nome = formData.get("nome");
   const contato = formData.get("contato");
   const crp = formData.get("crp");
-  const next = formData.get("next") || "/";
+  const next = caminhoInterno(formData.get("next"));
 
   const { error } = await supabase.from("Usuarios").insert({
     id_user: user.id,

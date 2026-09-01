@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { caminhoInterno } from "@/lib/caminho-interno";
 import CompletarPerfilForm from "@/components/CompletarPerfilForm";
 
 export default async function PaginaCompletarPerfil({ searchParams }) {
   const params = await searchParams;
-  const next = params.next || "/";
+  const next = caminhoInterno(params.next);
 
   const supabase = await createClient();
   const {
@@ -15,13 +16,17 @@ export default async function PaginaCompletarPerfil({ searchParams }) {
     redirect("/login");
   }
 
-  const { data: usuarioExistente } = await supabase
+  const { data: usuarioExistente, error: erroUsuarios } = await supabase
     .from("Usuarios")
     .select("id")
     .eq("id_user", user.id)
     .maybeSingle();
 
-  if (usuarioExistente) {
+  // Mesmo padrao do callback: falha aberta numa consulta com erro -- deixa
+  // o formulario aparecer de novo em vez de arriscar redirecionar errado.
+  // Reenviar o formulario pra quem ja tem linha em Usuarios cai no erro de
+  // "nao foi possivel salvar" do lado da action, sem duplicar linha.
+  if (!erroUsuarios && usuarioExistente) {
     redirect(next);
   }
 
