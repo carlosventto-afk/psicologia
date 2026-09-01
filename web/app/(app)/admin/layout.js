@@ -13,6 +13,7 @@ export default async function LayoutAdmin({ children }) {
     <div className="space-y-4">
       <nav className="flex items-center gap-4 text-sm font-semibold text-navy">
         {usuario.role === "admin" && <Link href="/admin/profissionais">Profissionais</Link>}
+        {usuario.role === "admin" && <Link href="/admin/leads">Leads CFP</Link>}
         <Link href="/admin/artigos">Blog</Link>
       </nav>
       {children}
