@@ -8,7 +8,7 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const files = ["20260901000001_add_leads_cfp.sql"];
+const files = ["20260901000002_lockdown_leads_cfp.sql"];
 
 const migrationsDir = path.resolve("supabase/migrations");
 
@@ -32,5 +32,25 @@ for (const file of files) {
   }
 }
 
-await client.end();
 console.log("\nTodas as migrations foram aplicadas com sucesso.");
+
+// Guarda permanente contra a classe de bug já corrigida três vezes neste repo
+// (20260727000004, 20260824000002, 20260901000002): tabela nova em "public"
+// sem RLS fica exposta via PostgREST com grant total pra anon/authenticated.
+const rlsCheck = await client.query(`
+  select relname
+  from pg_class
+  join pg_namespace n on n.oid = pg_class.relnamespace
+  where n.nspname = 'public' and relkind = 'r' and not relrowsecurity
+`);
+if (rlsCheck.rows.length > 0) {
+  console.error(
+    "\nERRO: tabelas em 'public' sem RLS habilitado:",
+    rlsCheck.rows.map((r) => r.relname).join(", ")
+  );
+  await client.end();
+  process.exit(1);
+}
+console.log("OK: todas as tabelas em 'public' têm RLS habilitado.");
+
+await client.end();
