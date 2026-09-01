@@ -3,12 +3,17 @@ import { chromium } from "playwright";
 const BASE_URL = "https://cadastro.cfp.org.br/";
 const BUSCA_URL_FRAGMENT = "cn-api.cfp.org.br/psi/busca";
 
+// channel: "chromium" usa o novo modo headless (Chromium real), que não envia
+// o User-Agent "HeadlessChrome" — o sinal de bot mais óbvio possível pro
+// scoring do reCAPTCHA. É a mitigação sancionada pelo spec ("Riscos
+// conhecidos"); o canal já vem pré-instalado na imagem base
+// mcr.microsoft.com/playwright usada no Dockerfile deste serviço.
 export async function launchBrowser() {
-  return chromium.launch({ headless: true });
+  return chromium.launch({ headless: true, channel: "chromium" });
 }
 
 export async function openSearchPage(browser) {
-  const page = await browser.newPage();
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   await page.goto(BASE_URL);
   await page
     .getByRole("combobox", { name: "Estado" })
@@ -72,6 +77,7 @@ export async function searchByRegistro(page, registro, _retried = false) {
     Array.isArray(body.recaptchaToken) &&
     body.recaptchaToken.some((m) => /obrigat[óo]rio/i.test(m));
   if (isEmptyTokenRace && !_retried) {
+    console.warn(`[cfp-leads] registro ${registro}: recaptchaToken vazio, retentando`);
     await page.waitForTimeout(2000);
     return searchByRegistro(page, registro, true);
   }

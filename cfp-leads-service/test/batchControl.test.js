@@ -4,6 +4,7 @@ import {
   computeDelayMs,
   shouldHaltOnCaptcha,
   shouldHaltOnTransportError,
+  shouldHaltOnValidationError,
 } from "../src/batchControl.js";
 
 test("computeDelayMs respeita o intervalo min/max com randomFn determinístico", () => {
@@ -23,4 +24,12 @@ test("shouldHaltOnTransportError só é true a partir de 3 falhas seguidas", () 
   assert.equal(shouldHaltOnTransportError(1), false);
   assert.equal(shouldHaltOnTransportError(2), false);
   assert.equal(shouldHaltOnTransportError(3), true);
+});
+
+test("shouldHaltOnValidationError só é true a partir de 3 falhas seguidas", () => {
+  assert.equal(shouldHaltOnValidationError(0), false);
+  assert.equal(shouldHaltOnValidationError(1), false);
+  assert.equal(shouldHaltOnValidationError(2), false);
+  assert.equal(shouldHaltOnValidationError(3), true);
+  assert.equal(shouldHaltOnValidationError(4), true);
 });

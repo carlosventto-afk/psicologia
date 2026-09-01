@@ -1,10 +1,14 @@
 import { createPool } from "./db.js";
 import { launchBrowser, openSearchPage } from "./crawler.js";
 import { runBatch } from "./runBatch.js";
+import { numEnv } from "./env.js";
 
-const CRP_REGIAO = Number(process.env.CRP_REGIAO ?? 5);
-const BATCH_SIZE = Number(process.env.BATCH_SIZE ?? 3000);
-const RUN_INTERVAL_HOURS = Number(process.env.RUN_INTERVAL_HOURS ?? 24);
+// Hardcoded: o crawler (openSearchPage) só sabe selecionar "Rio de Janeiro -
+// CRP 5ª Região" no formulário. Tornar isso configurável exigiria mapear
+// região -> label do select em crawler.js, fora de escopo desta entrega.
+const CRP_REGIAO = 5;
+const BATCH_SIZE = numEnv("BATCH_SIZE", 3000);
+const RUN_INTERVAL_HOURS = numEnv("RUN_INTERVAL_HOURS", 24);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

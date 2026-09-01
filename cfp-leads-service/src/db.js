@@ -5,7 +5,15 @@ export function createPool() {
   if (!connectionString) {
     throw new Error("Defina DATABASE_URL antes de rodar o serviço.");
   }
-  return new pg.Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+  const pool = new pg.Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+  // pg.Pool emite 'error' quando um client ocioso (checked-in) sofre erro de
+  // backend/rede. Sem listener, o EventEmitter do Node lança e derruba o
+  // processo — risco real num serviço que roda desassistido por um mês, com
+  // clients ociosos por 2,5-5s entre cada registro.
+  pool.on("error", (err) => {
+    console.error("[cfp-leads] erro em client idle do pool:", err.message);
+  });
+  return pool;
 }
 
 export async function getScanState(pool, crpRegiao) {

@@ -9,3 +9,7 @@ export function shouldHaltOnCaptcha(consecutiveCaptchaFailures) {
 export function shouldHaltOnTransportError(consecutiveTransportFailures) {
   return consecutiveTransportFailures >= 3;
 }
+
+export function shouldHaltOnValidationError(consecutiveValidationErrors) {
+  return consecutiveValidationErrors >= 3;
+}

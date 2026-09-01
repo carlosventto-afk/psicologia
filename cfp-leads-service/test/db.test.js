@@ -5,8 +5,12 @@ import { createPool, getScanState, upsertLead, saveScanState } from "../src/db.j
 const TEST_REGIAO = 999;
 let pool;
 
-before(() => {
+before(async () => {
   pool = createPool();
+  // Limpa antes também: se uma execução anterior foi interrompida antes do
+  // after(), a suíte começaria suja e os asserts de estado inicial falhariam.
+  await pool.query("delete from leads_cfp where crp_regiao = $1", [TEST_REGIAO]);
+  await pool.query("delete from leads_cfp_scan_state where crp_regiao = $1", [TEST_REGIAO]);
 });
 
 after(async () => {
