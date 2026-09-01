@@ -34,7 +34,13 @@ export async function runBatch({ pool, page, crpRegiao, batchSize }) {
       continue;
     }
 
-    const outcome = classifyBuscaResponse(status, body);
+    let effectiveBody = body;
+    if (status === 200 && Array.isArray(body) && body.length > 1) {
+      const exactMatch = body.find((r) => parseInt(r.registro, 10) === registro);
+      effectiveBody = exactMatch ? [exactMatch] : [];
+    }
+
+    const outcome = classifyBuscaResponse(status, effectiveBody);
 
     if (outcome.type === "captcha_failure") {
       consecutiveCaptchaFailures += 1;
