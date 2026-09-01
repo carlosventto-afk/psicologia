@@ -8,7 +8,7 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const files = ["20260826000003_add_unique_classificacao_owner_nome.sql"];
+const files = ["20260901000001_add_leads_cfp.sql"];
 
 const migrationsDir = path.resolve("supabase/migrations");
 
