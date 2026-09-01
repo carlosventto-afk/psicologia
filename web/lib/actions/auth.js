@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
+import { caminhoInterno } from "@/lib/caminho-interno";
 
 export async function entrar(prevState, formData) {
   const email = formData.get("email");
@@ -101,4 +102,56 @@ export async function atualizarSenha(prevState, formData) {
   }
 
   redirect("/");
+}
+
+export async function entrarComGoogle(origem) {
+  const supabase = await createClient();
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const next = origem === "busca" ? "/diretorio" : "/";
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${site}/auth/callback?next=${encodeURIComponent(next)}` },
+  });
+
+  if (error || !data?.url) {
+    redirect(origem === "busca" ? "/cadastro?origem=busca&erro=google" : "/login?erro=google");
+  }
+
+  redirect(data.url);
+}
+
+export async function completarPerfilGoogle(prevState, formData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const nome = formData.get("nome");
+  const contato = formData.get("contato");
+  const crp = formData.get("crp");
+  const next = caminhoInterno(formData.get("next"));
+
+  const { error } = await supabase.from("Usuarios").insert({
+    id_user: user.id,
+    nome,
+    email: user.email,
+    contato: Number(String(contato).replace(/\D/g, "")),
+    crp: crp || null,
+    role: "psicologo",
+    aprovado: false,
+  });
+
+  if (error) {
+    return { error: "Não foi possível salvar seu cadastro. Tente novamente." };
+  }
+
+  await criarClassificacoesPadrao(supabase, user.id).catch(() => {});
+
+  redirect(next);
 }

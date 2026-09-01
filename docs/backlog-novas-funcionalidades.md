@@ -458,7 +458,23 @@ gerações (manual e automática).
 
 ## 11. Planos do produto (Psi Gestão / Psi Gestão + Marketing / Psi Marketing)
 
-**Status: a realizar** — pedido do usuário em 2026-08-13.
+**Status: implementado** (metade 1 em 2026-08-13, metade 2 — cobrança via
+Asaas — em 2026-08-28). Detalhamento completo da metade 2 (gateway, modelo
+de dados, fluxo de assinatura, gates, refatoração do agente de WhatsApp) em
+`docs/superpowers/specs/2026-08-27-planos-cobranca-asaas-design.md`. Gateway
+escolhido: **Asaas** (checkout hospedado, sem dado de cartão no servidor),
+por ser o mais barato pra cobrança recorrente de ticket baixo em BRL e ter
+retentativa automática nativa. Preços: Grátis R$0, Psi Gestão R$49,90,
+Psi Gestão + Marketing R$79,90, Psi Marketing R$39,90/mês — só mensal
+nesta v1. Introduziu um 4º plano (Grátis) não previsto no pedido original,
+decisão tomada durante o brainstorm. Verificado em produção (2026-09-01):
+env vars, webhook do Asaas e os 2 workflows n8n (aplicar pendências diário
++ agente de WhatsApp reimplantado sem as ferramentas de "consultório
+ativo") estão configurados e ativos. **Ainda falta**: nenhum profissional
+passou pelo checkout de verdade ainda (todos os cadastros hoje são
+legados, herdaram `gestao_marketing` sem assinatura real) — falta um teste
+ponta a ponta com pagamento real ou sandbox pra confirmar o ciclo completo
+checkout → webhook → plano liberado.
 
 **Objetivo:** o produto passa a ter 3 planos iniciais, diferenciando acesso
 ao sistema de gestão (agenda, financeiro, pacientes etc.) e à divulgação no
@@ -992,7 +1008,18 @@ totalizadores.
 
 ## 22. Liberação temporária de plano avançado pelo admin (período de teste)
 
-**Status: a realizar** — pedido do usuário em 2026-08-28.
+**Status: implementado** (2026-09-01) — pedido do usuário em 2026-08-28,
+reafirmado e implementado em 2026-09-01. Reconciliação em relação à spec
+original: em vez do campo `plano_antes_teste` proposto abaixo, a reversão
+reaproveita `Usuarios.plano_pago` (que já existe desde o item 11 metade 2)
+— reverter o teste sempre volta pro que o profissional realmente paga (ou
+Grátis, se nunca assinou), sem precisar de um snapshot separado. Isso
+também resolve de graça a interação com uma assinatura real confirmada via
+webhook durante o teste: o webhook já mantém `plano_pago` sincronizado, e
+como a reversão sempre lê `plano_pago`, um teste que expira depois de uma
+assinatura real virar-se num no-op. Trocar o plano manualmente pelo
+`SeletorPlano` já existente durante um teste ativo encerra o teste
+(decisão nova, não estava na spec original).
 
 **Objetivo:** hoje o admin já troca o plano de um profissional manualmente
 (`alterarPlano`, `web/lib/actions/profissionais.js`, usado em

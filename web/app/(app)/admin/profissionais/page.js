@@ -4,6 +4,7 @@ import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { listarProfissionais } from "@/lib/data/profissionais";
 import { aprovarProfissional, alternarCriadorConteudo } from "@/lib/actions/profissionais";
 import SeletorPlano from "@/components/SeletorPlano";
+import LiberarTesteForm from "@/components/LiberarTesteForm";
 
 export default async function PaginaProfissionais() {
   const usuario = await buscarUsuarioAtual();
@@ -58,6 +59,7 @@ export default async function PaginaProfissionais() {
                   </form>
                 )}
                 <SeletorPlano id={p.id} planoAtual={p.plano} />
+                <LiberarTesteForm id={p.id} planoPago={p.plano_pago} planoTesteExpiraEm={p.plano_teste_expira_em} />
               </div>
             </div>
           ))}
