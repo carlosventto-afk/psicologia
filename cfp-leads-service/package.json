@@ -1,0 +1,14 @@
+{
+  "name": "cfp-leads-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "pg": "^8.22.0",
+    "playwright": "^1.48.0"
+  }
+}
