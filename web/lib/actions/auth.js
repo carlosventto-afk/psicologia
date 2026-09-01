@@ -119,3 +119,38 @@ export async function entrarComGoogle(origem) {
 
   redirect(data.url);
 }
+
+export async function completarPerfilGoogle(prevState, formData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const nome = formData.get("nome");
+  const contato = formData.get("contato");
+  const crp = formData.get("crp");
+  const next = formData.get("next") || "/";
+
+  const { error } = await supabase.from("Usuarios").insert({
+    id_user: user.id,
+    nome,
+    email: user.email,
+    contato: Number(String(contato).replace(/\D/g, "")),
+    crp: crp || null,
+    role: "psicologo",
+    aprovado: false,
+  });
+
+  if (error) {
+    return { error: "Não foi possível salvar seu cadastro. Tente novamente." };
+  }
+
+  await criarClassificacoesPadrao(supabase, user.id).catch(() => {});
+
+  redirect(next);
+}
