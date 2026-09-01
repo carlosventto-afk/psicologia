@@ -36,6 +36,7 @@ export async function runBatch({ pool, page, crpRegiao, batchSize }) {
 
     let effectiveBody = body;
     if (status === 200 && Array.isArray(body) && body.length > 1) {
+      console.warn(`[cfp-leads] registro ${registro}: resposta com ${body.length} resultados, filtrando por match exato`);
       const exactMatch = body.find((r) => parseInt(r.registro, 10) === registro);
       effectiveBody = exactMatch ? [exactMatch] : [];
     }
