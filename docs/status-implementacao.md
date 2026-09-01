@@ -1,6 +1,65 @@
 # Status da implementação
 
-Última atualização: 2026-08-24.
+Última atualização: 2026-08-28.
+
+## Cobrança de planos via Asaas (2026-08-28, item 11 metade 2 do backlog)
+
+Fecha o ciclo do item 11: a metade 1 (2026-08-13) já tinha `Usuarios.plano`
+e o gate de acesso, mas sem cobrança real por trás. Gateway escolhido:
+**Asaas**, via checkout hospedado (`POST /v3/customers` +
+`POST /v3/subscriptions`, redireciona pro link de fatura — zero dado de
+cartão passa pelo nosso servidor). Preços: plano novo **Grátis** (R$0, 1
+consultório, sem Documentos/WhatsApp/Carnê-Leão), Psi Gestão R$49,90, Psi
+Gestão + Marketing R$79,90, Psi Marketing R$39,90/mês.
+
+- **Modelo de dados**: colunas novas em `Usuarios` (`plano_pago`,
+  `plano_pretendido`, `plano_pretendido_a_partir_de`, `assinatura_status`,
+  `asaas_customer_id`, `asaas_subscription_id`, `assinatura_vencida_em`) +
+  tabela `EventoAssinatura` (auditoria de webhook, service-role only).
+  `UPDATE` nessas colunas foi revogado da role `authenticated` — só
+  service_role escreve (fechava uma brecha: qualquer profissional logado
+  conseguia setar o próprio `plano` de graça via API REST direta).
+- **Fluxo de assinatura** (`/assinatura`, `escolherPlano`): upgrade aplica
+  na hora (webhook confirma); downgrade pra outro plano pago só muda o
+  valor da próxima cobrança (`plano_pretendido_a_partir_de = nextDueDate`);
+  downgrade pra Grátis cancela a assinatura no Asaas e fica pendente até o
+  job diário efetivar na data certa.
+- **Webhook** `POST /api/asaas/webhook` (autenticado por header
+  `asaas-access-token` / `ASAAS_WEBHOOK_TOKEN`): `PAYMENT_CONFIRMED`/
+  `PAYMENT_RECEIVED` aplica a troca de plano pendente e marca
+  `assinatura_status = 'ativa'`; `PAYMENT_OVERDUE` marca `'inadimplente'`
+  sem derrubar o plano na hora. Idempotente por `asaas_event_id unique`.
+- **Job diário** `POST /api/assinaturas/aplicar-pendencias` (header
+  `x-cron-secret` / `ASSINATURA_CRON_SECRET`, mesma infra de cron externo
+  via n8n do item 9): efetiva downgrade pra Grátis vencido e derruba pra
+  Grátis quem passou 5 dias inadimplente (carência).
+- **Gates de recurso pago**: Recibos, Notas Fiscais, Carnê-Leão e
+  configuração de WhatsApp mostram aviso "disponível nos planos pagos" pro
+  plano Grátis (`web/components/AvisoRecursoPago.js` + checagem em cada
+  Server Action, não só na UI); trava de 1 consultório no Grátis.
+- **Refatoração do agente de WhatsApp (item 13)**: as RPCs paravam de
+  escopar por "consultório ativo" (`_agent_resolve_consultorio`,
+  `CONSULTORIO_AMBIGUO`) e passaram a escopar só por `owner` — o filtro por
+  consultório nunca foi a barreira de segurança real (RLS já usa `owner`),
+  era só recorte de UX que colidia com o limite de 1 consultório do
+  plano Grátis. `agent_listar_consultorios`/`agent_definir_consultorio_ativo`
+  e a coluna `agent_sessions.consultorio_ativo_id` removidas.
+
+**Verificado em produção nesta sessão (2026-09-01)**, via SSH/API direta
+(sem clicar no navegador): `ASAAS_API_KEY`/`ASAAS_WEBHOOK_TOKEN`/
+`ASSINATURA_CRON_SECRET` configurados no EasyPanel; webhook cadastrado e
+`enabled: true` no painel do Asaas apontando pra
+`https://psiagente.com.br/api/asaas/webhook`; workflow n8n `Assinaturas -
+Aplicar Pendencias (diario)` ativo; workflow `WA - Agent Psicólogo`
+reimplantado (não referencia mais `agent_listar_consultorios`).
+
+**Pendência real**: `EventoAssinatura` está vazia em produção — nenhum
+profissional passou pelo checkout de verdade ainda (os 5 cadastros
+existentes são legados, herdaram `plano = 'gestao_marketing'` direto, sem
+`plano_pago`/`asaas_subscription_id`). Falta um teste ponta a ponta com
+pagamento real (a chave configurada é `aact_prod_...`, não sandbox) ou uma
+cobrança simbólica cancelada em seguida, pra confirmar
+checkout → webhook → plano liberado funcionando de fato.
 
 ## Envio automático do Carnê-Leão (2026-08-13, item 9 do backlog)
 
