@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import CancelarSessaoButton from "@/components/CancelarSessaoButton";
 
 const estadoInicial = {};
 
-export default function SessaoEditForm({ action, cancelarAction, sessao, pacientes, tiposAtendimento }) {
+export default function SessaoEditForm({ action, sessao, pacientes, tiposAtendimento }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const formRef = useRef(null);
@@ -43,6 +44,16 @@ export default function SessaoEditForm({ action, cancelarAction, sessao, pacient
     if (event.key === "Enter") {
       event.preventDefault();
     }
+  }
+
+  if (sessao.realizado) {
+    return (
+      <div className="max-w-md card p-6">
+        <p className="text-sm text-muted">
+          Esta sessão já foi registrada como realizada e não pode mais ser editada ou cancelada.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -148,19 +159,11 @@ export default function SessaoEditForm({ action, cancelarAction, sessao, pacient
       </form>
 
       {sessao.status !== "Cancelada" && (
-        <form
-          action={cancelarAction}
-          className="max-w-md"
-          onSubmit={(event) => {
-            if (!confirm("Tem certeza que deseja cancelar esta sessão? Essa ação não pode ser desfeita.")) {
-              event.preventDefault();
-            }
-          }}
-        >
-          <button type="submit" className="btn-danger">
+        <div className="max-w-md">
+          <CancelarSessaoButton sessaoId={sessao.id} recorrenciaId={sessao.recorrencia_id} className="btn-danger">
             Cancelar esta sessão
-          </button>
-        </form>
+          </CancelarSessaoButton>
+        </div>
       )}
 
       {mostrarConfirmacao && (

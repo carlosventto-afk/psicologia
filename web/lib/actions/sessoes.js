@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { gerarSessoesAteHorizonte, horizonteAtual, diffDias, somarDias } from "@/lib/recorrencia";
 import { criarRecebimento } from "@/lib/recebimento";
+import { cancelarRecorrencia } from "@/lib/actions/recorrencias";
 
 export async function criarSessao(prevState, formData) {
   const supabase = await createClient();
@@ -83,12 +84,16 @@ export async function atualizarSessao(sessaoId, prevState, formData) {
 
   const { data: sessaoAntes, error: erroSessaoAntes } = await supabase
     .from("Sessao")
-    .select("data, horario, recorrencia_id")
+    .select("data, horario, recorrencia_id, Realizado")
     .eq("id", sessaoId)
     .single();
 
   if (erroSessaoAntes) {
     return { error: "Não foi possível carregar a sessão." };
+  }
+
+  if (sessaoAntes.Realizado) {
+    return { error: "Esta sessão já foi registrada como realizada e não pode ser editada." };
   }
 
   const novaData = formData.get("data");
@@ -164,8 +169,34 @@ async function propagarDataHorarioParaSerie({
   }
 }
 
-export async function cancelarSessao(sessaoId) {
+export async function cancelarSessao(sessaoId, formData) {
   const supabase = await createClient();
+
+  const { data: sessaoAtual, error: erroSessaoAtual } = await supabase
+    .from("Sessao")
+    .select("recorrencia_id, Realizado")
+    .eq("id", sessaoId)
+    .single();
+
+  if (erroSessaoAtual) {
+    throw new Error(erroSessaoAtual.message);
+  }
+
+  if (sessaoAtual.Realizado) {
+    throw new Error("Esta sessão já foi registrada como realizada e não pode ser cancelada.");
+  }
+
+  const aplicarSerie = formData?.get?.("aplicar_serie") === "true";
+
+  // "Todas as futuras": reaproveita cancelarRecorrencia, que já desativa a
+  // série inteira e cancela as sessões futuras não realizadas (inclusive
+  // esta) — evita duplicar essa decisão em dois lugares.
+  if (aplicarSerie && sessaoAtual.recorrencia_id) {
+    await cancelarRecorrencia(sessaoAtual.recorrencia_id);
+    revalidatePath("/agenda");
+    revalidatePath("/");
+    redirect("/agenda");
+  }
 
   const { data: alocacoes, error: erroAlocacoes } = await supabase
     .from("RecebimentoSessao")

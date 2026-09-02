@@ -6,7 +6,7 @@ export async function listarAgenda({ dataInicio, dataFim }) {
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, horario, duracao_min, status, tipo_sessao, Realizado, valor, Paciente!inner(id, nome), RecebimentoSessao(valor_aplicado)"
+      "id, data, horario, duracao_min, status, tipo_sessao, Realizado, valor, recorrencia_id, Paciente!inner(id, nome), RecebimentoSessao(valor_aplicado)"
     )
     .gte("data", dataInicio)
     .lte("data", dataFim)
@@ -28,10 +28,11 @@ export async function listarAgenda({ dataInicio, dataFim }) {
         realizado: s.Realizado,
         valor: Number(s.valor),
         pago: valorRecebido >= Number(s.valor),
+        recorrencia_id: s.recorrencia_id,
         paciente_id: s.Paciente.id,
         paciente_nome: s.Paciente.nome,
       },
-      ["id", "paciente_id"]
+      ["id", "paciente_id", "recorrencia_id"]
     );
   });
 }

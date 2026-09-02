@@ -2,7 +2,7 @@ import SessaoEditForm from "@/components/SessaoEditForm";
 import { buscarSessao } from "@/lib/data/sessoes";
 import { listarPacientesParaSelect } from "@/lib/data/pacientes";
 import { listarTiposAtendimento } from "@/lib/data/lookups";
-import { atualizarSessao, cancelarSessao } from "@/lib/actions/sessoes";
+import { atualizarSessao } from "@/lib/actions/sessoes";
 
 export default async function PaginaEditarSessao({ params }) {
   const { id } = await params;
@@ -15,14 +15,12 @@ export default async function PaginaEditarSessao({ params }) {
   ]);
 
   const acaoAtualizar = atualizarSessao.bind(null, sessaoId);
-  const acaoCancelar = cancelarSessao.bind(null, sessaoId);
 
   return (
     <div className="space-y-4">
       <h1 className="page-title">Editar Sessão</h1>
       <SessaoEditForm
         action={acaoAtualizar}
-        cancelarAction={acaoCancelar}
         sessao={sessao}
         pacientes={pacientes}
         tiposAtendimento={tiposAtendimento}

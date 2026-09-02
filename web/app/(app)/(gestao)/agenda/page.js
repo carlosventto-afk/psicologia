@@ -11,6 +11,7 @@ import {
 import { garantirRecorrenciasEstendidas } from "@/lib/recorrencia";
 import AgendaGrade from "@/components/AgendaGrade";
 import AgendaMes from "@/components/AgendaMes";
+import CancelarSessaoButton from "@/components/CancelarSessaoButton";
 
 const ABAS = [
   { valor: "dia", rotulo: "Dia" },
@@ -106,9 +107,18 @@ export default async function PaginaAgenda({ searchParams }) {
                     Receber
                   </Link>
                 )}
-                <Link href={`/sessoes/${s.id}/editar`} className="link">
-                  Editar
-                </Link>
+                {!s.realizado && (
+                  <>
+                    <Link href={`/sessoes/${s.id}/editar`} className="link">
+                      Editar
+                    </Link>
+                    {s.status !== "Cancelada" && (
+                      <CancelarSessaoButton sessaoId={s.id} recorrenciaId={s.recorrencia_id} className="link text-red-600">
+                        Cancelar
+                      </CancelarSessaoButton>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           ))}
