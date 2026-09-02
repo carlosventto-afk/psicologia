@@ -145,9 +145,24 @@ const tools = [
 // há aspas ali, então tipos number/json saem sem aspas (JSON válido) e string
 // sai citada — automático, não precisa fazer isso na mão por tipo.
 function construirNoTool(tool, posY) {
+  // Achado #2 (rodando o splitExpression real do n8n — n8n-workflow's
+  // ExpressionParser — contra essa string dentro do container): o parser de
+  // "={{ ... }}" do n8n acha o fim do bloco de código procurando a primeira
+  // ocorrência do literal "}}" — sem entender que está dentro de uma string
+  // JS. Como "params": {...} sempre fecha com o "}" do último placeholder
+  // seguido imediatamente pelo "}" que fecha o objeto "params" (ex.:
+  // "...{p_data_fim}}"), esses dois "}" adjacentes já formam um "}}" que o
+  // parser lê como SE FOSSE o fechamento do "={{ }}" — cortando a expressão
+  // no meio e sobrando lixo depois, daí o "invalid syntax"/
+  // ExpressionExtensionError visto em produção pra toda tool com >=1 param
+  // (não só a que aparecia no log — é a primeira que o n8n tenta resolver).
+  // Fix: um espaço entre "}" adjacentes evita qualquer "}}" literal no meio
+  // do texto (só o "}}" real, no fim, sobra) — JSON ignora espaço em branco
+  // entre tokens, então isso não muda o JSON final nem afeta a substituição
+  // de placeholder (que já tolerava espaço).
   const paramsBody = tool.params.map((p) => `"${p.nome}": {${p.nome}}`).join(", ");
   const jsonBody =
-    `={{ '{"tool_name": "${tool.nome}", "whatsapp_number": ' + JSON.stringify($('Execute Workflow Trigger').first().json.whatsapp_number) + ', "params": {${paramsBody}}}' }}`;
+    `={{ '{"tool_name": "${tool.nome}", "whatsapp_number": ' + JSON.stringify($('Execute Workflow Trigger').first().json.whatsapp_number) + ', "params": { ${paramsBody} } }' }}`;
   return {
     parameters: {
       toolDescription: tool.descricao,
