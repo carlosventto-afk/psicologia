@@ -9,21 +9,24 @@ export default function SessaoEditForm({ action, cancelarAction, sessao, pacient
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const formRef = useRef(null);
   const aplicarSerieRef = useRef(null);
-  const pularChecagemRef = useRef(false);
 
-  function handleSubmit(event) {
-    if (pularChecagemRef.current) {
-      pularChecagemRef.current = false;
-      return;
-    }
+  // React 19 dispara a Server Action de `action={formAction}` assim que o
+  // form recebe um evento "submit" nativo — um preventDefault() no onSubmit
+  // não impede isso (só cancela a navegação default do browser, não o
+  // dispatch interno da action). Por isso o botão "Salvar" não é
+  // type="submit": a decisão de chamar requestSubmit() é sempre nossa.
+  function handleClickSalvar() {
+    const form = formRef.current;
+    if (!form) return;
 
-    const form = event.currentTarget;
     const mudouDataOuHorario = form.data.value !== sessao.data || form.horario.value !== sessao.horario;
 
     if (sessao.recorrencia_id && mudouDataOuHorario) {
-      event.preventDefault();
       setMostrarConfirmacao(true);
+      return;
     }
+
+    form.requestSubmit();
   }
 
   function confirmarEscolha(aplicarATodasAsFuturas) {
@@ -31,13 +34,20 @@ export default function SessaoEditForm({ action, cancelarAction, sessao, pacient
       aplicarSerieRef.current.value = aplicarATodasAsFuturas ? "true" : "false";
     }
     setMostrarConfirmacao(false);
-    pularChecagemRef.current = true;
     formRef.current?.requestSubmit();
+  }
+
+  // Sem isso, Enter num campo de texto dispara o submit nativo do form (e a
+  // action junto), pulando a checagem acima — força tudo a passar pelo botão.
+  function bloquearSubmitPeloEnter(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+    }
   }
 
   return (
     <div className="space-y-4">
-      <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="max-w-md space-y-4 card p-6">
+      <form ref={formRef} action={formAction} onKeyDown={bloquearSubmitPeloEnter} className="max-w-md space-y-4 card p-6">
         <input type="hidden" name="aplicar_serie" defaultValue="false" ref={aplicarSerieRef} />
 
         <div>
@@ -132,7 +142,7 @@ export default function SessaoEditForm({ action, cancelarAction, sessao, pacient
 
         {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
 
-        <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">
+        <button type="button" onClick={handleClickSalvar} disabled={pending} className="btn-primary disabled:opacity-50">
           {pending ? "Salvando..." : "Salvar alterações"}
         </button>
       </form>
