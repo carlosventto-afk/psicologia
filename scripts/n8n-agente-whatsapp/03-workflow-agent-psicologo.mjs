@@ -7,7 +7,7 @@ const idsPath = path.resolve("scripts/n8n-agente-whatsapp/ids.json");
 const ids = JSON.parse(fs.readFileSync(idsPath, "utf8"));
 const { postgres: credPostgresId, gemini: credGeminiId, proxySecret: credProxyId } = ids.credenciais;
 
-// Catálogo das 16 tools: nome do parâmetro, tipo pro $fromAI, descrição pro Gemini.
+// Catálogo das 16 tools: nome do parâmetro, tipo (vira "Placeholder Definitions" em construirNoTool), descrição pro Gemini.
 // Copiado das Global Constraints do plano (assinaturas confirmadas via pg_proc em produção).
 const tools = [
   {
@@ -123,19 +123,31 @@ const tools = [
   },
 ];
 
+// Achado lendo o código-fonte real do node (dist/nodes/tools/ToolHttpRequest/
+// utils.js dentro do container n8n): com specifyBody:"json", o node chama
+// ctx.getNodeParameter("jsonBody", ...) — que RESOLVE a expressão n8n antes de
+// qualquer coisa. A versão anterior usava "={{ { ...$fromAI(...)... } }}",
+// uma expressão que avalia pra um OBJETO JS de verdade. O node então guarda
+// esse objeto como "rawRequestOptions.body" e tenta rodar sua própria
+// substituição de placeholders (mecanismo dele, com token de chave simples
+// tipo "{nome}", carimbado via "Placeholder Definitions" — different de
+// $fromAI) em cima disso: como não é string, extractParametersFromText()
+// devolve [] (nenhum parâmetro extraído), e no fim ele tenta
+// jsonParse(String(nossoObjeto)) — que vira o literal "[object Object]" e
+// falha, sempre, pra toda tool com pelo menos 1 param. Confirmado em
+// produção: 100% das chamadas de tool com parâmetro falhavam com "Could not
+// replace placeholders in body". Fix: jsonBody agora resolve pra uma STRING
+// (via concatenação, não um objeto), com um "{nome}" literal por parâmetro —
+// a sintaxe de placeholder que esse node específico realmente espera — e
+// "Placeholder Definitions" declara nome/tipo/descrição de cada um (o que
+// substitui $fromAI aqui). Sem aspas ao redor de "{nome}" no template: o node
+// só adiciona aspas sozinho quando o tipo declarado é "string" e ainda não
+// há aspas ali, então tipos number/json saem sem aspas (JSON válido) e string
+// sai citada — automático, não precisa fazer isso na mão por tipo.
 function construirNoTool(tool, posY) {
-  const paramsExpr = tool.params
-    .map((p) => `"${p.nome}": $fromAI('${p.nome}', ${JSON.stringify(p.desc)}, '${p.tipo}')`)
-    .join(", ");
-  // Important #2 (revisão final): era "$('Execute Workflow Trigger').item...".
-  // Nós de tool são chamados pelo AI Agent fora do fluxo linear principal de
-  // dados, então o rastreamento de "paired item" do n8n até o trigger pode
-  // falhar aí com "Can't determine which item to use". ".first()" é a forma
-  // que resolve de forma confiável a partir de um nó de sub-tool, mantendo a
-  // mesma propriedade de segurança (item único, sempre vindo do trigger,
-  // nunca de $fromAI).
+  const paramsBody = tool.params.map((p) => `"${p.nome}": {${p.nome}}`).join(", ");
   const jsonBody =
-    `={{ { "tool_name": "${tool.nome}", "whatsapp_number": $('Execute Workflow Trigger').first().json.whatsapp_number, "params": { ${paramsExpr} } } }}`;
+    `={{ '{"tool_name": "${tool.nome}", "whatsapp_number": ' + JSON.stringify($('Execute Workflow Trigger').first().json.whatsapp_number) + ', "params": {${paramsBody}}}' }}`;
   return {
     parameters: {
       toolDescription: tool.descricao,
@@ -146,6 +158,9 @@ function construirNoTool(tool, posY) {
       sendBody: true,
       specifyBody: "json",
       jsonBody,
+      placeholderDefinitions: {
+        values: tool.params.map((p) => ({ name: p.nome, description: p.desc, type: p.tipo })),
+      },
       options: {},
     },
     type: "@n8n/n8n-nodes-langchain.toolHttpRequest",
