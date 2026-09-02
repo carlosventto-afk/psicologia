@@ -211,10 +211,9 @@ export async function cancelarSessao(sessaoId, formData) {
     throw new Error("Esta sessão já tem recebimento aplicado. Desfaça a alocação no recebimento antes de cancelar.");
   }
 
-  const { error } = await supabase
-    .from("Sessao")
-    .update({ status: "Cancelada" })
-    .eq("id", sessaoId);
+  // Sem recebimento vinculado (checado acima): apaga de vez em vez de marcar
+  // "Cancelada" — não há razão pra manter a linha acumulando na tabela.
+  const { error } = await supabase.from("Sessao").delete().eq("id", sessaoId);
 
   if (error) {
     throw new Error(error.message);

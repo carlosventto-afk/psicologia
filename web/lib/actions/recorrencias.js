@@ -14,13 +14,28 @@ export async function cancelarRecorrencia(recorrenciaId) {
 
   if (erroRecorrencia) return;
 
-  // Só cancela sessões futuras ainda não realizadas — histórico fica intacto.
-  await supabase
+  // Só mexe em sessões futuras ainda não realizadas — histórico fica intacto.
+  const { data: futuras, error: erroFuturas } = await supabase
     .from("Sessao")
-    .update({ status: "Cancelada" })
+    .select("id, RecebimentoSessao(id)")
     .eq("recorrencia_id", recorrenciaId)
     .eq("Realizado", false)
     .gte("data", hoje);
+
+  if (erroFuturas || !futuras) return;
+
+  const semRecebimento = futuras.filter((s) => (s.RecebimentoSessao ?? []).length === 0).map((s) => s.id);
+  const comRecebimento = futuras.filter((s) => (s.RecebimentoSessao ?? []).length > 0).map((s) => s.id);
+
+  // Sem recebimento aplicado: apaga de vez — não há razão pra manter linha
+  // "Cancelada" acumulando na tabela. Com recebimento: mantém e só marca como
+  // cancelada, senão perderíamos o vínculo financeiro (FK bloquearia o delete).
+  if (semRecebimento.length > 0) {
+    await supabase.from("Sessao").delete().in("id", semRecebimento);
+  }
+  if (comRecebimento.length > 0) {
+    await supabase.from("Sessao").update({ status: "Cancelada" }).in("id", comRecebimento);
+  }
 
   revalidatePath("/recorrencias");
   revalidatePath("/agenda");
