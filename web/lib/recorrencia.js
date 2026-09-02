@@ -31,6 +31,20 @@ export function calcularProximaData(dataISO, frequencia) {
   return data.toISOString().slice(0, 10);
 }
 
+// Mesmo motivo de UTC de calcularProximaData: "data" no banco é DATE puro.
+export function somarDias(dataISO, deltaDias) {
+  const data = new Date(`${dataISO}T00:00:00Z`);
+  data.setUTCDate(data.getUTCDate() + deltaDias);
+  return data.toISOString().slice(0, 10);
+}
+
+export function diffDias(dataAnteriorISO, dataNovaISO) {
+  const MS_POR_DIA = 24 * 60 * 60 * 1000;
+  const anterior = new Date(`${dataAnteriorISO}T00:00:00Z`);
+  const nova = new Date(`${dataNovaISO}T00:00:00Z`);
+  return Math.round((nova.getTime() - anterior.getTime()) / MS_POR_DIA);
+}
+
 // Gera (insere) todas as sessões entre recorrencia.gerado_ate (exclusive) e
 // ateISO (inclusive), e avança gerado_ate até a última data gerada.
 export async function gerarSessoesAteHorizonte(recorrencia, ateISO) {

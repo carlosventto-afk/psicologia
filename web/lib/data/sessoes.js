@@ -41,7 +41,7 @@ export async function buscarSessao(id) {
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, horario, duracao_min, status, tipo_sessao, anotacoes, Realizado, valor, Paciente!inner(id, nome)"
+      "id, data, horario, duracao_min, status, tipo_sessao, anotacoes, Realizado, valor, recorrencia_id, Paciente!inner(id, nome)"
     )
     .eq("id", id)
     .single();
@@ -59,9 +59,10 @@ export async function buscarSessao(id) {
       anotacoes: data.anotacoes,
       realizado: data.Realizado,
       valor: Number(data.valor),
+      recorrencia_id: data.recorrencia_id,
       paciente_id: data.Paciente.id,
       paciente_nome: data.Paciente.nome,
     },
-    ["id", "paciente_id"]
+    ["id", "paciente_id", "recorrencia_id"]
   );
 }

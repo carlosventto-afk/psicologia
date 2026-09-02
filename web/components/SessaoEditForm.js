@@ -1,15 +1,45 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 const estadoInicial = {};
 
 export default function SessaoEditForm({ action, cancelarAction, sessao, pacientes, tiposAtendimento }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
+  const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
+  const formRef = useRef(null);
+  const aplicarSerieRef = useRef(null);
+  const pularChecagemRef = useRef(false);
+
+  function handleSubmit(event) {
+    if (pularChecagemRef.current) {
+      pularChecagemRef.current = false;
+      return;
+    }
+
+    const form = event.currentTarget;
+    const mudouDataOuHorario = form.data.value !== sessao.data || form.horario.value !== sessao.horario;
+
+    if (sessao.recorrencia_id && mudouDataOuHorario) {
+      event.preventDefault();
+      setMostrarConfirmacao(true);
+    }
+  }
+
+  function confirmarEscolha(aplicarATodasAsFuturas) {
+    if (aplicarSerieRef.current) {
+      aplicarSerieRef.current.value = aplicarATodasAsFuturas ? "true" : "false";
+    }
+    setMostrarConfirmacao(false);
+    pularChecagemRef.current = true;
+    formRef.current?.requestSubmit();
+  }
 
   return (
     <div className="space-y-4">
-      <form action={formAction} className="max-w-md space-y-4 card p-6">
+      <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="max-w-md space-y-4 card p-6">
+        <input type="hidden" name="aplicar_serie" defaultValue="false" ref={aplicarSerieRef} />
+
         <div>
           <label htmlFor="paciente" className="block text-sm font-semibold text-navy">
             Paciente
@@ -121,6 +151,35 @@ export default function SessaoEditForm({ action, cancelarAction, sessao, pacient
             Cancelar esta sessão
           </button>
         </form>
+      )}
+
+      {mostrarConfirmacao && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setMostrarConfirmacao(false)}
+            aria-hidden="true"
+          />
+          <div className="relative flex min-h-full items-center justify-center p-4">
+            <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl space-y-4">
+              <div>
+                <h2 className="text-base font-semibold text-navy">Aplicar alteração à série?</h2>
+                <p className="text-sm text-muted mt-1">
+                  Esta sessão faz parte de uma recorrência. Deseja aplicar a nova data/horário somente a esta sessão
+                  ou a todas as sessões futuras da série?
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button type="button" onClick={() => confirmarEscolha(true)} className="btn-primary">
+                  Sim, aplicar a todas as futuras
+                </button>
+                <button type="button" onClick={() => confirmarEscolha(false)} className="btn-secondary">
+                  Não, somente esta sessão
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

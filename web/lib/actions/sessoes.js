@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { gerarSessoesAteHorizonte, horizonteAtual } from "@/lib/recorrencia";
+import { gerarSessoesAteHorizonte, horizonteAtual, diffDias, somarDias } from "@/lib/recorrencia";
 import { criarRecebimento } from "@/lib/recebimento";
 
 export async function criarSessao(prevState, formData) {
@@ -81,12 +81,26 @@ export async function criarSessao(prevState, formData) {
 export async function atualizarSessao(sessaoId, prevState, formData) {
   const supabase = await createClient();
 
+  const { data: sessaoAntes, error: erroSessaoAntes } = await supabase
+    .from("Sessao")
+    .select("data, horario, recorrencia_id")
+    .eq("id", sessaoId)
+    .single();
+
+  if (erroSessaoAntes) {
+    return { error: "Não foi possível carregar a sessão." };
+  }
+
+  const novaData = formData.get("data");
+  const novoHorario = formData.get("horario");
+  const aplicarSerie = formData.get("aplicar_serie") === "true";
+
   const { error } = await supabase
     .from("Sessao")
     .update({
       paciente: Number(formData.get("paciente")),
-      data: formData.get("data"),
-      horario: formData.get("horario"),
+      data: novaData,
+      horario: novoHorario,
       duracao_min: Number(formData.get("duracao_min")),
       tipo_sessao: formData.get("tipo_sessao"),
       valor: Number(formData.get("valor")),
@@ -97,9 +111,57 @@ export async function atualizarSessao(sessaoId, prevState, formData) {
     return { error: "Não foi possível atualizar a sessão." };
   }
 
+  if (aplicarSerie && sessaoAntes.recorrencia_id) {
+    await propagarDataHorarioParaSerie({
+      supabase,
+      recorrenciaId: sessaoAntes.recorrencia_id,
+      sessaoEditadaId: sessaoId,
+      dataAntiga: sessaoAntes.data,
+      deltaDias: diffDias(sessaoAntes.data, novaData),
+      horarioMudou: sessaoAntes.horario !== novoHorario,
+      novoHorario,
+    });
+  }
+
   revalidatePath("/agenda");
   revalidatePath("/");
   redirect("/agenda");
+}
+
+// Desloca (por dias) e/ou atualiza o horário das demais sessões futuras e
+// ainda não realizadas da mesma recorrência, preservando o espaçamento entre
+// elas — não recalcula a série do zero. Ver design em conversa com o usuário
+// (opção A: delta de dias, não regeração).
+async function propagarDataHorarioParaSerie({
+  supabase,
+  recorrenciaId,
+  sessaoEditadaId,
+  dataAntiga,
+  deltaDias,
+  horarioMudou,
+  novoHorario,
+}) {
+  if (deltaDias === 0 && !horarioMudou) return;
+
+  const { data: futuras, error } = await supabase
+    .from("Sessao")
+    .select("id, data")
+    .eq("recorrencia_id", recorrenciaId)
+    .eq("Realizado", false)
+    .gte("data", dataAntiga)
+    .neq("id", sessaoEditadaId);
+
+  if (error || !futuras) return;
+
+  for (const futura of futuras) {
+    await supabase
+      .from("Sessao")
+      .update({
+        data: deltaDias !== 0 ? somarDias(futura.data, deltaDias) : futura.data,
+        horario: novoHorario,
+      })
+      .eq("id", futura.id);
+  }
 }
 
 export async function cancelarSessao(sessaoId) {
