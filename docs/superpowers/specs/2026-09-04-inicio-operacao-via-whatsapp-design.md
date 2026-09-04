@@ -206,6 +206,18 @@ parâmetro `p_whatsapp_number text`, `revoke all` de
 durante o cadastro, do `Usuarios` recém-criado) — nunca recebido como
 parâmetro do LLM.
 
+**Descoberta durante o planejamento (2026-09-04) — isenção de plano
+durante o onboarding**: `POST /api/agent/call-tool` já bloqueia qualquer
+tool (`PLANO_SEM_WHATSAPP`) se `PLANOS[profissional.plano]?.temWhatsapp`
+for `false` — e quem se cadastra sozinho nasce com `plano = 'gratis'`
+(`temWhatsapp: false`), o que travaria o próprio onboarding guiado antes
+de começar. Decisão do usuário: as 3 tools novas ficam **isentas dessa
+checagem de plano enquanto `agent_sessions.onboarding_etapa` for
+diferente de `'concluido'`**. Depois de concluído, as 16 tools de operação
+do dia a dia continuam exigindo plano pago exatamente como hoje — cadastro
+e onboarding funcionam pra qualquer um, usar o agente no dia a dia
+continua sendo recurso pago (sem mudança de modelo de negócio).
+
 ### `agent_criar_consultorio`
 
 `(p_whatsapp_number text, p_nome text, p_telefone text default null, p_email_atendimento text default null, p_endereco text default null) returns bigint`
@@ -232,12 +244,13 @@ conforme já documentado). Insere `Paciente` com os campos opcionais como
 
 `(p_whatsapp_number text, p_nome text, p_banco text, p_agencia text default null, p_numero text default null, p_tipo text default null) returns bigint`
 
-Resolve owner via `whatsapp_number`. `codigo` gerado automaticamente como
-o próximo sequencial das contas já existentes do profissional (formato
-exato a confirmar contra `criarConta`, `web/lib/actions/contas.js`, na
-hora de implementar — deve seguir a mesma convenção visual da tela, só
-que preenchida automaticamente em vez de digitada). Insere
-`ContaFinanceira` com `owner` setado manualmente. Retorna o id criado.
+Resolve owner via `whatsapp_number`. `codigo` gerado automaticamente
+como o próximo sequencial das contas já existentes do profissional —
+**decisão tomada durante o planejamento (2026-09-04)**: não existe
+convenção prévia no código (o campo `codigo` da tela web é texto livre,
+sem geração automática), então o formato é `'C' || lpad(sequencial, 3,
+'0')` (ex: `C001`, `C002`), contado por `owner`. Insere `ContaFinanceira`
+com `owner` setado manualmente. Retorna o id criado.
 
 ## Modelo de dados novo
 
@@ -247,12 +260,31 @@ que preenchida automaticamente em vez de digitada). Insere
 alter table agent_sessions
   add column ultima_interacao_em timestamptz,
   add column ultima_validacao_seguranca_em timestamptz,
-  add column onboarding_etapa text;
+  add column onboarding_etapa text,
+  add column link_confirmacao_pendente boolean not null default false,
+  add column tentativas_cadastro int not null default 0,
+  add column tentativas_cadastro_desde timestamptz;
 ```
+
+(As últimas 3 colunas foram adicionadas durante o planejamento, além das
+3 já previstas no design original, para viabilizar dois mecanismos que a
+spec já descrevia mas não detalhava o armazenamento: `link_confirmacao_pendente`
+é como `/auth/callback`/`/auth/confirm` sabem que um clique de link
+precisa acordar o webhook do n8n — ver seção "Fluxo de cadastro novo",
+passo 3 — sem depender de inferir isso a partir de `onboarding_etapa`
+sozinho, que não distingue "revalidação pendente" de "onboarding
+concluído". `tentativas_cadastro`/`tentativas_cadastro_desde` implementam
+o limite anti-abuso de 3 criações de conta por número em 24h descrito na
+seção "Segurança".)
 
 - `ultima_interacao_em`: atualizada a cada mensagem processada com sucesso
   pelo `WA - Agent Psicólogo` (não durante onboarding/revalidação
   pendente).
+- `link_confirmacao_pendente`: `true` desde o momento em que um link
+  mágico é enviado (cadastro novo, revalidação, ou "e-mail já cadastrado")
+  até `/auth/callback`/`/auth/confirm` disparar o webhook de continuação;
+  o workflow n8n que recebe esse webhook grava `false` de volta junto com
+  a atualização de `ultima_validacao_seguranca_em`.
 - `ultima_validacao_seguranca_em`: setada no momento em que
   `whatsapp_verified` vira `true` (cadastro novo, vinculação por código,
   ou clique de link de revalidação). Base do cálculo da janela de 30 dias.
