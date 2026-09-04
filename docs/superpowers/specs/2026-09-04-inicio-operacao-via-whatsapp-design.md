@@ -141,8 +141,9 @@ agent_sessions.ultima_validacao_seguranca_em > 30 dias):
   `/auth/callback`).
 - 3 tools RPC (`agent_criar_consultorio`, `agent_criar_paciente`,
   `agent_criar_conta_bancaria`).
-- 3 colunas novas em `agent_sessions`: `ultima_interacao_em`,
-  `ultima_validacao_seguranca_em`, `onboarding_etapa`.
+- 6 colunas novas em `agent_sessions` (ver "Modelo de dados novo" abaixo
+  pra lista completa e por quê são 6, não 3 como a primeira versão deste
+  parágrafo dizia).
 - Extensão pequena no `WA - Inbound Router` (checar janela de 30 dias
   antes de rotear) e no `/auth/callback` (detectar onboarding pendente e
   chamar o webhook novo).
@@ -308,14 +309,26 @@ seção "Segurança".)
 
 ## Erros e casos de borda
 
-- **Consultório ambíguo / sem consultório**: mesmo comportamento já
-  documentado nas 16 tools existentes — `agent_criar_paciente` também
-  pode levantar `CONSULTORIO_AMBIGUO` se o profissional já tiver mais de
-  um consultório (só possível depois do onboarding inicial, ex: chamando
-  a tool de novo mais tarde).
+- **Sem consultório / consultório inválido**: `agent_criar_paciente`
+  levanta `SEM_CONSULTORIO_CADASTRADO` se o owner não tiver nenhum
+  consultório, ou `CONSULTORIO_INVALIDO` se `p_consultorio_id` informado
+  não pertencer a ele — **correção pós-planejamento**: `CONSULTORIO_AMBIGUO`
+  não existe mais em nenhuma tool (ver nota em `agent_criar_paciente`
+  acima); com múltiplos consultórios, a tool escolhe o primeiro por `id`
+  sem perguntar.
+- **Telefone já cadastrado no cadastro novo**: se `whatsapp_number` já tem
+  `Usuarios` associado, não cria duplicata — reenvia link mágico pra conta
+  existente e retorna `WHATSAPP_JA_CADASTRADO` (descoberto durante a
+  execução: cobre o caso de retentativa depois de corrigir um e-mail
+  digitado errado, que senão criaria um segundo usuário Auth órfão).
 - **E-mail já cadastrado no cadastro novo**: não cria duplicata, desvia
   pro fluxo de confirmação de posse do WhatsApp pra conta existente (ver
   Fluxo de cadastro, passo 3).
+- **Falha ao enviar o link mágico**: `signInWithOtp` pode falhar (SMTP
+  fora do ar, etc.) em qualquer uma das 3 ações (`criar_conta`,
+  `reenviar_link`, `revalidar`) — a rota retorna `ERRO_ENVIAR_LINK` em vez
+  de `success: true`/`WHATSAPP_JA_CADASTRADO`/`EMAIL_JA_CADASTRADO`, pra
+  nunca informar ao profissional que um e-mail foi enviado quando não foi.
 - **Link mágico expirado**: tratado como pedido de reenvio, não como erro
   fatal — não cria segunda conta.
 - **Mensagem chega com onboarding/revalidação pendente**: nenhuma tool
@@ -327,8 +340,12 @@ seção "Segurança".)
 - **Nunca clica o link (cadastro ou revalidação)**: conversa fica
   bloqueada pedindo a confirmação indefinidamente — mesmo comportamento
   já aceito hoje pro código de 6 dígitos expirado.
-- **Limite de tentativas de cadastro**: 3 criações de conta por
-  `whatsapp_number` em 24h; acima disso, `LIMITE_TENTATIVAS_CADASTRO`.
+- **Limite de tentativas de cadastro**: 3 chamadas por `whatsapp_number`
+  em 24h — **correção pós-planejamento**: o limite cobre as 3 ações
+  (`criar_conta`, `reenviar_link`, `revalidar`) com o mesmo contador, não
+  só `criar_conta` isoladamente (achado na revisão final: sem isso,
+  `reenviar_link`/`revalidar` reabririam o vetor de spam de e-mail que o
+  limite existe pra fechar). Acima do limite, `LIMITE_TENTATIVAS_CADASTRO`.
 
 ## Segurança
 
@@ -382,10 +399,15 @@ padrão já usado nas entregas anteriores:
 | Código | Origem | Significado |
 | --- | --- | --- |
 | `EMAIL_JA_CADASTRADO` | `/api/agent/onboarding` (ação `criar_conta`) | E-mail informado já tem conta; fluxo desvia pra confirmação de posse em vez de criar duplicata. |
-| `LIMITE_TENTATIVAS_CADASTRO` | `/api/agent/onboarding` (ação `criar_conta`) | Mais de 3 criações de conta pelo mesmo `whatsapp_number` em 24h. |
-| `ONBOARDING_ETAPA_INVALIDA` | tools de onboarding | Tool chamada fora da sequência esperada (defesa em profundidade). |
+| `WHATSAPP_JA_CADASTRADO` | `/api/agent/onboarding` (ação `criar_conta`) | `whatsapp_number` já tem `Usuarios` associado; reenvia link pra essa conta em vez de criar duplicata (adicionado na revisão final, não estava no design original). |
+| `LIMITE_TENTATIVAS_CADASTRO` | `/api/agent/onboarding` (`criar_conta`, `reenviar_link`, `revalidar` — contador compartilhado) | Mais de 3 chamadas pelo mesmo `whatsapp_number` em 24h. |
+| `ERRO_ENVIAR_LINK` | `/api/agent/onboarding` (todas as ações) | `signInWithOtp` falhou (ex: SMTP fora do ar) — nunca reportar sucesso/estado sem o e-mail ter realmente saído. |
+| `ONBOARDING_ETAPA_INVALIDA` | tools de onboarding | **Não implementado nesta entrega** (decisão consciente, YAGNI — a isenção de plano já é o único ponto de checagem, ver `web/app/api/agent/call-tool/route.js`); `agent_sessions.onboarding_etapa` ganhou uma constraint `check` restringindo aos valores válidos, adicionada na revisão final. |
 
 Reaproveita, sem alteração, os códigos já existentes de
-`CONSULTORIO_AMBIGUO`, `CONSULTORIO_INVALIDO`, `SEM_CONSULTORIO_CADASTRADO`
-e `WHATSAPP_NAO_VINCULADO` (catálogo completo em
-`docs/superpowers/specs/2026-08-17-agente-whatsapp-profissional-design.md`).
+`CONSULTORIO_INVALIDO`, `SEM_CONSULTORIO_CADASTRADO` e
+`WHATSAPP_NAO_VINCULADO` (catálogo completo em
+`docs/superpowers/specs/2026-08-17-agente-whatsapp-profissional-design.md`
+— **`CONSULTORIO_AMBIGUO` não é reaproveitado**: não existe mais em
+nenhuma tool, removido pela mudança de arquitetura de 2026-08-27 já
+documentada acima).
