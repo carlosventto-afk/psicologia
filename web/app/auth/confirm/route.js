@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { continuarFluxoWhatsapp } from "@/lib/whatsapp-onboarding-callback";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -10,8 +11,9 @@ export async function GET(request) {
 
   if (tokenHash && type) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+    const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (!error) {
+      await continuarFluxoWhatsapp(data?.user?.id ?? data?.session?.user?.id);
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
