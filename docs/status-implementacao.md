@@ -1,6 +1,68 @@
 # Status da implementação
 
-Última atualização: 2026-08-24.
+Última atualização: 2026-09-04.
+
+## Início de operação via WhatsApp — backend (2026-09-04)
+
+Implementado o backend do plano `docs/superpowers/plans/2026-09-04-inicio-operacao-whatsapp-backend.md` (spec `docs/superpowers/specs/2026-09-04-inicio-operacao-via-whatsapp-design.md`): 6 colunas novas em `agent_sessions` para rastreamento de onboarding e segurança, 3 RPCs novas do agente (`agent_criar_consultorio`, `agent_criar_paciente`, `agent_criar_conta_bancaria`), rota `POST /api/agent/onboarding` com criação de conta via magic link + reenvio + revalidação, anti-abuso por tentativas, isenção de plano nas 3 tools novas enquanto onboarding não termina, retomada automática do fluxo ao confirmar o link mágico em `/auth/callback` e `/auth/confirm`.
+
+- **Migrations:** 6 colunas novas em `agent_sessions` (20260904000001):
+  - `ultima_interacao_em` (timestamp) — rastreia último contato com o WhatsApp
+  - `ultima_validacao_seguranca_em` (timestamp) — última checagem de segurança
+  - `onboarding_etapa` (enum: null/`'criando_conta'`/`'pendente_email'`/`'concluido'`) — estado do fluxo
+  - `link_confirmacao_pendente` (boolean) — sinaliza se há um magic link aguardando confirmação
+  - `tentativas_cadastro` (integer) — contador de tentativas de criação de conta nesta sessão de WhatsApp
+  - `tentativas_cadastro_desde` (timestamp) — janela de 24h pro limite de 3 tentativas (anti-abuso)
+
+- **3 RPCs novas** (`service_role`-only, mesmo padrão das 16 existentes):
+  - `agent_criar_consultorio(p_proprietario_id, p_nome)` — cria consultório do profissional durante onboarding (o proprietário usa seu próprio `user_id` do Supabase Auth)
+  - `agent_criar_paciente(p_whatsapp_number, p_consultorio_id, p_nome)` — cria paciente sob um consultório validado (válida se `p_consultorio_id` pertence ao owner do `agent_sessions`)
+  - `agent_criar_conta_bancaria(p_proprietario_id, p_tipo, p_holder_name, p_chave_pix)` — cria conta bancária pro profissional (inicia pagamentos da plataforma)
+
+  **Descoberta arquitetural durante implementação:** `agent_criar_paciente` originalmente ia reusar um helper `_agent_resolve_consultorio`, mas esse helper (junto com `agent_listar_consultorios`, `agent_definir_consultorio_ativo`, e `agent_sessions.consultorio_ativo_id`) foi removido em migration anterior (`20260827000002_agent_rpc_remove_consultorio_scope.sql`, 2026-08-27) — o agente foi redesenhado pra escopagem pura por `owner`, nunca por consultório "ativo" (filtro do consultório sempre foi UX, nunca security boundary). `agent_criar_paciente` corrigida pra resolver consultório inline (valida um `p_consultorio_id` explícito contra o owner, ou padrão pro primeiro consultório do owner) em vez de depender do helper removido.
+
+- **Rota nova `POST /api/agent/onboarding`** (`web/app/api/agent/onboarding/route.js`):
+  - Reusa `AGENT_TOOL_SECRET` e header `x-agent-secret` (mesma direção n8n → Next.js de `/api/agent/call-tool`, sem segredo novo necessário)
+  - Actions disponíveis:
+    - `criar_conta`: cria conta do profissional com senha aleatória (nunca exposta) + envia magic link via `signInWithOtp` do Supabase Auth → e-mail
+    - `reenviar_link`: reusa rate limiter de 24h, envia novo magic link pra conta existente
+    - `revalidar`: checa estado atual do onboarding (útil pra n8n consultar antes de mandar mensagem)
+
+- **Descoberta de infrastructure durante implantação:** rota estava completamente unreachável no início — `web/lib/supabase/proxy.js` (`PUBLIC_PATHS` allowlist) redirecionava todo acesso não-listado pra `/login` antes do handler rodar. Descoberto tentando testar localmente. Corrigido adicionando `/api/agent/onboarding` ao allowlist, espelhando a entrada já existente de `/api/agent/call-tool` exatamente.
+
+- **Anti-abuso (rate limiting):** máximo 3 tentativas de `criar_conta` ou `reenviar_link` por número de WhatsApp por janela de 24h (`LIMITE_TENTATIVAS_CADASTRO`). Contador reseta cada 24h a partir da `tentativas_cadastro_desde`.
+
+- **Idempotência:** reenviar `criar_conta` pra número de WhatsApp que já tem conta não cria duplicata — devolve `WHATSAPP_JA_CADASTRADO` (novo código de erro), re-envia magic link pra conta existente, compartilha o mesmo rate limiter com `reenviar_link`. Caso análogo: e-mail já cadastrado em outro profissional → `EMAIL_JA_CADASTRADO` (planejado junto).
+
+- **Isenção de plano durante onboarding:** as 3 tools novas (`agent_criar_consultorio`, `agent_criar_paciente`, `agent_criar_conta_bancaria`) estão isentas da checagem de plano em `/api/agent/call-tool` **enquanto** `agent_sessions.onboarding_etapa != 'concluido'`. Após onboarding terminar, exigem plano pago como as outras 16 tools — assim um signup `plano='gratis'` consegue completar onboarding, mas não usa agente gratuitamente dali em diante.
+
+- **Callbacks de auth aprimorados:** `/auth/callback` e `/auth/confirm` agora chamam helper compartilhado novo (`web/lib/whatsapp-onboarding-callback.js`, função `continuarFluxoWhatsapp(userIdAuth)`):
+  - Após session estabelecida, checa se existe `agent_sessions.link_confirmacao_pendente = true` pra este `user_id`
+  - Se existe, notifica webhook future do n8n (env vars `N8N_ONBOARDING_SECRET`/`N8N_ONBOARDING_CONTINUE_URL` — ainda não configuradas em nenhum ambiente, intencional, pois workflow n8n que as consome é plano futuro)
+  - Helper degrada gracefully se env vars ausentes — loga erro e retorna sem bloquear login (comportamento intencional, permite que login normal funcione mesmo com n8n offline)
+
+- **Env vars novas**:
+  - `N8N_ONBOARDING_SECRET` — (ainda não em nenhum ambiente) — autentica callback de retomada do onboarding pra n8n
+  - `N8N_ONBOARDING_CONTINUE_URL` — (ainda não em nenhum ambiente) — URL do webhook do n8n pra retomada
+  - Ambas degradam gracefully se ausentes (log, sem quebra de login)
+
+- **Ainda não implantado em produção** — código commitado na `main`, porém aguardando workflow n8n (`WA - Onboarding` + extensões de `WA - Inbound Router`/`WA - Agent Psicólogo`) antes de fazer sentido. Nada em produção chama `/api/agent/onboarding` hoje.
+
+- **⚠️ INFRA BLOCKER — Supabase Auth instável, CRÍTICO:**
+  
+  O serviço Auth deste projeto Supabase está com problema (confirmado 2026-09-04, ao testar `criar_conta`/`reenviar_link`/`revalidar`):
+  
+  1. **`signInWithOtp()` (magic link) retorna 500 — "Error sending magic link email"** de forma consistente: testado com e-mails totalmente novos, sem rate limit aparente. Toda chamada de `criar_conta`/`reenviar_link` vai devolver `ERRO_ENVIAR_LINK` até que SMTP da Auth seja corrigido no lado da Supabase (problema de infraestrutura, não do código aqui).
+  
+  2. **`admin.auth.admin.deleteUser()` também retorna 500 intermitentemente** — `AuthRetryableFetchError`. Encontrado ao limpar dados de teste; 4 usuários descartáveis não conseguiram ser deletados: `teste-onboarding-paciente@example.com` + 3 com sufixo numérico, todos criados 2026-09-04 — continuam em produção (inofensivos, zero dados de app `Usuarios`/business vinculados, só ficarão em `auth.users`).
+  
+  3. **`SUPABASE_ACCESS_TOKEN` (Management API) retornou 401 — expirado** — durante uso em teste. Conferir status do projeto antes de confiar em qualquer operação Admin.
+  
+  **Recomendação:** verificar console de status/suporte da Supabase antes de tentar rodar `/api/agent/onboarding` contra produção. Uma vez que Auth ficar estável, o backend todo funciona.
+
+- **Falta pro encerramento desta entrega:** workflow n8n (`WA - Onboarding` + chamadas do n8n pra `/api/agent/onboarding` + extensões do `WA - Inbound Router`/`WA - Agent Psicólogo` pra chamar as 3 tools novas) — documentado como próximo passo em escopo, não implementado aqui (decomposição intencional, mesma convenção de sub-planos já usada no item 13 do backlog).
+
+
 
 ## Envio automático do Carnê-Leão (2026-08-13, item 9 do backlog)
 
