@@ -56,8 +56,16 @@ e só abre o app se e quando quiser.
 
 - Evolution API self-hosted, n8n self-hosted, `WA - Inbound Router` +
   `WA - Agent Psicólogo` + `WA - Enviar Mensagem` em produção, 16 tools do
-  agente, `agent_sessions` (hoje só `consultorio_ativo_id` por
-  `whatsapp_number`), `agent_audit_log`, RPCs
+  agente, `agent_sessions` (hoje só `whatsapp_number`/`usuario_id`/
+  `updated_at` — **correção pós-planejamento, 2026-09-04**: a coluna
+  `consultorio_ativo_id` citada na versão original deste parágrafo não
+  existe mais; `supabase/migrations/20260827000002_agent_rpc_remove_consultorio_scope.sql`,
+  posterior ao design original de 2026-08-17, removeu o escopo por
+  consultório do agente inteiro — as 16 tools escopam só por `owner`, e
+  `_agent_resolve_consultorio`/`agent_listar_consultorios`/
+  `agent_definir_consultorio_ativo`/`consultorio_ativo_id` foram todas
+  dropadas junto. Ver a nota em `agent_criar_paciente` mais abaixo pro
+  impacto direto nesta entrega), `agent_audit_log`, RPCs
   `gerar_codigo_verificacao_whatsapp`/`validar_codigo_whatsapp`.
 - Autocadastro web (`/cadastro`, `cadastrar()` em
   `web/lib/actions/auth.js`): `Usuarios.aprovado = false` por padrão pra
@@ -232,12 +240,18 @@ se aplica aqui). Retorna o id criado.
 
 `(p_whatsapp_number text, p_nome text, p_telefone text default null, p_email text default null, p_valor_sessao numeric default null, p_consultorio_id bigint default null) returns bigint`
 
-Resolve consultório via `_agent_resolve_consultorio` (mesmo padrão das
-tools existentes — levanta `CONSULTORIO_AMBIGUO`/`SEM_CONSULTORIO_CADASTRADO`
-conforme já documentado). Insere `Paciente` com os campos opcionais como
-`null` quando omitidos. Replica em PL/pgSQL a cascata da action web
-(`criarPaciente`, `web/lib/actions/pacientes.js`): cria
-`ResponsavelFinanceiro` próprio e o vínculo em
+**Correção pós-planejamento (2026-09-04)**: `_agent_resolve_consultorio` e o
+conceito de "consultório ambíguo" **não existem mais** —
+`supabase/migrations/20260827000002_agent_rpc_remove_consultorio_scope.sql`
+(posterior ao design original de 2026-08-17) removeu o escopo por
+consultório do agente inteiro (owner sempre foi a barreira de segurança
+real; o filtro por consultório era só um recorte de UX). `agent_criar_paciente`
+resolve consultório inline: usa `p_consultorio_id` se informado (validado
+contra o owner), senão pega o primeiro consultório do owner — sem
+ambiguidade, mesmo espírito das 16 tools atuais. Insere `Paciente` com os
+campos opcionais como `null` quando omitidos. Replica em PL/pgSQL a
+cascata da action web (`criarPaciente`, `web/lib/actions/pacientes.js`):
+cria `ResponsavelFinanceiro` próprio e o vínculo em
 `PacienteResponsavelFinanceiro`. Retorna o id do paciente criado.
 
 ### `agent_criar_conta_bancaria`
