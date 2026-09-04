@@ -52,6 +52,16 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
     return Response.json({ success: false, error_code: "DADOS_INCOMPLETOS" }, { status: 400 });
   }
 
+  // Rate limit primeiro, antes de qualquer outro caminho de retorno --
+  // inclusive o de "já cadastrado" logo abaixo, senão uma conta já
+  // existente vira um jeito de reenviar magic link sem limite (nenhum dos
+  // três desfechos -- WHATSAPP_JA_CADASTRADO, EMAIL_JA_CADASTRADO, sucesso
+  // -- pode pular esse gate).
+  const { bloqueado } = await checarLimiteTentativas(admin, whatsapp_number);
+  if (bloqueado) {
+    return Response.json({ success: false, error_code: "LIMITE_TENTATIVAS_CADASTRO" }, { status: 200 });
+  }
+
   // Idempotência: se esse whatsapp_number já tem um profissional vinculado,
   // não tenta criar uma segunda conta (o que criaria um segundo Auth user e
   // esbarraria numa constraint única de Usuarios.whatsapp_number/contato) --
@@ -77,11 +87,6 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
     }
 
     return Response.json({ success: false, error_code: "WHATSAPP_JA_CADASTRADO" }, { status: 200 });
-  }
-
-  const { bloqueado } = await checarLimiteTentativas(admin, whatsapp_number);
-  if (bloqueado) {
-    return Response.json({ success: false, error_code: "LIMITE_TENTATIVAS_CADASTRO" }, { status: 200 });
   }
 
   const senhaAleatoria = randomBytes(24).toString("hex");
