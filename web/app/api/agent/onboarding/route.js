@@ -3,6 +3,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
 
+// FRONTEIRA DE CONFIANÇA -- whatsapp_number no corpo desta rota é confiado
+// cegamente, sem nenhuma prova de posse do número nesta camada HTTP. Quem
+// chamar essa rota (hoje ninguém; no futuro, o workflow n8n ainda não
+// construído) É OBRIGADO a preencher whatsapp_number a partir de uma fonte
+// verificada -- o JID/remetente da própria Evolution API, normalizado --
+// e NUNCA a partir de um parâmetro de tool que uma LLM ou o usuário final
+// possam preencher livremente. Se isso for violado, qualquer pessoa que
+// souber (ou adivinhar) o número de outro profissional consegue criar
+// conta, reenviar magic link ou revalidar em nome dele.
 const ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 async function checarLimiteTentativas(admin, whatsappNumber) {
@@ -52,6 +61,14 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
     return Response.json({ success: false, error_code: "DADOS_INCOMPLETOS" }, { status: 400 });
   }
 
+  // Normaliza uma vez e usa em todo lugar daqui pra frente -- sem isso,
+  // "Foo@Example.com" e "foo@example.com" driftam entre o check "already
+  // registered" do Auth (que o Supabase normaliza internamente) e o
+  // .eq("email", email) case-sensitive contra Usuarios, produzindo
+  // EMAIL_JA_CADASTRADO falso (ou falso negativo) sem jeito de achar a
+  // conta de verdade.
+  const emailNormalizado = email.trim().toLowerCase();
+
   // Rate limit primeiro, antes de qualquer outro caminho de retorno --
   // inclusive o de "já cadastrado" logo abaixo, senão uma conta já
   // existente vira um jeito de reenviar magic link sem limite (nenhum dos
@@ -84,6 +101,7 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
     const { error: erroLinkExistente } = await enviarLinkMagico(usuarioMesmoNumero.email);
     if (erroLinkExistente) {
       console.error("Falha ao enviar link mágico (WHATSAPP_JA_CADASTRADO):", erroLinkExistente.message);
+      return Response.json({ success: false, error_code: "ERRO_ENVIAR_LINK" }, { status: 200 });
     }
 
     return Response.json({ success: false, error_code: "WHATSAPP_JA_CADASTRADO" }, { status: 200 });
@@ -91,7 +109,7 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
 
   const senhaAleatoria = randomBytes(24).toString("hex");
   const { data: criado, error: erroCreate } = await admin.auth.admin.createUser({
-    email,
+    email: emailNormalizado,
     password: senhaAleatoria,
     email_confirm: true,
   });
@@ -101,7 +119,7 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
       const { data: usuarioExistente } = await admin
         .from("Usuarios")
         .select("id")
-        .eq("email", email)
+        .eq("email", emailNormalizado)
         .maybeSingle();
 
       if (usuarioExistente) {
@@ -118,9 +136,10 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
           console.error("Falha ao atualizar agent_sessions (EMAIL_JA_CADASTRADO):", erroUpsertSessao.message);
         }
 
-        const { error: erroLink } = await enviarLinkMagico(email);
+        const { error: erroLink } = await enviarLinkMagico(emailNormalizado);
         if (erroLink) {
           console.error("Falha ao enviar link mágico (EMAIL_JA_CADASTRADO):", erroLink.message);
+          return Response.json({ success: false, error_code: "ERRO_ENVIAR_LINK" }, { status: 200 });
         }
       }
 
@@ -137,7 +156,7 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
     .insert({
       id_user: criado.user.id,
       nome,
-      email,
+      email: emailNormalizado,
       contato: contatoDigitos,
       crp: null,
       role: "psicologo",
@@ -172,7 +191,7 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
     console.error("Falha ao atualizar agent_sessions (criar_conta):", erroUpsertSessao.message);
   }
 
-  const { error: erroLink } = await enviarLinkMagico(email);
+  const { error: erroLink } = await enviarLinkMagico(emailNormalizado);
   if (erroLink) {
     console.error("Falha ao enviar link mágico (criar_conta):", erroLink.message);
     return Response.json({ success: false, error_code: "ERRO_ENVIAR_LINK" }, { status: 200 });
@@ -182,6 +201,14 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
 }
 
 async function reenviarOuRevalidar(admin, { whatsapp_number }) {
+  // Mesmo rate limiter/janela de criar_conta -- sem isso, reenviar_link e
+  // revalidar seriam um jeito de mandar magic link ilimitado pra qualquer
+  // numero que ja tenha linha em agent_sessions.
+  const { bloqueado } = await checarLimiteTentativas(admin, whatsapp_number);
+  if (bloqueado) {
+    return Response.json({ success: false, error_code: "LIMITE_TENTATIVAS_CADASTRO" }, { status: 200 });
+  }
+
   const { data: sessao } = await admin
     .from("agent_sessions")
     .select("usuario_id")

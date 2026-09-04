@@ -9,15 +9,15 @@ Implementado o backend do plano `docs/superpowers/plans/2026-09-04-inicio-operac
 - **Migrations:** 6 colunas novas em `agent_sessions` (20260904000001):
   - `ultima_interacao_em` (timestamp) — rastreia último contato com o WhatsApp
   - `ultima_validacao_seguranca_em` (timestamp) — última checagem de segurança
-  - `onboarding_etapa` (enum: null/`'criando_conta'`/`'pendente_email'`/`'concluido'`) — estado do fluxo
+  - `onboarding_etapa` (enum: `null`/`'aguardando_confirmacao_email'`/`'consultorio'`/`'paciente'`/`'conta'`/`'concluido'`) — estado do fluxo
   - `link_confirmacao_pendente` (boolean) — sinaliza se há um magic link aguardando confirmação
   - `tentativas_cadastro` (integer) — contador de tentativas de criação de conta nesta sessão de WhatsApp
   - `tentativas_cadastro_desde` (timestamp) — janela de 24h pro limite de 3 tentativas (anti-abuso)
 
 - **3 RPCs novas** (`service_role`-only, mesmo padrão das 16 existentes):
-  - `agent_criar_consultorio(p_proprietario_id, p_nome)` — cria consultório do profissional durante onboarding (o proprietário usa seu próprio `user_id` do Supabase Auth)
-  - `agent_criar_paciente(p_whatsapp_number, p_consultorio_id, p_nome)` — cria paciente sob um consultório validado (válida se `p_consultorio_id` pertence ao owner do `agent_sessions`)
-  - `agent_criar_conta_bancaria(p_proprietario_id, p_tipo, p_holder_name, p_chave_pix)` — cria conta bancária pro profissional (inicia pagamentos da plataforma)
+  - `agent_criar_consultorio(p_whatsapp_number, p_nome, p_telefone default null, p_email_atendimento default null, p_endereco default null)` — cria consultório do profissional durante onboarding; resolve o owner buscando `Usuarios` por `whatsapp_number` + `whatsapp_verified = true`, usando `contato`/`email` do próprio profissional como fallback de `telefone`/`email_atendimento` quando não informados
+  - `agent_criar_paciente(p_whatsapp_number, p_nome, p_telefone default null, p_email default null, p_valor_sessao default null, p_consultorio_id default null)` — cria paciente sob um consultório validado (valida que `p_consultorio_id` pertence ao owner resolvido via `_agent_get_owner_uuid`; se omitido, usa o primeiro consultório do owner por `id`)
+  - `agent_criar_conta_bancaria(p_whatsapp_number, p_nome, p_banco, p_agencia default null, p_numero default null, p_tipo default null)` — cria conta bancária pro profissional (inicia pagamentos da plataforma); **não existe campo `chave_pix`**; gera `codigo` sequencial (`C001`, `C002`, ...) contando linhas existentes de `ContaFinanceira` do owner
 
   **Descoberta arquitetural durante implementação:** `agent_criar_paciente` originalmente ia reusar um helper `_agent_resolve_consultorio`, mas esse helper (junto com `agent_listar_consultorios`, `agent_definir_consultorio_ativo`, e `agent_sessions.consultorio_ativo_id`) foi removido em migration anterior (`20260827000002_agent_rpc_remove_consultorio_scope.sql`, 2026-08-27) — o agente foi redesenhado pra escopagem pura por `owner`, nunca por consultório "ativo" (filtro do consultório sempre foi UX, nunca security boundary). `agent_criar_paciente` corrigida pra resolver consultório inline (valida um `p_consultorio_id` explícito contra o owner, ou padrão pro primeiro consultório do owner) em vez de depender do helper removido.
 
@@ -26,11 +26,11 @@ Implementado o backend do plano `docs/superpowers/plans/2026-09-04-inicio-operac
   - Actions disponíveis:
     - `criar_conta`: cria conta do profissional com senha aleatória (nunca exposta) + envia magic link via `signInWithOtp` do Supabase Auth → e-mail
     - `reenviar_link`: reusa rate limiter de 24h, envia novo magic link pra conta existente
-    - `revalidar`: checa estado atual do onboarding (útil pra n8n consultar antes de mandar mensagem)
+    - `revalidar`: hoje é idêntica a `reenviar_link` (mesma função `reenviarOuRevalidar`) — reenvia magic link pra conta já vinculada; **não** checa o estado do onboarding, apesar do nome sugerir isso
 
 - **Descoberta de infrastructure durante implantação:** rota estava completamente unreachável no início — `web/lib/supabase/proxy.js` (`PUBLIC_PATHS` allowlist) redirecionava todo acesso não-listado pra `/login` antes do handler rodar. Descoberto tentando testar localmente. Corrigido adicionando `/api/agent/onboarding` ao allowlist, espelhando a entrada já existente de `/api/agent/call-tool` exatamente.
 
-- **Anti-abuso (rate limiting):** máximo 3 tentativas de `criar_conta` ou `reenviar_link` por número de WhatsApp por janela de 24h (`LIMITE_TENTATIVAS_CADASTRO`). Contador reseta cada 24h a partir da `tentativas_cadastro_desde`.
+- **Anti-abuso (rate limiting):** máximo 3 tentativas de `criar_conta`, `reenviar_link` ou `revalidar` por número de WhatsApp por janela de 24h (`LIMITE_TENTATIVAS_CADASTRO`), mesmo contador/janela compartilhado pelas três ações. Contador reseta cada 24h a partir da `tentativas_cadastro_desde`.
 
 - **Idempotência:** reenviar `criar_conta` pra número de WhatsApp que já tem conta não cria duplicata — devolve `WHATSAPP_JA_CADASTRADO` (novo código de erro), re-envia magic link pra conta existente, compartilha o mesmo rate limiter com `reenviar_link`. Caso análogo: e-mail já cadastrado em outro profissional → `EMAIL_JA_CADASTRADO` (planejado junto).
 

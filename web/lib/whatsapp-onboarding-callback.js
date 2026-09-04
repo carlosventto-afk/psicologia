@@ -36,6 +36,7 @@ export async function continuarFluxoWhatsapp(userIdAuth) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-onboarding-secret": secret },
       body: JSON.stringify({ whatsapp_number: sessao.whatsapp_number }),
+      signal: AbortSignal.timeout(3000),
     });
   } catch (erro) {
     console.error("Falha ao retomar onboarding via WhatsApp:", erro.message);
