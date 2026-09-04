@@ -18,7 +18,17 @@ const TOOLS_VALIDAS = [
   "agent_excluir_pagamento",
   "agent_registrar_lancamento_despesa",
   "agent_registrar_anamnese",
+  "agent_criar_consultorio",
+  "agent_criar_paciente",
+  "agent_criar_conta_bancaria",
 ];
+
+// Tools do onboarding guiado: ignoram a checagem de plano enquanto o
+// onboarding nao terminou (decisao do usuario, 2026-09-04 -- ver spec
+// docs/superpowers/specs/2026-09-04-inicio-operacao-via-whatsapp-design.md,
+// secao "Tools novas"). Depois de onboarding_etapa = 'concluido', voltam a
+// exigir plano pago como as demais tools.
+const TOOLS_ONBOARDING = ["agent_criar_consultorio", "agent_criar_paciente", "agent_criar_conta_bancaria"];
 
 export async function POST(request) {
   const segredo = request.headers.get("x-agent-secret");
@@ -56,7 +66,25 @@ export async function POST(request) {
     .eq("whatsapp_verified", true)
     .maybeSingle();
 
-  if (!profissional || !PLANOS[profissional.plano]?.temWhatsapp) {
+  if (!profissional) {
+    return Response.json({ success: false, error_code: "PLANO_SEM_WHATSAPP" }, { status: 200 });
+  }
+
+  const isToolOnboarding = TOOLS_ONBOARDING.includes(tool_name);
+  let onboardingConcluido = true;
+
+  if (isToolOnboarding) {
+    const { data: sessaoOnboarding } = await admin
+      .from("agent_sessions")
+      .select("onboarding_etapa")
+      .eq("whatsapp_number", whatsapp_number)
+      .maybeSingle();
+    onboardingConcluido = sessaoOnboarding?.onboarding_etapa === "concluido" || !sessaoOnboarding?.onboarding_etapa;
+  }
+
+  const exigePlano = !isToolOnboarding || onboardingConcluido;
+
+  if (exigePlano && !PLANOS[profissional.plano]?.temWhatsapp) {
     return Response.json({ success: false, error_code: "PLANO_SEM_WHATSAPP" }, { status: 200 });
   }
 
