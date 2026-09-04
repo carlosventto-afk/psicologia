@@ -17,6 +17,7 @@ const PUBLIC_PATHS = [
   "/termos",
   "/carne-leao-automatico",
   "/api/agent/call-tool",
+  "/api/agent/onboarding",
   "/api/blog/artigos",
   "/api/asaas/webhook",
   "/api/assinaturas/aplicar-pendencias",
