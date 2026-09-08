@@ -152,10 +152,18 @@ só precisa trazer as colunas novas). Novo nó de decisão logo depois:
 
 - Se `link_confirmacao_pendente = true` → responde o lembrete fixo
   ("ainda não confirmei seu e-mail..."), não roda nenhuma tool.
-- Senão, se `now() - ultima_validacao_seguranca_em > 30 dias` → chama
+- Senão, se `ultima_validacao_seguranca_em` não for nulo **e**
+  `now() - ultima_validacao_seguranca_em > 30 dias` → chama
   `POST /api/agent/onboarding` (`{acao: "revalidar", whatsapp_number}`)
   via HTTP node (credencial `proxySecret`), responde pedindo pra
-  clicar o link, não roda nenhuma tool.
+  clicar o link, não roda nenhuma tool. **Decisão tomada durante o
+  planejamento (2026-09-08)**: `ultima_validacao_seguranca_em` nulo
+  (todo profissional já vinculado antes desta entrega existir, coluna
+  nova nunca preenchida retroativamente) é tratado como isento — a
+  janela de 30 dias só passa a valer depois da primeira validação real
+  (cadastro novo ou clique de link de revalidação). Sem essa checagem
+  explícita de nulo, todo profissional já vinculado seria barrado pedindo
+  revalidação logo na primeira mensagem depois do deploy.
 - Senão → segue pro fluxo normal (buffer → `WA - Agent Psicólogo`),
   como hoje — só que agora passando `onboarding_etapa` no input também.
 
