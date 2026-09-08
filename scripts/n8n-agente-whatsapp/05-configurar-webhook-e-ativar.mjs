@@ -4,7 +4,7 @@ import path from "node:path";
 import { n8nRequest, evolutionRequest } from "./lib.mjs";
 
 // Checagem movida pra ANTES do loop de ativação (achado da re-revisão): se
-// isto rodasse depois, uma execução sem a env var definida ativava os 3
+// isto rodasse depois, uma execução sem a env var definida ativava os 4
 // workflows e só então abortava antes de configurar o webhook da Evolution
 // API — um estado parcial confuso. Mesmo padrão que 01-criar-credenciais.mjs
 // já usa corretamente (valida tudo primeiro, só then age).
