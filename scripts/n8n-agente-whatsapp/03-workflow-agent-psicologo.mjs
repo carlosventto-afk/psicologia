@@ -121,6 +121,44 @@ const tools = [
       { nome: "p_observacao", tipo: "string", desc: "Observação livre opcional sobre esta atualização de anamnese." },
     ],
   },
+  {
+    nome: "agent_criar_consultorio",
+    descricao: "Cria um consultório novo pro profissional durante o onboarding inicial. Só chame se o profissional estiver configurando o primeiro consultório (onboarding_etapa = consultorio).",
+    params: [
+      { nome: "p_nome", tipo: "string", desc: "Nome do consultório." },
+      { nome: "p_telefone", tipo: "string", desc: "Telefone de atendimento. Se o profissional não falar, envie string vazia." },
+      { nome: "p_email_atendimento", tipo: "string", desc: "E-mail de atendimento. Se o profissional não falar, envie string vazia." },
+      { nome: "p_endereco", tipo: "string", desc: "Endereço do consultório. Se o profissional não falar, envie string vazia." },
+    ],
+  },
+  {
+    nome: "agent_criar_paciente",
+    descricao: "Cria um paciente novo. Durante o onboarding (onboarding_etapa = paciente), use pra cadastrar o primeiro paciente se o profissional quiser.",
+    params: [
+      { nome: "p_nome", tipo: "string", desc: "Nome do paciente." },
+      { nome: "p_telefone", tipo: "string", desc: "Telefone do paciente. Se não informado, envie string vazia." },
+      { nome: "p_email", tipo: "string", desc: "E-mail do paciente. Se não informado, envie string vazia." },
+      { nome: "p_valor_sessao", tipo: "number", desc: "Valor da sessão em reais. Se não informado, envie 0." },
+    ],
+  },
+  {
+    nome: "agent_criar_conta_bancaria",
+    descricao: "Cria uma conta financeira/bancária pro profissional. Durante o onboarding (onboarding_etapa = conta), só nome e banco são obrigatórios.",
+    params: [
+      { nome: "p_nome", tipo: "string", desc: "Nome/apelido da conta (ex: Conta Corrente)." },
+      { nome: "p_banco", tipo: "string", desc: "Nome do banco." },
+      { nome: "p_agencia", tipo: "string", desc: "Agência. Se não informado, envie string vazia." },
+      { nome: "p_numero", tipo: "string", desc: "Número da conta. Se não informado, envie string vazia." },
+      { nome: "p_tipo", tipo: "string", desc: "Tipo da conta (corrente/poupança). Se não informado, envie string vazia." },
+    ],
+  },
+  {
+    nome: "agent_avancar_onboarding",
+    descricao: "Avança o profissional pra próxima etapa do onboarding guiado. Chame SEMPRE depois de terminar (criou o registro) ou pular uma etapa — nunca decida sozinho, sempre chame esta tool pra confirmar o avanço.",
+    params: [
+      { nome: "p_etapa_atual", tipo: "string", desc: "A etapa atual do onboarding (o valor de onboarding_etapa que você recebeu: consultorio, paciente ou conta)." },
+    ],
+  },
 ];
 
 // Achado lendo o código-fonte real do node (dist/nodes/tools/ToolHttpRequest/
@@ -207,7 +245,11 @@ Confirmação antes de ação destrutiva: antes de chamar agent_excluir_sessao, 
 
 Tradução de erro: nunca mostre um código de erro cru. Traduza para frase humana, por exemplo: WHATSAPP_NAO_VINCULADO -> "seu WhatsApp ainda não está vinculado a uma conta"; SESSAO_NAO_ENCONTRADA -> "não encontrei esse atendimento"; SESSAO_NAO_REAGENDAVEL -> "esse atendimento já foi realizado ou cancelado, não dá pra reagendar"; SESSAO_TEM_VINCULO_FINANCEIRO -> "esse atendimento tem pagamento ou recibo vinculado, não dá pra excluir — mas posso cancelar, se preferir"; PAGAMENTO_TEM_NOTA_FISCAL -> "esse pagamento tem nota fiscal emitida, não dá pra excluir"; PACIENTE_INVALIDO -> "não encontrei esse paciente"; CAMPO_ANAMNESE_INVALIDO ou CAMPOS_INVALIDOS -> "não entendi esse campo da anamnese, pode reformular?"; CONTA_INVALIDA -> "não encontrei essa conta financeira"; PAGAMENTO_NAO_ENCONTRADO -> "não encontrei esse pagamento"; SEM_CONSULTORIO_CADASTRADO -> "você ainda não tem nenhum consultório cadastrado no sistema"; PLANO_SEM_WHATSAPP -> "seu plano atual não inclui o atendimento por WhatsApp — dá pra ver os planos direto no aplicativo".
 
-Quando agent_reagendar_sessao retornar alerta=true no resultado, avise o profissional de forma gentil que esse paciente já remarcou várias vezes este mês.`;
+Quando agent_reagendar_sessao retornar alerta=true no resultado, avise o profissional de forma gentil que esse paciente já remarcou várias vezes este mês.
+
+Onboarding guiado: se {{ $json.onboarding_etapa }} for "consultorio", "paciente" ou "conta", o profissional ainda está no onboarding inicial — priorize guiar essa etapa (pergunte o que falta, ofereça pular), mas sem travar: se ele perguntar outra coisa, responda normalmente com as demais ferramentas e só retome o onboarding na resposta seguinte. Em cada etapa: crie o registro correspondente (agent_criar_consultorio/agent_criar_paciente/agent_criar_conta_bancaria) OU, se o profissional quiser pular, não crie nada — nos dois casos, chame agent_avancar_onboarding em seguida passando a etapa atual. Quando agent_avancar_onboarding retornar "concluido", mande uma mensagem final resumindo o que foi criado e avisando que o resto pode ser feito a qualquer momento, só pedindo (ex: "cadastra paciente X") ou pelo aplicativo. Se {{ $json.onboarding_etapa }} for vazio ou "concluido", não mencione onboarding nenhum.
+
+Traduções de erro adicionais: SEM_CONSULTORIO_CADASTRADO -> "você ainda não tem nenhum consultório cadastrado"; CONSULTORIO_INVALIDO -> "não encontrei esse consultório"; NOME_OBRIGATORIO -> "preciso do nome pra continuar"; BANCO_OBRIGATORIO -> "preciso saber o banco pra continuar"; ONBOARDING_ETAPA_INVALIDA -> não mostre isso ao profissional, apenas siga com a etapa que o onboarding_etapa atual indica.`;
 
 const workflow = {
   name: "WA - Agent Psicólogo",
@@ -219,6 +261,7 @@ const workflow = {
             { name: "whatsapp_number" },
             { name: "mensagem_texto" },
             { name: "usuario_nome" },
+            { name: "onboarding_etapa" },
           ],
         },
       },
