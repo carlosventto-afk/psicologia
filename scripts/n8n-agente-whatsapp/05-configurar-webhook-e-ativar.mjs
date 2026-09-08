@@ -15,13 +15,16 @@ if (!process.env.WEBHOOK_SHARED_SECRET) {
 
 const idsPath = path.resolve("scripts/n8n-agente-whatsapp/ids.json");
 const ids = JSON.parse(fs.readFileSync(idsPath, "utf8"));
-const { enviarMensagem, agentPsicologo, inboundRouter } = ids.workflows;
+const { enviarMensagem, agentPsicologo, inboundRouter, onboarding } = ids.workflows;
 
 // Ordem importa: sub-workflows primeiro, Router por último (webhook de produção só existe
-// depois que o próprio Router está ativo).
+// depois que o próprio Router está ativo). 4 workflows no total (Enviar Mensagem, Agent
+// Psicólogo, Onboarding, Router) — Onboarding entrou na lista depois que o Fase 2 do
+// onboarding via WhatsApp foi implementado.
 for (const [nome, id] of [
   ["WA - Enviar Mensagem", enviarMensagem],
   ["WA - Agent Psicólogo", agentPsicologo],
+  ["WA - Onboarding", onboarding],
   ["WA - Inbound Router", inboundRouter],
 ]) {
   await n8nRequest("POST", `/workflows/${id}/activate`, {});

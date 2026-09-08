@@ -99,7 +99,7 @@ const workflow = {
     {
       parameters: {
         sessionIdType: "customKey",
-        sessionKey: "={{ $('Execute Workflow Trigger').first().json.whatsapp_number }}",
+        sessionKey: "={{ 'onboarding:' + $('Execute Workflow Trigger').first().json.whatsapp_number }}",
         tableName: "n8n_chat_histories",
         contextWindowLength: 10,
       },
@@ -135,7 +135,7 @@ const workflow = {
       parameters: {
         operation: "executeQuery",
         query:
-          "update \"Usuarios\" set whatsapp_verified = true where whatsapp_number = $1;\n\nupdate agent_sessions\nset ultima_validacao_seguranca_em = now(),\n    link_confirmacao_pendente = false,\n    onboarding_etapa = case when onboarding_etapa = 'aguardando_confirmacao_email' then 'consultorio' else onboarding_etapa end\nwhere whatsapp_number = $1\nreturning onboarding_etapa;",
+          "update \"Usuarios\" u\nset whatsapp_verified = true,\n    whatsapp_number = $1\nfrom agent_sessions s\nwhere s.whatsapp_number = $1 and u.id = s.usuario_id;\n\nupdate agent_sessions\nset ultima_validacao_seguranca_em = now(),\n    link_confirmacao_pendente = false,\n    onboarding_etapa = case when onboarding_etapa = 'aguardando_confirmacao_email' then 'consultorio' else onboarding_etapa end\nwhere whatsapp_number = $1\nreturning onboarding_etapa;",
         options: {
           queryReplacement: "={{ [$json.body.whatsapp_number] }}",
         },

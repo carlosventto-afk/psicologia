@@ -153,7 +153,7 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       parameters: {
         operation: "executeQuery",
         query:
-          "select\n  coalesce((select id::text from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1), '') as id,\n  (select nome from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1) as nome,\n  (select onboarding_etapa from agent_sessions where whatsapp_number = $1) as onboarding_etapa,\n  coalesce((select link_confirmacao_pendente from agent_sessions where whatsapp_number = $1), false) as link_confirmacao_pendente,\n  (select ultima_validacao_seguranca_em from agent_sessions where whatsapp_number = $1) as ultima_validacao_seguranca_em",
+          "select\n  coalesce((select id::text from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1), '') as id,\n  (select nome from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1) as nome,\n  coalesce((select onboarding_etapa from agent_sessions where whatsapp_number = $1), '') as onboarding_etapa,\n  coalesce((select link_confirmacao_pendente from agent_sessions where whatsapp_number = $1), false) as link_confirmacao_pendente,\n  (select ultima_validacao_seguranca_em from agent_sessions where whatsapp_number = $1) as ultima_validacao_seguranca_em,\n  coalesce(\n    (select ultima_validacao_seguranca_em from agent_sessions where whatsapp_number = $1) < now() - interval '30 days',\n    false\n  ) as precisa_revalidar",
         options: {
           queryReplacement: "={{ [$json.numero_normalizado] }}",
         },
@@ -212,15 +212,14 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       "b7c17000-0000-4000-8000-000000000031",
       [1320, 160],
       "Enviar: aguardando confirmacao",
-      "Ainda não confirmei seu cadastro — clica no link que te mandei por e-mail, ou me avisa se quer que eu reenvie."
+      "Ainda não confirmei seu cadastro — clica no link que te mandei por e-mail pra continuar."
     ),
     {
       parameters: {
         conditions: {
           options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
           conditions: [
-            { leftValue: "={{ $json.ultima_validacao_seguranca_em }}", rightValue: "", operator: { type: "string", operation: "notEmpty" } },
-            { leftValue: "={{ $json.ultima_validacao_seguranca_em }}", rightValue: "={{ $now.minus({ days: 30 }) }}", operator: { type: "dateTime", operation: "before" } },
+            { leftValue: "={{ $json.precisa_revalidar }}", rightValue: true, operator: { type: "boolean", operation: "true" } },
           ],
           combinator: "and",
         },
@@ -420,18 +419,75 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       "Esse código não é válido ou já expirou. Gere um novo em /configuracoes/whatsapp e envie de novo por aqui."
     ),
     {
+      // Important #5 (revisão final): cópia de "Bufferizar Mensagem" pro
+      // fluxo de número ainda não vinculado (onboarding) — mesmo padrão de
+      // debounce (ver comentário no topo do arquivo), mesma tabela
+      // agent_buffer_mensagens (chave whatsapp_number), nó separado (id/nome
+      // próprios) só pra não colidir com os lookups $('Bufferizar Mensagem')
+      // usados no fluxo do Agent Psicólogo mais acima.
+      parameters: {
+        operation: "executeQuery",
+        query:
+          "insert into agent_buffer_mensagens (whatsapp_number, mensagens, versao, atualizado_em)\nvalues ($1, array[$2], 1, now())\non conflict (whatsapp_number) do update set\n  mensagens = agent_buffer_mensagens.mensagens || excluded.mensagens,\n  versao = agent_buffer_mensagens.versao + 1,\n  atualizado_em = now()\nreturning versao;",
+        options: {
+          queryReplacement:
+            "={{ [$('Normalizar Payload').item.json.numero_normalizado, $('Normalizar Payload').item.json.texto] }}",
+        },
+      },
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [1540, 160],
+      id: "b7c17000-0000-4000-8000-000000000040",
+      name: "Bufferizar Mensagem (onboarding)",
+      credentials: {
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
+      },
+      onError: "continueErrorOutput",
+    },
+    {
+      parameters: {
+        amount: DEBOUNCE_WAIT_SECONDS,
+      },
+      type: "n8n-nodes-base.wait",
+      typeVersion: 1.1,
+      position: [1760, 160],
+      id: "b7c17000-0000-4000-8000-000000000041",
+      name: "Esperar Mensagens Fragmentadas (onboarding)",
+      webhookId: "wa-inbound-router-debounce-wait-onboarding",
+    },
+    {
+      parameters: {
+        operation: "executeQuery",
+        query:
+          "delete from agent_buffer_mensagens\nwhere whatsapp_number = $1 and versao = $2\nreturning mensagens;",
+        options: {
+          queryReplacement:
+            "={{ [$('Normalizar Payload').item.json.numero_normalizado, $('Bufferizar Mensagem (onboarding)').item.json.versao] }}",
+        },
+      },
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [1980, 160],
+      id: "b7c17000-0000-4000-8000-000000000042",
+      name: "Consumir Buffer (onboarding)",
+      credentials: {
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
+      },
+      onError: "continueErrorOutput",
+    },
+    {
       parameters: {
         workflowId: { __rl: true, mode: "id", value: wfOnboarding },
         workflowInputs: {
           value: {
             whatsapp_number: "={{ $('Normalizar Payload').item.json.numero_normalizado }}",
-            mensagem_texto: "={{ $('Normalizar Payload').item.json.texto }}",
+            mensagem_texto: "={{ $json.mensagens.join('\\n') }}",
           },
         },
       },
       type: "n8n-nodes-base.executeWorkflow",
       typeVersion: 1.2,
-      position: [1540, 160],
+      position: [2200, 160],
       id: "b7c17000-0000-4000-8000-000000000035",
       name: "Chamar WA - Onboarding",
       onError: "continueErrorOutput",
@@ -448,7 +504,7 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       },
       type: "n8n-nodes-base.executeWorkflow",
       typeVersion: 1.2,
-      position: [1760, 160],
+      position: [2420, 160],
       id: "b7c17000-0000-4000-8000-000000000036",
       name: "Enviar: resposta do Onboarding",
     },
@@ -529,7 +585,22 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
     "Parece código de 6 dígitos?": {
       main: [
         [{ node: "Validar Código Vinculação", type: "main", index: 0 }],
+        [{ node: "Bufferizar Mensagem (onboarding)", type: "main", index: 0 }],
+      ],
+    },
+    "Bufferizar Mensagem (onboarding)": {
+      main: [
+        [{ node: "Esperar Mensagens Fragmentadas (onboarding)", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
+    "Esperar Mensagens Fragmentadas (onboarding)": {
+      main: [[{ node: "Consumir Buffer (onboarding)", type: "main", index: 0 }]],
+    },
+    "Consumir Buffer (onboarding)": {
+      main: [
         [{ node: "Chamar WA - Onboarding", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
       ],
     },
     "Chamar WA - Onboarding": {
