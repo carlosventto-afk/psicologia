@@ -7,8 +7,10 @@ const estadoInicial = {};
 export default function SessaoForm({ action, pacientes, pacotes, tiposAtendimento, pacienteInicialId, voltarPara, dataInicial }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const tipoSessaoRef = useRef(null);
+  const valorRef = useRef(null);
 
   const pacotesPorId = Object.fromEntries(pacotes.map((p) => [p.id, p]));
+  const pacienteInicial = pacientes.find((p) => p.id === pacienteInicialId);
 
   function aoTrocarPaciente(event) {
     const pacienteId = Number(event.target.value);
@@ -16,6 +18,9 @@ export default function SessaoForm({ action, pacientes, pacotes, tiposAtendiment
     const pacote = paciente?.pacote ? pacotesPorId[paciente.pacote] : null;
     if (pacote && tipoSessaoRef.current) {
       tipoSessaoRef.current.value = pacote.tipo_atendimento_nome;
+    }
+    if (paciente && valorRef.current) {
+      valorRef.current.value = paciente.valor_sessao;
     }
   }
 
@@ -43,6 +48,23 @@ export default function SessaoForm({ action, pacientes, pacotes, tiposAtendiment
             </option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <label htmlFor="valor" className="block text-sm font-semibold text-navy">
+          Valor da sessão
+        </label>
+        <input
+          ref={valorRef}
+          id="valor"
+          name="valor"
+          type="number"
+          step="0.01"
+          min="0"
+          required
+          defaultValue={pacienteInicial?.valor_sessao ?? ""}
+          className="field"
+        />
       </div>
 
       <div>

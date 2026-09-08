@@ -50,7 +50,7 @@ export async function listarPacientes({ busca = "", status = "ativos" } = {}) {
 
 export async function listarPacientesParaSelect(excluirId, incluirId) {
   const supabase = await createClient();
-  let query = supabase.from("Paciente").select("id, nome, pacote").eq("ativo", true).order("nome");
+  let query = supabase.from("Paciente").select("id, nome, pacote, valor_sessao").eq("ativo", true).order("nome");
   if (excluirId) query = query.neq("id", excluirId);
 
   const { data, error } = await query;
@@ -61,7 +61,7 @@ export async function listarPacientesParaSelect(excluirId, incluirId) {
   if (incluirId != null && !pacientes.some((p) => p.id === Number(incluirId))) {
     const { data: extra, error: erroExtra } = await supabase
       .from("Paciente")
-      .select("id, nome, pacote")
+      .select("id, nome, pacote, valor_sessao")
       .eq("id", incluirId)
       .maybeSingle();
 

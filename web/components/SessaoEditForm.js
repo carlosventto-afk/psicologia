@@ -85,6 +85,22 @@ export default function SessaoEditForm({ action, sessao, pacientes, tiposAtendim
         </div>
 
         <div>
+          <label htmlFor="valor" className="block text-sm font-semibold text-navy">
+            Valor da sessão
+          </label>
+          <input
+            id="valor"
+            name="valor"
+            type="number"
+            step="0.01"
+            min="0"
+            required
+            defaultValue={sessao.valor}
+            className="field"
+          />
+        </div>
+
+        <div>
           <label htmlFor="data" className="block text-sm font-semibold text-navy">
             Data
           </label>

@@ -15,10 +15,11 @@ export async function criarSessao(prevState, formData) {
   const horario = formData.get("horario");
   const duracao_min = Number(formData.get("duracao_min"));
   const tipoSessao = formData.get("tipo_sessao");
+  const valor = Number(formData.get("valor"));
 
-  const { data: pacienteRow, error: erroPaciente } = await supabase
+  const { error: erroPaciente } = await supabase
     .from("Paciente")
-    .select("valor_sessao")
+    .select("id")
     .eq("id", paciente)
     .single();
 
@@ -57,7 +58,7 @@ export async function criarSessao(prevState, formData) {
     horario,
     duracao_min,
     tipo_sessao: tipoSessao,
-    valor: Number(pacienteRow.valor_sessao),
+    valor,
     status: "Marcada",
     Realizado: false,
     recorrencia_id: recorrenciaCriada?.id ?? null,
