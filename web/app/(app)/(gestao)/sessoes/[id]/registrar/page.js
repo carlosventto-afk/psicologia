@@ -5,9 +5,10 @@ import { listarResponsaveisDoPaciente } from "@/lib/data/responsaveis-financeiro
 import { marcarAtendimentoRealizado } from "@/lib/actions/sessoes";
 import { hojeISO } from "@/lib/periodo-agenda";
 
-export default async function PaginaRegistrarAtendimento({ params }) {
+export default async function PaginaRegistrarAtendimento({ params, searchParams }) {
   const { id } = await params;
   const sessaoId = Number(id);
+  const { voltarPara } = await searchParams;
   const sessao = await buscarSessao(sessaoId);
   const [contas, responsaveis] = await Promise.all([
     listarContas(),
@@ -30,6 +31,7 @@ export default async function PaginaRegistrarAtendimento({ params }) {
         responsaveis={responsaveis}
         valor={sessao.valor}
         dataInicial={hojeISO()}
+        voltarPara={voltarPara}
       />
     </div>
   );

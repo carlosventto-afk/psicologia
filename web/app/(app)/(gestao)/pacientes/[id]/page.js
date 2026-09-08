@@ -51,7 +51,10 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title min-w-0 truncate">{paciente.nome}</h1>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <Link href={`/agenda/nova-sessao?paciente=${pacienteId}`} className="link">
+          <Link
+            href={`/agenda/nova-sessao?paciente=${pacienteId}&voltarPara=${encodeURIComponent(`/pacientes/${pacienteId}`)}`}
+            className="link"
+          >
             Nova Sessão
           </Link>
           <Link href={`/pacientes/${pacienteId}/receber`} className="link">
@@ -259,7 +262,10 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                     {s.saldo_devedor > 0 ? (
                       s.status !== "Cancelada" && (
                         <>
-                          <Link href={`/sessoes/${s.id}/receber`} className="link">
+                          <Link
+                            href={`/sessoes/${s.id}/receber?voltarPara=${encodeURIComponent(`/pacientes/${pacienteId}?aba=sessoes`)}`}
+                            className="link"
+                          >
                             Receber
                           </Link>
                           {(() => {

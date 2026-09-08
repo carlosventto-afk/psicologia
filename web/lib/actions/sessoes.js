@@ -76,7 +76,7 @@ export async function criarSessao(prevState, formData) {
   revalidatePath("/agenda");
   revalidatePath("/");
   revalidatePath("/recorrencias");
-  redirect("/agenda");
+  redirect(formData.get("voltar_para") || "/agenda");
 }
 
 export async function atualizarSessao(sessaoId, prevState, formData) {
@@ -130,7 +130,7 @@ export async function atualizarSessao(sessaoId, prevState, formData) {
 
   revalidatePath("/agenda");
   revalidatePath("/");
-  redirect("/agenda");
+  redirect(formData.get("voltar_para") || "/agenda");
 }
 
 // Desloca (por dias) e/ou atualiza o horário das demais sessões futuras e
@@ -187,6 +187,7 @@ export async function cancelarSessao(sessaoId, formData) {
   }
 
   const aplicarSerie = formData?.get?.("aplicar_serie") === "true";
+  const voltarPara = formData?.get?.("voltar_para") || "/agenda";
 
   // "Todas as futuras": reaproveita cancelarRecorrencia, que já desativa a
   // série inteira e cancela as sessões futuras não realizadas (inclusive
@@ -195,7 +196,7 @@ export async function cancelarSessao(sessaoId, formData) {
     await cancelarRecorrencia(sessaoAtual.recorrencia_id);
     revalidatePath("/agenda");
     revalidatePath("/");
-    redirect("/agenda");
+    redirect(voltarPara);
   }
 
   const { data: alocacoes, error: erroAlocacoes } = await supabase
@@ -221,7 +222,7 @@ export async function cancelarSessao(sessaoId, formData) {
 
   revalidatePath("/agenda");
   revalidatePath("/");
-  redirect("/agenda");
+  redirect(voltarPara);
 }
 
 export async function marcarAtendimentoRealizado(sessaoId, prevState, formData) {
@@ -272,5 +273,5 @@ export async function marcarAtendimentoRealizado(sessaoId, prevState, formData) 
   revalidatePath("/agenda");
   revalidatePath("/financeiro");
   revalidatePath("/");
-  redirect("/agenda?registrado=1");
+  redirect(formData.get("voltar_para") || "/agenda?registrado=1");
 }

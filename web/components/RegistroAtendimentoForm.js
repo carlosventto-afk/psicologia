@@ -4,12 +4,13 @@ import { useActionState, useState } from "react";
 
 const estadoInicial = {};
 
-export default function RegistroAtendimentoForm({ action, contas, responsaveis, valor, dataInicial }) {
+export default function RegistroAtendimentoForm({ action, contas, responsaveis, valor, dataInicial, voltarPara }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const [pagou, setPagou] = useState(false);
 
   return (
     <form action={formAction} className="max-w-md space-y-4 card p-6">
+      {voltarPara && <input type="hidden" name="voltar_para" value={voltarPara} />}
       <div>
         <label htmlFor="anotacoes" className="block text-sm font-semibold text-navy">
           Anotações

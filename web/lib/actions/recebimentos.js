@@ -39,7 +39,7 @@ export async function registrarRecebimentoIndividual(sessaoId, pacienteId, prevS
   revalidatePath("/financeiro");
   revalidatePath("/agenda");
   revalidatePath(`/pacientes/${pacienteId}`);
-  redirect("/agenda");
+  redirect(formData.get("voltar_para") || "/agenda");
 }
 
 export async function registrarRecebimentoLote(pacienteId, prevState, formData) {

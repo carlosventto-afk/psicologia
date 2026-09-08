@@ -76,7 +76,7 @@ export default async function PaginaFinanceiro() {
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-muted">{i.data}</span>
                   <span className="text-red-600">{formatarMoeda(i.valor_devido)}</span>
-                  <Link href={`/sessoes/${i.sessao_id}/receber`} className="link">
+                  <Link href={`/sessoes/${i.sessao_id}/receber?voltarPara=%2Ffinanceiro`} className="link">
                     Receber
                   </Link>
                 </div>

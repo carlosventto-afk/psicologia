@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { cancelarSessao } from "@/lib/actions/sessoes";
 
-export default function CancelarSessaoButton({ sessaoId, recorrenciaId, className, children }) {
+export default function CancelarSessaoButton({ sessaoId, recorrenciaId, voltarPara, className, children }) {
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const formRef = useRef(null);
   const aplicarSerieRef = useRef(null);
@@ -24,6 +24,7 @@ export default function CancelarSessaoButton({ sessaoId, recorrenciaId, classNam
     <>
       <form ref={formRef} action={cancelarSessao.bind(null, sessaoId)}>
         <input type="hidden" name="aplicar_serie" defaultValue="false" ref={aplicarSerieRef} />
+        {voltarPara && <input type="hidden" name="voltar_para" value={voltarPara} />}
         <button type="button" onClick={handleClick} className={className}>
           {children ?? "Cancelar"}
         </button>

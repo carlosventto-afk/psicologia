@@ -29,12 +29,13 @@ export default async function PaginaAgenda({ searchParams }) {
   const anterior = deslocarData(data, visao, -1);
   const proximo = deslocarData(data, visao, 1);
   const rotuloPeriodo = formatarRotuloPeriodo(visao, data, inicio, fim);
+  const voltarParaAgenda = encodeURIComponent(`/agenda?visao=${visao}&data=${data}`);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Agenda</h1>
-        <Link href="/agenda/nova-sessao" className="btn-primary">
+        <Link href={`/agenda/nova-sessao?voltarPara=${voltarParaAgenda}`} className="btn-primary">
           Nova Sessão
         </Link>
       </div>
@@ -79,7 +80,7 @@ export default async function PaginaAgenda({ searchParams }) {
       {visao === "mes" ? (
         <AgendaMes semanas={calcularGradeMes(data)} sessoes={sessoes} />
       ) : visao === "semana" ? (
-        <AgendaGrade dias={enumerarDatas(inicio, fim)} sessoes={sessoes} />
+        <AgendaGrade dias={enumerarDatas(inicio, fim)} sessoes={sessoes} visao={visao} data={data} />
       ) : sessoes.length === 0 ? (
         <p className="empty-state">Nenhuma sessão marcada.</p>
       ) : (
@@ -98,22 +99,27 @@ export default async function PaginaAgenda({ searchParams }) {
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-muted">{s.status ?? "Marcada"}</span>
                 {!s.realizado && s.status !== "Cancelada" && (
-                  <Link href={`/sessoes/${s.id}/registrar`} className="link">
+                  <Link href={`/sessoes/${s.id}/registrar?voltarPara=${voltarParaAgenda}`} className="link">
                     Registrar Atendimento
                   </Link>
                 )}
                 {s.realizado && !s.pago && (
-                  <Link href={`/sessoes/${s.id}/receber`} className="link">
+                  <Link href={`/sessoes/${s.id}/receber?voltarPara=${voltarParaAgenda}`} className="link">
                     Receber
                   </Link>
                 )}
                 {!s.realizado && (
                   <>
-                    <Link href={`/sessoes/${s.id}/editar`} className="link">
+                    <Link href={`/sessoes/${s.id}/editar?voltarPara=${voltarParaAgenda}`} className="link">
                       Editar
                     </Link>
                     {s.status !== "Cancelada" && (
-                      <CancelarSessaoButton sessaoId={s.id} recorrenciaId={s.recorrencia_id} className="link text-red-600">
+                      <CancelarSessaoButton
+                        sessaoId={s.id}
+                        recorrenciaId={s.recorrencia_id}
+                        voltarPara={decodeURIComponent(voltarParaAgenda)}
+                        className="link text-red-600"
+                      >
                         Cancelar
                       </CancelarSessaoButton>
                     )}

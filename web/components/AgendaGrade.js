@@ -7,12 +7,13 @@ function corCartao(status) {
   return "border-l-primary bg-primary/10";
 }
 
-export default function AgendaGrade({ dias, sessoes }) {
+export default function AgendaGrade({ dias, sessoes, visao, data }) {
   const hoje = hojeISO();
   const porDia = Object.fromEntries(dias.map((d) => [d, []]));
   for (const s of sessoes) {
     porDia[s.data]?.push(s);
   }
+  const voltarPara = encodeURIComponent(`/agenda?visao=${visao}&data=${data}`);
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:overflow-x-auto sm:pb-2">
@@ -32,7 +33,7 @@ export default function AgendaGrade({ dias, sessoes }) {
               porDia[d].map((s) => (
                 <Link
                   key={s.id}
-                  href={`/sessoes/${s.id}/editar`}
+                  href={`/sessoes/${s.id}/editar?voltarPara=${voltarPara}`}
                   className={`block rounded-lg border-l-4 px-2 py-1.5 text-xs shadow-sm ${corCartao(s.status)}`}
                 >
                   <p className="font-bold">{s.horario?.slice(0, 5)}</p>

@@ -4,7 +4,7 @@ import { useActionState, useRef } from "react";
 
 const estadoInicial = {};
 
-export default function SessaoForm({ action, pacientes, pacotes, tiposAtendimento, pacienteInicialId }) {
+export default function SessaoForm({ action, pacientes, pacotes, tiposAtendimento, pacienteInicialId, voltarPara }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const tipoSessaoRef = useRef(null);
 
@@ -21,6 +21,7 @@ export default function SessaoForm({ action, pacientes, pacotes, tiposAtendiment
 
   return (
     <form action={formAction} className="max-w-md space-y-4 card p-6">
+      {voltarPara && <input type="hidden" name="voltar_para" value={voltarPara} />}
       <div>
         <label htmlFor="paciente" className="block text-sm font-semibold text-navy">
           Paciente

@@ -4,11 +4,12 @@ import { useActionState } from "react";
 
 const estadoInicial = {};
 
-export default function RecebimentoIndividualForm({ action, valor, contas, responsaveis, dataInicial }) {
+export default function RecebimentoIndividualForm({ action, valor, contas, responsaveis, dataInicial, voltarPara }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
 
   return (
     <form action={formAction} className="max-w-md space-y-4 card p-6">
+      {voltarPara && <input type="hidden" name="voltar_para" value={voltarPara} />}
       <div>
         <p className="text-sm font-semibold text-navy">Valor da sessão</p>
         <p className="text-lg font-bold text-navy">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor)}</p>

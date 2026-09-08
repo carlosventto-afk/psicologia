@@ -4,9 +4,10 @@ import { listarPacientesParaSelect } from "@/lib/data/pacientes";
 import { listarTiposAtendimento } from "@/lib/data/lookups";
 import { atualizarSessao } from "@/lib/actions/sessoes";
 
-export default async function PaginaEditarSessao({ params }) {
+export default async function PaginaEditarSessao({ params, searchParams }) {
   const { id } = await params;
   const sessaoId = Number(id);
+  const { voltarPara } = await searchParams;
 
   const sessao = await buscarSessao(sessaoId);
   const [pacientes, tiposAtendimento] = await Promise.all([
@@ -24,6 +25,7 @@ export default async function PaginaEditarSessao({ params }) {
         sessao={sessao}
         pacientes={pacientes}
         tiposAtendimento={tiposAtendimento}
+        voltarPara={voltarPara}
       />
     </div>
   );

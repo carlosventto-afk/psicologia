@@ -5,7 +5,7 @@ import { listarPacotes } from "@/lib/data/pacotes";
 import { listarTiposAtendimento } from "@/lib/data/lookups";
 
 export default async function PaginaNovaSessao({ searchParams }) {
-  const { paciente } = await searchParams;
+  const { paciente, voltarPara } = await searchParams;
   const [pacientes, pacotes, tiposAtendimento] = await Promise.all([
     listarPacientesParaSelect(),
     listarPacotes(),
@@ -21,6 +21,7 @@ export default async function PaginaNovaSessao({ searchParams }) {
         pacotes={pacotes}
         tiposAtendimento={tiposAtendimento}
         pacienteInicialId={paciente ? Number(paciente) : undefined}
+        voltarPara={voltarPara}
       />
     </div>
   );

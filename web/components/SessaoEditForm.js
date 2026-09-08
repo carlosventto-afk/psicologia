@@ -5,7 +5,7 @@ import CancelarSessaoButton from "@/components/CancelarSessaoButton";
 
 const estadoInicial = {};
 
-export default function SessaoEditForm({ action, sessao, pacientes, tiposAtendimento }) {
+export default function SessaoEditForm({ action, sessao, pacientes, tiposAtendimento, voltarPara }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const formRef = useRef(null);
@@ -60,6 +60,7 @@ export default function SessaoEditForm({ action, sessao, pacientes, tiposAtendim
     <div className="space-y-4">
       <form ref={formRef} action={formAction} onKeyDown={bloquearSubmitPeloEnter} className="max-w-md space-y-4 card p-6">
         <input type="hidden" name="aplicar_serie" defaultValue="false" ref={aplicarSerieRef} />
+        {voltarPara && <input type="hidden" name="voltar_para" value={voltarPara} />}
 
         <div>
           <label htmlFor="paciente" className="block text-sm font-semibold text-navy">
@@ -160,7 +161,7 @@ export default function SessaoEditForm({ action, sessao, pacientes, tiposAtendim
 
       {sessao.status !== "Cancelada" && (
         <div className="max-w-md">
-          <CancelarSessaoButton sessaoId={sessao.id} recorrenciaId={sessao.recorrencia_id} className="btn-danger">
+          <CancelarSessaoButton sessaoId={sessao.id} recorrenciaId={sessao.recorrencia_id} voltarPara={voltarPara} className="btn-danger">
             Cancelar esta sessão
           </CancelarSessaoButton>
         </div>
