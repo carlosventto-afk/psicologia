@@ -21,6 +21,7 @@ const TOOLS_VALIDAS = [
   "agent_criar_consultorio",
   "agent_criar_paciente",
   "agent_criar_conta_bancaria",
+  "agent_avancar_onboarding",
 ];
 
 // Tools do onboarding guiado: ignoram a checagem de plano enquanto o
@@ -28,7 +29,12 @@ const TOOLS_VALIDAS = [
 // docs/superpowers/specs/2026-09-04-inicio-operacao-via-whatsapp-design.md,
 // secao "Tools novas"). Depois de onboarding_etapa = 'concluido', voltam a
 // exigir plano pago como as demais tools.
-const TOOLS_ONBOARDING = ["agent_criar_consultorio", "agent_criar_paciente", "agent_criar_conta_bancaria"];
+const TOOLS_ONBOARDING = [
+  "agent_criar_consultorio",
+  "agent_criar_paciente",
+  "agent_criar_conta_bancaria",
+  "agent_avancar_onboarding",
+];
 
 export async function POST(request) {
   const segredo = request.headers.get("x-agent-secret");
