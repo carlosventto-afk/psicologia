@@ -9,6 +9,7 @@ const obrigatorias = [
   "SUPABASE_DB_PASSWORD",
   "GEMINI_API_KEY",
   "WEBHOOK_SHARED_SECRET",
+  "N8N_ONBOARDING_SECRET",
 ];
 for (const nome of obrigatorias) {
   if (!process.env[nome]) {
@@ -132,6 +133,24 @@ const credenciais = [
         // HTTP Request/Tool de saída, então "none" aqui (diferente de
         // evolutionApiKey/proxySecret acima, que SÃO usadas em nós de saída
         // e por isso escopadas a "domains").
+        allowedHttpRequestDomains: "none",
+      },
+    },
+  },
+  {
+    // Autentica o gatilho Webhook do WA - Onboarding, chamado por
+    // /auth/callback (Next.js) quando um link magico relacionado a
+    // WhatsApp e clicado. Mesmo padrao do webhookSecret acima (headerAuth,
+    // "none" em allowedHttpRequestDomains -- so autentica entrada, nunca
+    // usada em no de saida). Valor = N8N_ONBOARDING_SECRET, precisa ficar
+    // identico ao que for configurado em EasyPanel (env var do app).
+    chave: "onboardingWebhookSecret",
+    payload: {
+      name: "Onboarding WhatsApp -> n8n (shared secret)",
+      type: "httpHeaderAuth",
+      data: {
+        name: "x-onboarding-secret",
+        value: process.env.N8N_ONBOARDING_SECRET,
         allowedHttpRequestDomains: "none",
       },
     },
