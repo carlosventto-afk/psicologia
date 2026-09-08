@@ -35,7 +35,7 @@ export default async function PaginaAgenda({ searchParams }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Agenda</h1>
-        <Link href={`/agenda/nova-sessao?voltarPara=${voltarParaAgenda}`} className="btn-primary">
+        <Link href={`/agenda/nova-sessao?voltarPara=${voltarParaAgenda}&data=${data}`} className="btn-primary">
           Nova Sessão
         </Link>
       </div>

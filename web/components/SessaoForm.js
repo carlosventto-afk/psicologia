@@ -4,7 +4,7 @@ import { useActionState, useRef } from "react";
 
 const estadoInicial = {};
 
-export default function SessaoForm({ action, pacientes, pacotes, tiposAtendimento, pacienteInicialId, voltarPara }) {
+export default function SessaoForm({ action, pacientes, pacotes, tiposAtendimento, pacienteInicialId, voltarPara, dataInicial }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const tipoSessaoRef = useRef(null);
 
@@ -54,6 +54,7 @@ export default function SessaoForm({ action, pacientes, pacotes, tiposAtendiment
           name="data"
           type="date"
           required
+          defaultValue={dataInicial}
           className="field"
         />
       </div>
