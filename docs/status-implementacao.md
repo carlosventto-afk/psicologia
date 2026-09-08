@@ -39,14 +39,12 @@ de build do que o script dedicado da Task 7 normalmente faria.
   2. **SMTP do Supabase Auth instável** — `signInWithOtp` retornando
      500 na última checagem (2026-09-08), credenciais/config
      confirmadas corretas, causa raiz na plataforma Supabase.
-  Os 3 workflows n8n estão construídos e ativados independente disso —
+  Os 4 workflows n8n estão construídos e ativados independente disso —
   só o teste real (criar conta → e-mail chega → clica → onboarding
   guiado) fica pendente até os dois itens acima resolverem.
 - **Falta pra fechar a entrega**: configurar as 2 env vars acima no
   EasyPanel, pedir o deploy, confirmar SMTP, rodar o teste de ponta a
   ponta real com um número de WhatsApp de teste.
-
-
 
 ## Início de operação via WhatsApp — backend (2026-09-04)
 
