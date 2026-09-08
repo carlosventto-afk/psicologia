@@ -50,23 +50,34 @@ async function checarLimiteTentativas(admin, whatsappNumber) {
 // Gera o link mágico via Auth Admin API (nunca tenta mandar e-mail
 // sozinho) e manda o e-mail nós mesmos pela API do Resend -- contorna o
 // relay SMTP interno do Supabase Auth, que ficou instável (ver
-// web/lib/email/resend.js pro porquê). O link em si continua sendo
-// gerado pelo GoTrue exatamente como antes; só quem envia o e-mail mudou.
+// web/lib/email/resend.js pro porquê).
+//
+// NÃO usar data.properties.action_link: é o link bruto do GoTrue
+// (/auth/v1/verify), que ao ser clicado redireciona pra nossa URL com o
+// token no FRAGMENTO (#access_token=...) -- fluxo implícito, não PKCE,
+// porque não existe sessão de navegador nenhuma na hora de gerar o link
+// admin-side. Fragmento nunca chega ao servidor, então nenhuma rota
+// server-side (nem /auth/callback nem /auth/confirm) consegue lê-lo.
+// Confirmado ao vivo (2026-09-08): generateLink também devolve
+// hashed_token, que /auth/confirm já sabe processar via verifyOtp
+// inteiramente no servidor, sem fragmento nenhum -- por isso montamos o
+// link nós mesmos apontando pra lá.
 async function enviarLinkMagico(admin, email) {
   const { data, error: erroGerarLink } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email,
-    options: { redirectTo: `${ORIGIN}/auth/callback?next=/` },
   });
 
   if (erroGerarLink) {
     return { error: erroGerarLink };
   }
 
+  const link = `${ORIGIN}/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/`;
+
   return enviarEmailResend({
     to: email,
     subject: "Seu link de acesso ao PsiAgente",
-    html: `<p>Clique no link abaixo para continuar:</p><p><a href="${data.properties.action_link}">${data.properties.action_link}</a></p><p>Se você não pediu isso, pode ignorar este e-mail.</p>`,
+    html: `<p>Clique no link abaixo para continuar:</p><p><a href="${link}">${link}</a></p><p>Se você não pediu isso, pode ignorar este e-mail.</p>`,
   });
 }
 
