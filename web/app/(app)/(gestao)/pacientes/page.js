@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listarPacientes } from "@/lib/data/pacientes";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 const ABAS_STATUS = [
   { valor: "ativos", rotulo: "Ativos" },
@@ -62,8 +63,14 @@ export default async function PaginaPacientes({ searchParams }) {
               href={`/pacientes/${p.id}`}
               className="card flex flex-col gap-1 px-4 py-3 transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between sm:gap-4"
             >
-              <p className="truncate font-semibold text-navy">{p.nome}</p>
-              <p className="text-sm text-muted">
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-navy">{p.nome}</p>
+                <p className="text-sm text-muted">
+                  {formatarMoeda(p.valor_sessao)}
+                  {p.responsaveis_financeiros.length > 0 && ` · Resp.: ${p.responsaveis_financeiros.join(", ")}`}
+                </p>
+              </div>
+              <p className="text-sm text-muted shrink-0">
                 {p.proxima_sessao
                   ? `Próxima sessão: ${p.proxima_sessao.data} ${p.proxima_sessao.horario}`
                   : "Sem sessão marcada"}

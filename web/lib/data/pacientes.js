@@ -42,9 +42,27 @@ export async function listarPacientes({ busca = "", status = "ativos" } = {}) {
     }
   }
 
+  // Todo paciente ganha um ResponsavelFinanceiro "próprio" automaticamente
+  // ao ser cadastrado (paciente_vinculado = ele mesmo) — só interessa aqui
+  // mostrar um responsável de fato diferente do paciente (ex: dependente).
+  const { data: vinculosBrutos, error: erroVinculos } = await supabase
+    .from("PacienteResponsavelFinanceiro")
+    .select("paciente, ResponsavelFinanceiro!inner(nome, paciente_vinculado)")
+    .in("paciente", ids);
+
+  if (erroVinculos) throw new Error(erroVinculos.message);
+
+  const responsaveisPorPaciente = {};
+  for (const v of vinculosBrutos) {
+    const ehProprio = Number(v.ResponsavelFinanceiro.paciente_vinculado) === Number(v.paciente);
+    if (ehProprio) continue;
+    (responsaveisPorPaciente[v.paciente] ??= []).push(v.ResponsavelFinanceiro.nome);
+  }
+
   return pacientes.map((p) => ({
     ...p,
     proxima_sessao: proximaSessaoPorPaciente[p.id] ?? null,
+    responsaveis_financeiros: responsaveisPorPaciente[p.id] ?? [],
   }));
 }
 
