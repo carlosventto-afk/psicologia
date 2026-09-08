@@ -37,6 +37,25 @@ export async function listarAgenda({ dataInicio, dataFim }) {
   });
 }
 
+// Quantidade e valor total das sessões marcadas/realizadas no período
+// (exclui canceladas) — usado nos contadores de resumo da Agenda.
+export async function resumoAgenda({ dataInicio, dataFim }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("Sessao")
+    .select("valor")
+    .or("status.neq.Cancelada,status.is.null")
+    .gte("data", dataInicio)
+    .lte("data", dataFim);
+
+  if (error) throw new Error(error.message);
+
+  return {
+    quantidade: data.length,
+    valor: data.reduce((soma, s) => soma + Number(s.valor || 0), 0),
+  };
+}
+
 export async function buscarSessao(id) {
   const supabase = await createClient();
   const { data, error } = await supabase
