@@ -476,18 +476,67 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       onError: "continueErrorOutput",
     },
     {
+      // Rate-limit do ramo de conversa de numero desconhecido (decisao do
+      // usuario, 2026-09-08): antes disto, qualquer numero podia gerar
+      // chamadas de Gemini sem limite so mandando mensagem pro bot. Janela
+      // deslizante de 1h por whatsapp_number, mesmo padrao de
+      // tentativas_cadastro. O upsert so toca as duas colunas listadas --
+      // nao afeta onboarding_etapa nem qualquer outra coluna que essa
+      // linha ja tenha.
+      parameters: {
+        operation: "executeQuery",
+        query:
+          "insert into agent_sessions (whatsapp_number, mensagens_onboarding_1h, mensagens_onboarding_desde)\nvalues ($1, 1, now())\non conflict (whatsapp_number) do update set\n  mensagens_onboarding_1h = case\n    when agent_sessions.mensagens_onboarding_desde is null or agent_sessions.mensagens_onboarding_desde < now() - interval '1 hour'\n      then 1\n    else agent_sessions.mensagens_onboarding_1h + 1\n  end,\n  mensagens_onboarding_desde = case\n    when agent_sessions.mensagens_onboarding_desde is null or agent_sessions.mensagens_onboarding_desde < now() - interval '1 hour'\n      then now()\n    else agent_sessions.mensagens_onboarding_desde\n  end\nreturning (mensagens_onboarding_1h > 10) as excedeu_limite;",
+        options: {
+          queryReplacement: "={{ [$('Normalizar Payload').item.json.numero_normalizado] }}",
+        },
+      },
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [2200, 160],
+      id: "b7c17000-0000-4000-8000-000000000043",
+      name: "Checar Limite Onboarding",
+      credentials: {
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
+      },
+      onError: "continueErrorOutput",
+    },
+    {
+      parameters: {
+        conditions: {
+          options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
+          conditions: [
+            { leftValue: "={{ $json.excedeu_limite }}", rightValue: true, operator: { type: "boolean", operation: "true" } },
+          ],
+          combinator: "and",
+        },
+        options: {},
+      },
+      type: "n8n-nodes-base.if",
+      typeVersion: 2.2,
+      position: [2420, 160],
+      id: "b7c17000-0000-4000-8000-000000000044",
+      name: "Excedeu limite de mensagens?",
+    },
+    noEnviarMensagem(
+      "b7c17000-0000-4000-8000-000000000045",
+      [2640, 220],
+      "Enviar: limite de mensagens excedido",
+      "Muitas mensagens em pouco tempo por aqui — espera um pouco e tenta de novo."
+    ),
+    {
       parameters: {
         workflowId: { __rl: true, mode: "id", value: wfOnboarding },
         workflowInputs: {
           value: {
             whatsapp_number: "={{ $('Normalizar Payload').item.json.numero_normalizado }}",
-            mensagem_texto: "={{ $json.mensagens.join('\\n') }}",
+            mensagem_texto: "={{ $('Consumir Buffer (onboarding)').item.json.mensagens.join('\\n') }}",
           },
         },
       },
       type: "n8n-nodes-base.executeWorkflow",
       typeVersion: 1.2,
-      position: [2200, 160],
+      position: [2640, 100],
       id: "b7c17000-0000-4000-8000-000000000035",
       name: "Chamar WA - Onboarding",
       onError: "continueErrorOutput",
@@ -599,8 +648,20 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
     },
     "Consumir Buffer (onboarding)": {
       main: [
-        [{ node: "Chamar WA - Onboarding", type: "main", index: 0 }],
+        [{ node: "Checar Limite Onboarding", type: "main", index: 0 }],
         [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
+    "Checar Limite Onboarding": {
+      main: [
+        [{ node: "Excedeu limite de mensagens?", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
+    "Excedeu limite de mensagens?": {
+      main: [
+        [{ node: "Enviar: limite de mensagens excedido", type: "main", index: 0 }],
+        [{ node: "Chamar WA - Onboarding", type: "main", index: 0 }],
       ],
     },
     "Chamar WA - Onboarding": {
