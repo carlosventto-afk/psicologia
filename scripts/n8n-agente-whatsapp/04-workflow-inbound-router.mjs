@@ -7,8 +7,10 @@ const idsPath = path.resolve("scripts/n8n-agente-whatsapp/ids.json");
 const ids = JSON.parse(fs.readFileSync(idsPath, "utf8"));
 const credPostgresId = ids.credenciais.postgres;
 const credWebhookSecretId = ids.credenciais.webhookSecret;
+const credProxyId = ids.credenciais.proxySecret;
 const wfEnviarMensagem = ids.workflows.enviarMensagem;
 const wfAgentPsicologo = ids.workflows.agentPsicologo;
+const wfOnboarding = ids.workflows.onboarding;
 
 // Debounce de mensagens fragmentadas: quando o profissional manda a
 // pergunta em várias mensagens curtas seguidas, cada uma chegava como um
@@ -151,7 +153,7 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       parameters: {
         operation: "executeQuery",
         query:
-          "select\n  coalesce((select id::text from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1), '') as id,\n  (select nome from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1) as nome",
+          "select\n  coalesce((select id::text from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1), '') as id,\n  (select nome from \"Usuarios\" where whatsapp_number = $1 and whatsapp_verified = true limit 1) as nome,\n  (select onboarding_etapa from agent_sessions where whatsapp_number = $1) as onboarding_etapa,\n  coalesce((select link_confirmacao_pendente from agent_sessions where whatsapp_number = $1), false) as link_confirmacao_pendente,\n  (select ultima_validacao_seguranca_em from agent_sessions where whatsapp_number = $1) as ultima_validacao_seguranca_em",
         options: {
           queryReplacement: "={{ [$json.numero_normalizado] }}",
         },
@@ -189,6 +191,74 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       id: "b7c17000-0000-4000-8000-000000000007",
       name: "Usuário encontrado?",
     },
+    {
+      parameters: {
+        conditions: {
+          options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
+          conditions: [
+            { leftValue: "={{ $json.link_confirmacao_pendente }}", rightValue: true, operator: { type: "boolean", operation: "true" } },
+          ],
+          combinator: "and",
+        },
+        options: {},
+      },
+      type: "n8n-nodes-base.if",
+      typeVersion: 2.2,
+      position: [1100, 160],
+      id: "b7c17000-0000-4000-8000-000000000030",
+      name: "Confirmacao pendente?",
+    },
+    noEnviarMensagem(
+      "b7c17000-0000-4000-8000-000000000031",
+      [1320, 160],
+      "Enviar: aguardando confirmacao",
+      "Ainda não confirmei seu cadastro — clica no link que te mandei por e-mail, ou me avisa se quer que eu reenvie."
+    ),
+    {
+      parameters: {
+        conditions: {
+          options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
+          conditions: [
+            { leftValue: "={{ $json.ultima_validacao_seguranca_em }}", rightValue: "", operator: { type: "string", operation: "notEmpty" } },
+            { leftValue: "={{ $json.ultima_validacao_seguranca_em }}", rightValue: "={{ $now.minus({ days: 30 }) }}", operator: { type: "dateTime", operation: "before" } },
+          ],
+          combinator: "and",
+        },
+        options: {},
+      },
+      type: "n8n-nodes-base.if",
+      typeVersion: 2.2,
+      position: [1100, 240],
+      id: "b7c17000-0000-4000-8000-000000000032",
+      name: "Precisa revalidar?",
+    },
+    {
+      parameters: {
+        method: "POST",
+        url: "https://psiagente.com.br/api/agent/onboarding",
+        authentication: "genericCredentialType",
+        genericAuthType: "httpHeaderAuth",
+        sendBody: true,
+        specifyBody: "json",
+        jsonBody: "={{ '{\"acao\": \"revalidar\", \"whatsapp_number\": ' + JSON.stringify($('Normalizar Payload').item.json.numero_normalizado) + '}' }}",
+        options: {},
+      },
+      type: "n8n-nodes-base.httpRequest",
+      typeVersion: 4.4,
+      position: [1320, 240],
+      id: "b7c17000-0000-4000-8000-000000000033",
+      name: "Disparar Revalidacao",
+      credentials: {
+        httpHeaderAuth: { id: credProxyId, name: "Agent Tool Secret - proxy Next.js" },
+      },
+      onError: "continueErrorOutput",
+    },
+    noEnviarMensagem(
+      "b7c17000-0000-4000-8000-000000000034",
+      [1540, 240],
+      "Enviar: revalidacao necessaria",
+      "Faz um tempo que a gente não conversa — te mandei um link de confirmação por e-mail, clica nele pra continuar."
+    ),
     {
       // Cria/atualiza a linha do buffer para este número: acrescenta o
       // texto desta mensagem ao array "mensagens" e incrementa "versao".
@@ -268,6 +338,7 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
             whatsapp_number: "={{ $('Normalizar Payload').item.json.numero_normalizado }}",
             mensagem_texto: "={{ $json.mensagens.join('\\n') }}",
             usuario_nome: "={{ $('Buscar Usuario Vinculado').item.json.nome }}",
+            onboarding_etapa: "={{ $('Buscar Usuario Vinculado').item.json.onboarding_etapa }}",
           },
         },
       },
@@ -348,12 +419,39 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       "Enviar: código inválido",
       "Esse código não é válido ou já expirou. Gere um novo em /configuracoes/whatsapp e envie de novo por aqui."
     ),
-    noEnviarMensagem(
-      "b7c17000-0000-4000-8000-00000000000e",
-      [1540, 160],
-      "Enviar: instruções de vinculação",
-      "Não encontrei seu número vinculado a nenhuma conta. Acesse /configuracoes/whatsapp no aplicativo, gere um código de 6 dígitos e envie ele aqui pra mim."
-    ),
+    {
+      parameters: {
+        workflowId: { __rl: true, mode: "id", value: wfOnboarding },
+        workflowInputs: {
+          value: {
+            whatsapp_number: "={{ $('Normalizar Payload').item.json.numero_normalizado }}",
+            mensagem_texto: "={{ $('Normalizar Payload').item.json.texto }}",
+          },
+        },
+      },
+      type: "n8n-nodes-base.executeWorkflow",
+      typeVersion: 1.2,
+      position: [1540, 160],
+      id: "b7c17000-0000-4000-8000-000000000035",
+      name: "Chamar WA - Onboarding",
+      onError: "continueErrorOutput",
+    },
+    {
+      parameters: {
+        workflowId: { __rl: true, mode: "id", value: wfEnviarMensagem },
+        workflowInputs: {
+          value: {
+            whatsapp_number: "={{ $('Normalizar Payload').item.json.numero_normalizado }}",
+            mensagem: "={{ $json.output }}",
+          },
+        },
+      },
+      type: "n8n-nodes-base.executeWorkflow",
+      typeVersion: 1.2,
+      position: [1760, 160],
+      id: "b7c17000-0000-4000-8000-000000000036",
+      name: "Enviar: resposta do Onboarding",
+    },
     // Important #1 + #4 (revisão final): branch de erro genérica,
     // compartilhada pelas duas fontes de erro do workflow ("Buscar Usuario
     // Vinculado" e "Chamar Agent Psicólogo") — um só nó de resposta em vez
@@ -385,8 +483,26 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
     },
     "Usuário encontrado?": {
       main: [
-        [{ node: "Bufferizar Mensagem", type: "main", index: 0 }],
+        [{ node: "Confirmacao pendente?", type: "main", index: 0 }],
         [{ node: "Parece código de 6 dígitos?", type: "main", index: 0 }],
+      ],
+    },
+    "Confirmacao pendente?": {
+      main: [
+        [{ node: "Enviar: aguardando confirmacao", type: "main", index: 0 }],
+        [{ node: "Precisa revalidar?", type: "main", index: 0 }],
+      ],
+    },
+    "Precisa revalidar?": {
+      main: [
+        [{ node: "Disparar Revalidacao", type: "main", index: 0 }],
+        [{ node: "Bufferizar Mensagem", type: "main", index: 0 }],
+      ],
+    },
+    "Disparar Revalidacao": {
+      main: [
+        [{ node: "Enviar: revalidacao necessaria", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
       ],
     },
     "Bufferizar Mensagem": {
@@ -413,7 +529,13 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
     "Parece código de 6 dígitos?": {
       main: [
         [{ node: "Validar Código Vinculação", type: "main", index: 0 }],
-        [{ node: "Enviar: instruções de vinculação", type: "main", index: 0 }],
+        [{ node: "Chamar WA - Onboarding", type: "main", index: 0 }],
+      ],
+    },
+    "Chamar WA - Onboarding": {
+      main: [
+        [{ node: "Enviar: resposta do Onboarding", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
       ],
     },
     "Validar Código Vinculação": {
