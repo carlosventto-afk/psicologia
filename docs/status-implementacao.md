@@ -1,6 +1,52 @@
 # Status da implementação
 
-Última atualização: 2026-09-04.
+Última atualização: 2026-09-08.
+
+## Início de operação via WhatsApp — Fase 2/n8n (2026-09-08)
+
+Implementado o plano `docs/superpowers/plans/2026-09-08-inicio-operacao-whatsapp-fase2-n8n.md`
+(spec `docs/superpowers/specs/2026-09-08-inicio-operacao-whatsapp-fase2-n8n-design.md`):
+RPC nova `agent_avancar_onboarding` (fecha lacuna da Fase 1 — nada
+avançava `onboarding_etapa`), workflow novo `WA - Onboarding` (2
+gatilhos: conversa de cadastro + confirmação de link mágico), `WA -
+Inbound Router` estendido (diferenciação "já tenho conta"/"conta nova"
+por linguagem natural + janela de revalidação de 30 dias), `WA - Agent
+Psicólogo` com 4 tools novas e onboarding guiado condicional no system
+prompt (20 tools no total).
+
+**Descoberta durante implementação**: Task 6 do plano (que estende o
+Router) necessitava que o workflow `WA - Onboarding` já estivesse ativo
+no n8n — n8n rejeita workflows que referenciam sub-workflows não
+publicados — então `WA - Onboarding` foi ativado mais cedo na sequência
+de build do que o script dedicado da Task 7 normalmente faria.
+
+- **Env vars novas no EasyPanel do app** (serviço `psifacil_psifacil`,
+  ainda não configuradas — pendente, manual): `N8N_ONBOARDING_SECRET`
+  (gerado durante a Task 3 do plano) e `N8N_ONBOARDING_CONTINUE_URL`
+  (impressa pela Task 7 do plano, formato
+  `https://psifacil-n8n.lcuzxl.easypanel.host/webhook/wa-onboarding-confirmacao-...`).
+  Sem elas, `continuarFluxoWhatsapp` (Fase 1) loga o erro e não quebra
+  login normal, mas o clique do link mágico nunca acorda o
+  `WA - Onboarding`.
+- **`ultima_validacao_seguranca_em` nula é tratada como isenta** da
+  janela de 30 dias — todo profissional já vinculado antes desta
+  entrega não é afetado até a primeira validação real.
+- **Bloqueadores conhecidos pro teste de ponta a ponta** (não é código
+  quebrado, é estado de infra — ver seção "Início de operação via
+  WhatsApp — backend" mais abaixo pro histórico completo):
+  1. **Produção não tem o código da Fase 1 nem da Fase 2** — precisa de
+     clique manual "Deploy" no EasyPanel.
+  2. **SMTP do Supabase Auth instável** — `signInWithOtp` retornando
+     500 na última checagem (2026-09-08), credenciais/config
+     confirmadas corretas, causa raiz na plataforma Supabase.
+  Os 3 workflows n8n estão construídos e ativados independente disso —
+  só o teste real (criar conta → e-mail chega → clica → onboarding
+  guiado) fica pendente até os dois itens acima resolverem.
+- **Falta pra fechar a entrega**: configurar as 2 env vars acima no
+  EasyPanel, pedir o deploy, confirmar SMTP, rodar o teste de ponta a
+  ponta real com um número de WhatsApp de teste.
+
+
 
 ## Início de operação via WhatsApp — backend (2026-09-04)
 
