@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createAnonClient } from "@/lib/supabase/anon";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
+import { enviarEmailResend } from "@/lib/email/resend";
 
 // FRONTEIRA DE CONFIANÇA -- whatsapp_number no corpo desta rota é confiado
 // cegamente, sem nenhuma prova de posse do número nesta camada HTTP. Quem
@@ -47,13 +47,27 @@ async function checarLimiteTentativas(admin, whatsappNumber) {
   return { bloqueado: false };
 }
 
-async function enviarLinkMagico(email) {
-  const anon = createAnonClient();
-  const { error } = await anon.auth.signInWithOtp({
+// Gera o link mágico via Auth Admin API (nunca tenta mandar e-mail
+// sozinho) e manda o e-mail nós mesmos pela API do Resend -- contorna o
+// relay SMTP interno do Supabase Auth, que ficou instável (ver
+// web/lib/email/resend.js pro porquê). O link em si continua sendo
+// gerado pelo GoTrue exatamente como antes; só quem envia o e-mail mudou.
+async function enviarLinkMagico(admin, email) {
+  const { data, error: erroGerarLink } = await admin.auth.admin.generateLink({
+    type: "magiclink",
     email,
-    options: { emailRedirectTo: `${ORIGIN}/auth/callback?next=/`, shouldCreateUser: false },
+    options: { redirectTo: `${ORIGIN}/auth/callback?next=/` },
   });
-  return { error };
+
+  if (erroGerarLink) {
+    return { error: erroGerarLink };
+  }
+
+  return enviarEmailResend({
+    to: email,
+    subject: "Seu link de acesso ao PsiAgente",
+    html: `<p>Clique no link abaixo para continuar:</p><p><a href="${data.properties.action_link}">${data.properties.action_link}</a></p><p>Se você não pediu isso, pode ignorar este e-mail.</p>`,
+  });
 }
 
 async function criarConta(admin, { whatsapp_number, nome, email }) {
@@ -98,7 +112,7 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
       console.error("Falha ao atualizar agent_sessions (WHATSAPP_JA_CADASTRADO):", erroUpsertSessao.message);
     }
 
-    const { error: erroLinkExistente } = await enviarLinkMagico(usuarioMesmoNumero.email);
+    const { error: erroLinkExistente } = await enviarLinkMagico(admin, usuarioMesmoNumero.email);
     if (erroLinkExistente) {
       console.error("Falha ao enviar link mágico (WHATSAPP_JA_CADASTRADO):", erroLinkExistente.message);
       return Response.json({ success: false, error_code: "ERRO_ENVIAR_LINK" }, { status: 200 });
@@ -136,7 +150,7 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
           console.error("Falha ao atualizar agent_sessions (EMAIL_JA_CADASTRADO):", erroUpsertSessao.message);
         }
 
-        const { error: erroLink } = await enviarLinkMagico(emailNormalizado);
+        const { error: erroLink } = await enviarLinkMagico(admin, emailNormalizado);
         if (erroLink) {
           console.error("Falha ao enviar link mágico (EMAIL_JA_CADASTRADO):", erroLink.message);
           return Response.json({ success: false, error_code: "ERRO_ENVIAR_LINK" }, { status: 200 });
@@ -191,7 +205,7 @@ async function criarConta(admin, { whatsapp_number, nome, email }) {
     console.error("Falha ao atualizar agent_sessions (criar_conta):", erroUpsertSessao.message);
   }
 
-  const { error: erroLink } = await enviarLinkMagico(emailNormalizado);
+  const { error: erroLink } = await enviarLinkMagico(admin, emailNormalizado);
   if (erroLink) {
     console.error("Falha ao enviar link mágico (criar_conta):", erroLink.message);
     return Response.json({ success: false, error_code: "ERRO_ENVIAR_LINK" }, { status: 200 });
@@ -237,7 +251,7 @@ async function reenviarOuRevalidar(admin, { whatsapp_number }) {
     console.error("Falha ao atualizar agent_sessions (reenviar_link/revalidar):", erroUpdateSessao.message);
   }
 
-  const { error: erroLink } = await enviarLinkMagico(usuario.email);
+  const { error: erroLink } = await enviarLinkMagico(admin, usuario.email);
   if (erroLink) {
     console.error("Falha ao enviar link mágico (reenviar_link/revalidar):", erroLink.message);
     return Response.json({ success: false, error_code: "ERRO_ENVIAR_LINK" }, { status: 200 });
