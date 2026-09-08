@@ -556,7 +556,7 @@ source "C:\Users\ADMINI~1\AppData\Local\Temp\claude\c--Users-Administrador-Deskt
 node scripts/n8n-agente-whatsapp/06-workflow-onboarding.mjs
 ```
 
-Expected: `Workflow "WA - Onboarding" criado, id=..., nós=10`. `ids.json.workflows.onboarding` gravado.
+Expected: `Workflow "WA - Onboarding" criado, id=..., nós=11` (Execute Workflow Trigger, AI Agent Cadastro, Google Gemini Chat Model, Postgres Chat Memory, agent_criar_conta, Webhook Confirmacao Link, Confirmar Validacao, Era cadastro novo?, e as 3 respostas via WA - Enviar Mensagem). `ids.json.workflows.onboarding` gravado.
 
 - [ ] **Step 3: Verificar via API que o workflow foi criado com a estrutura esperada**
 
@@ -573,7 +573,7 @@ let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
 "
 ```
 
-Expected: `nome: WA - Onboarding | nos: 10 | ativo: false` (ainda não ativado — Task 7), 2 gatilhos (`executeWorkflowTrigger` e `webhook`).
+Expected: `nome: WA - Onboarding | nos: 11 | ativo: false` (ainda não ativado — Task 7), 2 gatilhos (`executeWorkflowTrigger` e `webhook`).
 
 - [ ] **Step 4: Commit**
 
@@ -943,7 +943,7 @@ source "C:\Users\ADMINI~1\AppData\Local\Temp\claude\c--Users-Administrador-Deskt
 node scripts/n8n-agente-whatsapp/04-workflow-inbound-router.mjs
 ```
 
-Expected: sem erro de sintaxe, `Workflow "WA - Inbound Router" atualizado, id=..., nós=...` (mais 8 nós que antes: 4 da checagem de revalidação + 2 do redirecionamento pro Onboarding, líquido de -1 pelo nó removido).
+Expected: sem erro de sintaxe, `Workflow "WA - Inbound Router" atualizado, id=..., nós=24` (18 originais, +6 líquido: +5 nós da checagem de confirmação pendente/revalidação — `Confirmacao pendente?`, `Enviar: aguardando confirmacao`, `Precisa revalidar?`, `Disparar Revalidacao`, `Enviar: revalidacao necessaria` —, +2 do redirecionamento pro Onboarding — `Chamar WA - Onboarding`, `Enviar: resposta do Onboarding` —, -1 pelo nó removido `Enviar: instruções de vinculação`).
 
 - [ ] **Step 7: Verificar via API**
 
