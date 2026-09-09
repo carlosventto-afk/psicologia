@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIdsLista } from "@/lib/normalizar-ids";
 import { cpfValido } from "@/lib/carne-leao-txt";
+import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
 
 // pagamentoId aqui é o id de RecebimentoSessao (nao mais PagamentoSessao) —
 // nome do campo mantido de proposito pra nao exigir mudanca nos 3
 // consumidores que so repassam esse id sem exibir o nome do campo.
 const SELECT_RECEBIMENTO_SESSAO =
-  "id, valor_aplicado, carne_leao_gerado_em, Recebimento!inner(data_recebimento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf_cnpj, paciente_vinculado)), Sessao!inner(data, Paciente!inner(id, nome, cpf, documento))";
+  "id, valor_aplicado, carne_leao_gerado_em, Recebimento!inner(data_recebimento, ResponsavelFinanceiro:responsavel_financeiro(nome, cpf_cnpj, paciente_vinculado)), Sessao!inner(data, Paciente!inner(id, nome, apelido, cpf, documento))";
 
 function elegivel(p) {
   return cpfValido(p.cpfPagador) && cpfValido(p.cpfBeneficiario);
@@ -27,8 +28,8 @@ function resolverRecebimentoSessao(rs) {
     valor: rs.valor_aplicado,
     dataPagamento: rs.Recebimento.data_recebimento,
     dataAtendimento: rs.Sessao.data,
-    pacienteNome: paciente.nome,
-    pagadorNome: ehProprio ? paciente.nome : responsavel?.nome ?? paciente.nome,
+    pacienteNome: formatarNomePaciente(paciente.nome, paciente.apelido),
+    pagadorNome: ehProprio || !responsavel?.nome ? formatarNomePaciente(paciente.nome, paciente.apelido) : responsavel.nome,
     cpfPagador,
     cpfBeneficiario: paciente.cpf || null,
     jaGerado: rs.carne_leao_gerado_em,

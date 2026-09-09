@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIds } from "@/lib/normalizar-ids";
+import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
 
 export async function listarAgenda({ dataInicio, dataFim }) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, horario, duracao_min, status, tipo_sessao, Realizado, valor, recorrencia_id, Paciente!inner(id, nome), RecebimentoSessao(valor_aplicado)"
+      "id, data, horario, duracao_min, status, tipo_sessao, Realizado, valor, recorrencia_id, Paciente!inner(id, nome, apelido), RecebimentoSessao(valor_aplicado)"
     )
     .gte("data", dataInicio)
     .lte("data", dataFim)
@@ -30,7 +31,7 @@ export async function listarAgenda({ dataInicio, dataFim }) {
         pago: valorRecebido >= Number(s.valor),
         recorrencia_id: s.recorrencia_id,
         paciente_id: s.Paciente.id,
-        paciente_nome: s.Paciente.nome,
+        paciente_nome: formatarNomePaciente(s.Paciente.nome, s.Paciente.apelido),
       },
       ["id", "paciente_id", "recorrencia_id"]
     );
@@ -61,7 +62,7 @@ export async function buscarSessao(id) {
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, horario, duracao_min, status, tipo_sessao, anotacoes, Realizado, valor, recorrencia_id, Paciente!inner(id, nome)"
+      "id, data, horario, duracao_min, status, tipo_sessao, anotacoes, Realizado, valor, recorrencia_id, Paciente!inner(id, nome, apelido)"
     )
     .eq("id", id)
     .single();
@@ -81,7 +82,7 @@ export async function buscarSessao(id) {
       valor: Number(data.valor),
       recorrencia_id: data.recorrencia_id,
       paciente_id: data.Paciente.id,
-      paciente_nome: data.Paciente.nome,
+      paciente_nome: formatarNomePaciente(data.Paciente.nome, data.Paciente.apelido),
     },
     ["id", "paciente_id", "recorrencia_id"]
   );

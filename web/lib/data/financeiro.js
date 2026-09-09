@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIds } from "@/lib/normalizar-ids";
+import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
 
 // Soma de Sessao.valor das sessões marcadas/realizadas no período — é o
 // valor "provisório" (sessões futuras de recorrência entram aqui até
@@ -38,7 +39,7 @@ export async function listarInadimplentes() {
   const { data, error } = await supabase
     .from("Sessao")
     .select(
-      "id, data, valor, Paciente!inner(id, nome), RecebimentoSessao(valor_aplicado)"
+      "id, data, valor, Paciente!inner(id, nome, apelido), RecebimentoSessao(valor_aplicado)"
     )
     .eq("Realizado", true)
     .order("data");
@@ -57,7 +58,7 @@ export async function listarInadimplentes() {
           sessao_id: s.id,
           data: s.data,
           paciente_id: s.Paciente.id,
-          paciente_nome: s.Paciente.nome,
+          paciente_nome: formatarNomePaciente(s.Paciente.nome, s.Paciente.apelido),
           valor_devido: s.saldo_devedor,
         },
         ["sessao_id", "paciente_id"]

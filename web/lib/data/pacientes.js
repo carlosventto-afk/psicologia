@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIds, normalizarIdsLista } from "@/lib/normalizar-ids";
+import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
 
 export async function listarPacientes({ busca = "", status = "ativos" } = {}) {
   const supabase = await createClient();
@@ -121,13 +122,16 @@ export async function verificarVinculosPaciente(id) {
   if (responsavelProprio.data) {
     const { data: outrosPacientes, error: erroOutros } = await supabase
       .from("PacienteResponsavelFinanceiro")
-      .select("Paciente:paciente(nome)")
+      .select("Paciente:paciente(nome, apelido)")
       .eq("responsavel", responsavelProprio.data.id)
       .neq("paciente", id);
 
     if (erroOutros) throw new Error(erroOutros.message);
     if (outrosPacientes.length > 0) {
-      vinculos.push({ tipo: "é responsável financeiro de", nomes: outrosPacientes.map((v) => v.Paciente.nome) });
+      vinculos.push({
+        tipo: "é responsável financeiro de",
+        nomes: outrosPacientes.map((v) => formatarNomePaciente(v.Paciente.nome, v.Paciente.apelido)),
+      });
     }
   }
 

@@ -47,6 +47,7 @@ export default function ResponsavelFinanceiroForm({ action, pacientes = [] }) {
             {pacientes.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome}
+                {p.apelido ? ` (${p.apelido})` : ""}
               </option>
             ))}
           </select>
