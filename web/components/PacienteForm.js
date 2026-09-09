@@ -33,6 +33,22 @@ export default function PacienteForm({ action, paciente, pacotes, consultorios }
       </div>
 
       <div>
+        <label htmlFor="apelido" className="block text-sm font-semibold text-navy">
+          Apelido (opcional)
+        </label>
+        <input
+          id="apelido"
+          name="apelido"
+          type="text"
+          defaultValue={paciente?.apelido}
+          className="field"
+        />
+        <p className="text-xs text-muted mt-1">
+          Nome pelo qual você conhece o paciente, se for diferente do nome completo.
+        </p>
+      </div>
+
+      <div>
         <label htmlFor="data_nascimento" className="block text-sm font-semibold text-navy">
           Data de nascimento
         </label>

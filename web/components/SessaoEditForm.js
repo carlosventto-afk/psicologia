@@ -79,6 +79,7 @@ export default function SessaoEditForm({ action, sessao, pacientes, tiposAtendim
             {pacientes.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome}
+                {p.apelido ? ` (${p.apelido})` : ""}
               </option>
             ))}
           </select>

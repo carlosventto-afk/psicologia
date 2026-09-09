@@ -8,6 +8,7 @@ import { verificarVinculosPaciente } from "@/lib/data/pacientes";
 function dadosDoFormulario(formData) {
   return {
     nome: formData.get("nome"),
+    apelido: formData.get("apelido") || null,
     data_nascimento: formData.get("data_nascimento") || null,
     telefone: formData.get("telefone"),
     email: formData.get("email"),

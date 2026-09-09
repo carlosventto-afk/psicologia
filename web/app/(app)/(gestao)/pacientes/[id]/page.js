@@ -49,7 +49,10 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="page-title min-w-0 truncate">{paciente.nome}</h1>
+        <h1 className="page-title min-w-0 truncate">
+          {paciente.nome}
+          {paciente.apelido && <span className="text-muted font-normal"> ({paciente.apelido})</span>}
+        </h1>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           <Link
             href={`/agenda/nova-sessao?paciente=${pacienteId}&voltarPara=${encodeURIComponent(`/pacientes/${pacienteId}`)}`}

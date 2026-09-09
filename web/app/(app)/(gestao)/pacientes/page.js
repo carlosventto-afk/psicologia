@@ -33,7 +33,7 @@ export default async function PaginaPacientes({ searchParams }) {
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Buscar por nome..."
+            placeholder="Buscar por nome ou apelido..."
             className="field mt-0"
           />
         </form>
@@ -64,7 +64,10 @@ export default async function PaginaPacientes({ searchParams }) {
               className="card flex flex-col gap-1 px-4 py-3 transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between sm:gap-4"
             >
               <div className="min-w-0">
-                <p className="truncate font-semibold text-navy">{p.nome}</p>
+                <p className="truncate font-semibold text-navy">
+                  {p.nome}
+                  {p.apelido && <span className="text-muted font-normal"> ({p.apelido})</span>}
+                </p>
                 <p className="text-sm text-muted">
                   {formatarMoeda(p.valor_sessao)}
                   {p.responsaveis_financeiros.length > 0 && ` · Resp.: ${p.responsaveis_financeiros.join(", ")}`}
