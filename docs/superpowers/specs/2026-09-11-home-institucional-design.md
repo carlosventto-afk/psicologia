@@ -112,21 +112,25 @@ vêm do `@import` do Google Fonts em `globals.css`, herdado do
   frente.").
 - CTA único: "Criar conta grátis" → `/cadastro?origem=home`, com nota
   "Sem cartão de crédito." abaixo (mesmo padrão de `/comece`).
-- Fundo com glow radial em menta, mesmo efeito visual de `/comece`
-  (`.respiracao`/`@keyframes respirar` em `comece.css`) — **não tocar
-  em `comece.css`** (é CSS escopado a `.comece`, exclusivo daquela
-  página). Em vez disso, adicionar uma classe própria equivalente em
-  `globals.css` (`.glow-suave` + o mesmo `@keyframes respirar`,
-  ~15 linhas, sem escopo de ancestral) pra usar só na home. Pequena
-  duplicação intencional: mais barato e mais seguro do que acoplar as
-  duas páginas públicas ao mesmo seletor CSS.
+- Fundo com o mesmo efeito de respiração de `/comece`
+  (`.respiracao`/`@keyframes respirar` em `comece.css`), mas **em tom
+  petróleo, não menta** — `globals.css` documenta que menta
+  (`#6FCBB6`) é reservada só pra conteúdo gerado por agente de IA, que
+  a home institucional não é. **Não tocar em `comece.css`** (CSS
+  escopado a `.comece`, exclusivo daquela página); em vez disso,
+  adicionar em `globals.css` uma classe própria (`.glow-suave` + o
+  mesmo `@keyframes respirar`, ~15 linhas, sem escopo de ancestral,
+  cor via `--color-navy` em baixa opacidade) pra usar só na home.
+  Pequena duplicação intencional: mais barato e mais seguro do que
+  acoplar as duas páginas públicas ao mesmo seletor CSS.
 
 ### 3. Faixa de estatística
 
-Idêntica à de `/comece` ("1 a 12 horas... documentação manual consome
-de você por mês", fundo petróleo, número em menta) — é a assinatura
-visual da marca, repetir reforça reconhecimento entre as duas páginas
-públicas.
+Mesmo layout de `/comece` ("1 a 12 horas... documentação manual
+consome de você por mês", fundo petróleo) — é a assinatura visual da
+marca, repetir reforça reconhecimento entre as duas páginas públicas.
+**Número em branco, não menta** (mesma razão do item acima — menta
+fica reservada pra conteúdo de IA).
 
 ### 4. Recursos (`id="recursos"`)
 
