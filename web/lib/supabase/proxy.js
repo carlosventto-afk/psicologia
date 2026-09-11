@@ -24,12 +24,7 @@ const PUBLIC_PATHS = [
 ];
 
 export async function updateSession(request) {
-  // "/" comparado por igualdade, não por startsWith — comparar por
-  // prefixo tornaria toda rota pública, já que qualquer path começa
-  // com "/".
-  const isPublicPath =
-    request.nextUrl.pathname === "/" ||
-    PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
+  const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
   if (isPublicPath) {
     return NextResponse.next({ request });
   }
