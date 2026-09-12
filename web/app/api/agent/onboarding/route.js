@@ -72,7 +72,7 @@ async function enviarLinkMagico(admin, email) {
     return { error: erroGerarLink };
   }
 
-  const link = `${ORIGIN}/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/`;
+  const link = `${ORIGIN}/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/painel`;
 
   return enviarEmailResend({
     to: email,

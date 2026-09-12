@@ -5,7 +5,7 @@ import { continuarFluxoWhatsapp } from "@/lib/whatsapp-onboarding-callback";
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  const next = searchParams.get("next") ?? "/painel";
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   if (code) {

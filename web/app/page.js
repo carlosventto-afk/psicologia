@@ -17,6 +17,8 @@ import LogoPsiAgente from "@/components/LogoPsiAgente";
 const CADASTRO_URL = "/cadastro?origem=home";
 const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL ?? "https://blog.psiagente.com.br";
 
+const origem = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
 export const metadata = {
   title: "PsiAgente — Gestão de consultório para psicólogos",
   description:
@@ -26,7 +28,7 @@ export const metadata = {
     description:
       "Agenda, pacientes, financeiro e lembrete automático de sessão por WhatsApp, com um agente que cuida da parte administrativa do seu consultório.",
     type: "website",
-    images: ["/og-default.png"],
+    images: [`${origem}/og-default.png`],
   },
 };
 
@@ -139,7 +141,7 @@ function IconeInstagram(props) {
 }
 
 export default async function PaginaInicial() {
-  const artigos = await listarArtigosPublicados();
+  const artigos = await listarArtigosPublicados().catch(() => []);
   const artigosDestaque = artigos.slice(0, 3);
 
   return (

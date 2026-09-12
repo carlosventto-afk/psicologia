@@ -39,5 +39,5 @@ export async function cancelarRecorrencia(recorrenciaId) {
 
   revalidatePath("/recorrencias");
   revalidatePath("/agenda");
-  revalidatePath("/");
+  revalidatePath("/painel");
 }

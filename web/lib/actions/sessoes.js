@@ -75,7 +75,7 @@ export async function criarSessao(prevState, formData) {
   }
 
   revalidatePath("/agenda");
-  revalidatePath("/");
+  revalidatePath("/painel");
   revalidatePath("/recorrencias");
   redirect(formData.get("voltar_para") || "/agenda");
 }
@@ -130,7 +130,7 @@ export async function atualizarSessao(sessaoId, prevState, formData) {
   }
 
   revalidatePath("/agenda");
-  revalidatePath("/");
+  revalidatePath("/painel");
   redirect(formData.get("voltar_para") || "/agenda");
 }
 
@@ -196,7 +196,7 @@ export async function cancelarSessao(sessaoId, formData) {
   if (aplicarSerie && sessaoAtual.recorrencia_id) {
     await cancelarRecorrencia(sessaoAtual.recorrencia_id);
     revalidatePath("/agenda");
-    revalidatePath("/");
+    revalidatePath("/painel");
     redirect(voltarPara);
   }
 
@@ -222,7 +222,7 @@ export async function cancelarSessao(sessaoId, formData) {
   }
 
   revalidatePath("/agenda");
-  revalidatePath("/");
+  revalidatePath("/painel");
   redirect(voltarPara);
 }
 
@@ -273,6 +273,6 @@ export async function marcarAtendimentoRealizado(sessaoId, prevState, formData) 
 
   revalidatePath("/agenda");
   revalidatePath("/financeiro");
-  revalidatePath("/");
+  revalidatePath("/painel");
   redirect(formData.get("voltar_para") || "/agenda?registrado=1");
 }
