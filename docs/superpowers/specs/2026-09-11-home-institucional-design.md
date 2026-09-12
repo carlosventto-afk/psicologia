@@ -8,10 +8,30 @@ comercialmente a ferramenta, com acesso ao blog, contato via WhatsApp e
 os elementos que uma home de empresa consolidada costuma ter (nav,
 preços, FAQ, footer institucional).
 
+## Correção descoberta durante a implementação (2026-09-11)
+
+A premissa original desta spec — "`/` não existe hoje" — estava
+**errada**. `web/app/(app)/(gestao)/page.js` (o painel "Resumo de
+Hoje") resolve pra `/`, porque as route groups `(app)`/`(gestao)` não
+aparecem na URL. O que mascarava isso: qualquer visita deslogada a
+`/` já caía no `/login` antes de a página renderizar, então nunca
+tinha ficado óbvio que havia uma página real ali por trás do redirect.
+
+Consultado com o usuário, decisão: **mover o painel logado pra
+`/painel`**, liberando `/` pra ser de fato a home institucional. Isso
+adiciona uma task nova ao plano (renomear a rota do painel + atualizar
+os pontos que hoje redirecionam/linkam pra `/` esperando o painel:
+`lib/actions/auth.js`, `SidebarNav.js`, `diretorio/page.js`,
+`admin/layout.js`) — ver o plano de implementação pra detalhes
+exatos. O resto desta spec (estrutura da home, seções, dados) não
+muda.
+
 ## O que já existe (não faz parte desta entrega)
 
-- **Não existe home hoje.** `web/app/` não tem `page.js` na raiz — uma
-  visita a `psiagente.com.br/` cai direto em `updateSession`
+- **Não existe home hoje na raiz do domínio principal — mas há uma
+  página logada resolvendo pra `/` que precisa ser movida primeiro**
+  (ver seção acima). Depois da mudança de rota do painel, uma visita a
+  `psiagente.com.br/` cai em `updateSession`
   (`web/lib/supabase/proxy.js`), que redireciona pra `/login` porque
   `/` não está em `PUBLIC_PATHS`. Isso precisa mudar (ver seção
   "Middleware" abaixo) senão a home nova nunca é vista por visitante
@@ -50,6 +70,11 @@ FAQ); `/comece` continua sendo a página curta de conversão pra tráfego
 pago, sem alteração nesta entrega.
 
 ## Middleware: liberar `/` sem abrir o resto do app
+
+**Pré-condição:** o painel logado precisa já ter sido movido pra
+`/painel` (ver "Correção descoberta durante a implementação" acima) —
+sem isso, liberar `/` aqui faz visitante deslogado cair direto no
+painel sem sessão (erro 500, reproduzido durante a implementação).
 
 `PUBLIC_PATHS` em `web/lib/supabase/proxy.js` usa
 `pathname.startsWith(path)`. Adicionar `"/"` à lista literalmente
