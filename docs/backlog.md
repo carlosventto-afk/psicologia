@@ -41,6 +41,7 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 19 | Gráficos de indicadores de mercado na tela inicial | — |
 | 21 | Contadores de valor previsto e quantidade na Agenda, de acordo com o filtro de período (dia/semana/mês) | — |
 | 22 | Liberação temporária de plano avançado pelo admin (período de teste sem cobrança) | 11 (metade 1) |
+| 23 | Diferencial real do plano Psi Marketing no diretório público: (a) prioridade de exibição em `/busca` pra perfis de plano pago (hoje ordena só por `criado_em desc`, sem distinção de plano) e (b) conteúdo tipo stories no perfil (foto/vídeo com expiração, ao estilo Instagram) — schema com expiração, upload de vídeo, visualizador na página pública, rotina de limpeza do que expirou, e revisão de regras do CFP sobre autopromoção antes de ir ao ar. Pedido surgido ao revisar o texto de preços da home institucional (2026-09-12): hoje o plano Grátis já tem `temDiretorio: true`, então "aparecer no diretório" não é diferencial de fato do Marketing — precisa de algo que o Grátis não tenha. Tratar como projeto próprio, com brainstorm dedicado (schema/storage/moderação) antes de codar. | — |
 
 Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também
 `docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original
