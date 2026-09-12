@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enviarEmailResend, EMAIL_ADMIN } from "@/lib/email/resend";
+import { PLANOS } from "@/lib/planos";
 
 export async function POST(request) {
   const token = request.headers.get("asaas-access-token");
@@ -14,7 +16,7 @@ export async function POST(request) {
   if (subscriptionId) {
     const { data } = await admin
       .from("Usuarios")
-      .select("id, plano_pago, plano_pretendido, plano_pretendido_a_partir_de")
+      .select("id, nome, email, plano_pago, plano_pretendido, plano_pretendido_a_partir_de")
       .eq("asaas_subscription_id", subscriptionId)
       .maybeSingle();
     usuario = data;
@@ -56,6 +58,21 @@ export async function POST(request) {
       atualizacao.plano_pago = usuario.plano_pretendido;
       atualizacao.plano_pretendido = null;
       atualizacao.plano_pretendido_a_partir_de = null;
+
+      // Melhor esforço: notificação pro ADM nunca deve fazer o Asaas
+      // reenviar o webhook (só reenvia em resposta não-2xx) -- se o Resend
+      // falhar, a atualização de plano acima já foi persistida, só a
+      // notificação que fica pra trás.
+      enviarEmailResend({
+        to: EMAIL_ADMIN,
+        subject: `Contrato fechado: ${usuario.nome} — ${PLANOS[usuario.plano_pretendido]?.nome ?? usuario.plano_pretendido}`,
+        html: `<p>Assinatura confirmada no PsiAgente.</p>
+          <p><strong>Profissional:</strong> ${usuario.nome}</p>
+          <p><strong>E-mail:</strong> ${usuario.email}</p>
+          <p><strong>Plano:</strong> ${PLANOS[usuario.plano_pretendido]?.nome ?? usuario.plano_pretendido}</p>
+          <p><strong>Valor pago:</strong> R$ ${evento.payment?.value}</p>
+          <p><strong>Forma de pagamento:</strong> ${evento.payment?.billingType ?? "não informado"}</p>`,
+      }).catch(() => {});
     } else if (usuario.plano_pago) {
       atualizacao.plano = usuario.plano_pago;
     }

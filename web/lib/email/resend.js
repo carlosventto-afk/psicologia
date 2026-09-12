@@ -8,6 +8,7 @@
 // direto contra a API do Resend sempre funcionou.
 const RESEND_API_URL = "https://api.resend.com/emails";
 const REMETENTE = "PsiAgente <no-reply@psiagente.com.br>";
+export const EMAIL_ADMIN = "carlosventto@gmail.com";
 
 export async function enviarEmailResend({ to, subject, html }) {
   const resposta = await fetch(RESEND_API_URL, {

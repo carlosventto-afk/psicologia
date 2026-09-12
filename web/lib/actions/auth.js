@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
+import { enviarEmailResend, EMAIL_ADMIN } from "@/lib/email/resend";
 
 export async function entrar(prevState, formData) {
   const email = formData.get("email");
@@ -83,6 +84,19 @@ export async function cadastrar(prevState, formData) {
   // Melhor esforço: se falhar, o profissional ainda consegue carregar a
   // lista padrão depois pelo botão em /financeiro/classificacoes.
   await criarClassificacoesPadrao(supabase, data.user.id).catch(() => {});
+
+  // Melhor esforço: notificação pro ADM nunca bloqueia o cadastro do
+  // profissional, mesmo se o Resend estiver fora do ar.
+  enviarEmailResend({
+    to: EMAIL_ADMIN,
+    subject: `Novo cadastro: ${nome}`,
+    html: `<p>Novo profissional cadastrado no PsiAgente.</p>
+      <p><strong>Nome:</strong> ${nome}</p>
+      <p><strong>E-mail:</strong> ${email}</p>
+      <p><strong>Contato:</strong> ${contato}</p>
+      <p><strong>CRP:</strong> ${crp || "não informado"}</p>
+      <p><strong>Origem:</strong> ${origem || "direto"}</p>`,
+  }).catch(() => {});
 
   redirect(origem === "busca" ? "/diretorio" : "/painel");
 }
