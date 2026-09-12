@@ -419,6 +419,88 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       "Esse código não é válido ou já expirou. Gere um novo em /configuracoes/whatsapp e envie de novo por aqui."
     ),
     {
+      // Item 24 parte 4 do backlog (agente comercial): garante que o lead
+      // exista antes de checar se o bot está pausado pra esse número.
+      // Idempotente via índice único parcial (telefone, origem='whatsapp')
+      // -- "do nothing" no conflito, não sobrescreve nada de um lead que já
+      // existe (ex.: nome preenchido por agent_criar_conta).
+      parameters: {
+        operation: "executeQuery",
+        query:
+          "insert into \"Lead\" (telefone, origem, estagio)\nvalues ($1, 'whatsapp', 'novo')\non conflict (telefone) where origem = 'whatsapp' do nothing;",
+        options: {
+          queryReplacement: "={{ [$('Normalizar Payload').item.json.numero_normalizado] }}",
+        },
+      },
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [1540, 280],
+      id: "b7c17000-0000-4000-8000-000000000050",
+      name: "Upsert Lead WhatsApp",
+      credentials: {
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
+      },
+      onError: "continueErrorOutput",
+    },
+    {
+      parameters: {
+        operation: "executeQuery",
+        query:
+          "select coalesce(aguardando_humano, false) as aguardando_humano\nfrom \"Lead\"\nwhere telefone = $1 and origem = 'whatsapp'\nlimit 1;",
+        options: {
+          queryReplacement: "={{ [$('Normalizar Payload').item.json.numero_normalizado] }}",
+        },
+      },
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [1760, 280],
+      id: "b7c17000-0000-4000-8000-000000000051",
+      name: "Buscar Status Lead",
+      credentials: {
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
+      },
+      onError: "continueErrorOutput",
+    },
+    {
+      parameters: {
+        conditions: {
+          options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
+          conditions: [
+            { leftValue: "={{ $json.aguardando_humano }}", rightValue: true, operator: { type: "boolean", operation: "true" } },
+          ],
+          combinator: "and",
+        },
+        options: {},
+      },
+      type: "n8n-nodes-base.if",
+      typeVersion: 2.2,
+      position: [1980, 280],
+      id: "b7c17000-0000-4000-8000-000000000052",
+      name: "Aguardando humano?",
+    },
+    {
+      // Terminal: bot pausado pra esse lead -- só loga, não chama a IA nem
+      // manda resposta automática. O ADM vê no CRM e responde pelo WhatsApp
+      // normal (mesmo número).
+      parameters: {
+        operation: "executeQuery",
+        query:
+          "insert into \"LeadNota\" (lead_id, autor, texto)\nselect id, 'lead', $2 from \"Lead\" where telefone = $1 and origem = 'whatsapp';",
+        options: {
+          queryReplacement:
+            "={{ [$('Normalizar Payload').item.json.numero_normalizado, $('Normalizar Payload').item.json.texto] }}",
+        },
+      },
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [2200, 280],
+      id: "b7c17000-0000-4000-8000-000000000053",
+      name: "Registrar Nota (pausado)",
+      credentials: {
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
+      },
+    },
+    {
       // Important #5 (revisão final): cópia de "Bufferizar Mensagem" pro
       // fluxo de número ainda não vinculado (onboarding) — mesmo padrão de
       // debounce (ver comentário no topo do arquivo), mesma tabela
@@ -470,6 +552,48 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       position: [1980, 160],
       id: "b7c17000-0000-4000-8000-000000000042",
       name: "Consumir Buffer (onboarding)",
+      credentials: {
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
+      },
+      onError: "continueErrorOutput",
+    },
+    {
+      // Melhor esforço: falha aqui não pode bloquear a resposta pro lead
+      // (ambos os outputs desta conexão vão pro mesmo próximo nó, ver
+      // "connections" abaixo).
+      parameters: {
+        operation: "executeQuery",
+        query:
+          "insert into \"LeadNota\" (lead_id, autor, texto)\nselect id, 'lead', $2 from \"Lead\" where telefone = $1 and origem = 'whatsapp';",
+        options: {
+          queryReplacement: "={{ [$('Normalizar Payload').item.json.numero_normalizado, $json.mensagens.join('\\n')] }}",
+        },
+      },
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [2090, 220],
+      id: "b7c17000-0000-4000-8000-000000000054",
+      name: "Registrar Nota (mensagem recebida)",
+      credentials: {
+        postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
+      },
+      onError: "continueErrorOutput",
+    },
+    {
+      // Mesmo raciocínio: melhor esforço, não bloqueia o envio da resposta.
+      parameters: {
+        operation: "executeQuery",
+        query:
+          "insert into \"LeadNota\" (lead_id, autor, texto)\nselect id, 'agente', $2 from \"Lead\" where telefone = $1 and origem = 'whatsapp';",
+        options: {
+          queryReplacement: "={{ [$('Normalizar Payload').item.json.numero_normalizado, $json.output] }}",
+        },
+      },
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [2530, 130],
+      id: "b7c17000-0000-4000-8000-000000000055",
+      name: "Registrar Nota (resposta do agente)",
       credentials: {
         postgres: { id: credPostgresId, name: "Supabase - psiagente (pooler)" },
       },
@@ -542,12 +666,16 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
       onError: "continueErrorOutput",
     },
     {
+      // Referencia "Chamar WA - Onboarding" pelo nome, não $json ambiente
+      // -- desde que "Registrar Nota (resposta do agente)" passou a ficar
+      // entre os dois, $json aqui seria a saída do Postgres, não do agente
+      // (mesma lição do Critical #1 deste arquivo, no topo).
       parameters: {
         workflowId: { __rl: true, mode: "id", value: wfEnviarMensagem },
         workflowInputs: {
           value: {
             whatsapp_number: "={{ $('Normalizar Payload').item.json.numero_normalizado }}",
-            mensagem: "={{ $json.output }}",
+            mensagem: "={{ $('Chamar WA - Onboarding').item.json.output }}",
           },
         },
       },
@@ -634,6 +762,24 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
     "Parece código de 6 dígitos?": {
       main: [
         [{ node: "Validar Código Vinculação", type: "main", index: 0 }],
+        [{ node: "Upsert Lead WhatsApp", type: "main", index: 0 }],
+      ],
+    },
+    "Upsert Lead WhatsApp": {
+      main: [
+        [{ node: "Buscar Status Lead", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
+    "Buscar Status Lead": {
+      main: [
+        [{ node: "Aguardando humano?", type: "main", index: 0 }],
+        [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
+    "Aguardando humano?": {
+      main: [
+        [{ node: "Registrar Nota (pausado)", type: "main", index: 0 }],
         [{ node: "Bufferizar Mensagem (onboarding)", type: "main", index: 0 }],
       ],
     },
@@ -648,8 +794,14 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
     },
     "Consumir Buffer (onboarding)": {
       main: [
-        [{ node: "Checar Limite Onboarding", type: "main", index: 0 }],
+        [{ node: "Registrar Nota (mensagem recebida)", type: "main", index: 0 }],
         [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
+    "Registrar Nota (mensagem recebida)": {
+      main: [
+        [{ node: "Checar Limite Onboarding", type: "main", index: 0 }],
+        [{ node: "Checar Limite Onboarding", type: "main", index: 0 }],
       ],
     },
     "Checar Limite Onboarding": {
@@ -666,8 +818,14 @@ return [{ json: { numero_normalizado, fromMe, isMessageEvent, isText, texto, isG
     },
     "Chamar WA - Onboarding": {
       main: [
-        [{ node: "Enviar: resposta do Onboarding", type: "main", index: 0 }],
+        [{ node: "Registrar Nota (resposta do agente)", type: "main", index: 0 }],
         [{ node: "Enviar: erro genérico", type: "main", index: 0 }],
+      ],
+    },
+    "Registrar Nota (resposta do agente)": {
+      main: [
+        [{ node: "Enviar: resposta do Onboarding", type: "main", index: 0 }],
+        [{ node: "Enviar: resposta do Onboarding", type: "main", index: 0 }],
       ],
     },
     "Validar Código Vinculação": {

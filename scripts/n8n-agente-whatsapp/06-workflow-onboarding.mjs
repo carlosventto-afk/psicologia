@@ -45,13 +45,57 @@ function construirNoToolCriarConta() {
   };
 }
 
-const SYSTEM_PROMPT_CADASTRO = `Você é o(a) assistente de boas-vindas de um sistema de gestão pra psicólogos, no WhatsApp. Alguém te mandou uma mensagem de um número que ainda não está vinculado a nenhuma conta. Tom acolhedor, respostas curtas (é WhatsApp), sem markdown pesado.
+// Item 24 parte 4 do backlog: este prompt deixa de ser só "assistente
+// de cadastro" e passa a atender também quem só quer tirar dúvida
+// antes de decidir (agente comercial). Preços abaixo vêm de
+// web/lib/planos.js -- se o preço mudar lá, atualizar aqui também
+// (decisão aceita por ora: string estática, sem tool de consulta).
+// Mesmo padrao de construirNoToolCriarConta -- "acao": "escalar" em vez
+// de "criar_conta", um so parametro (motivo).
+function construirNoToolEscalar() {
+  const jsonBody =
+    `={{ '{"acao": "escalar", "whatsapp_number": ' + JSON.stringify($('Execute Workflow Trigger').first().json.whatsapp_number) + ', "motivo": {motivo} }' }}`;
+  return {
+    parameters: {
+      toolDescription: "Avisa um humano pra continuar a conversa. So chame quando a pessoa pedir pra falar com alguem, perguntar algo que voce nao tem certeza de responder, ou parecer insatisfeita.",
+      method: "POST",
+      url: "=https://psiagente.com.br/api/agent/onboarding",
+      authentication: "genericCredentialType",
+      genericAuthType: "httpHeaderAuth",
+      sendBody: true,
+      specifyBody: "json",
+      jsonBody,
+      placeholderDefinitions: {
+        values: [{ name: "motivo", description: "Resumo curto do que a pessoa quer ou perguntou.", type: "string" }],
+      },
+      options: {},
+    },
+    type: "@n8n/n8n-nodes-langchain.toolHttpRequest",
+    typeVersion: 1.1,
+    position: [240, 440],
+    id: "c8d17000-0000-4000-8000-000000000011",
+    name: "agent_escalar_para_humano",
+    credentials: {
+      httpHeaderAuth: { id: credProxyId, name: "Agent Tool Secret - proxy Next.js" },
+    },
+  };
+}
+
+const SYSTEM_PROMPT_CADASTRO = `Você é o(a) assistente comercial do PsiAgente (sistema de gestão pra psicólogos), no WhatsApp. Alguém te mandou uma mensagem de um número que ainda não está vinculado a nenhuma conta. Tom acolhedor, respostas curtas (é WhatsApp), sem markdown pesado.
 
 Primeiro descubra: essa pessoa já usa o sistema (tem conta feita pelo aplicativo ou por outro número de WhatsApp) ou é a primeira vez? Pergunte isso de forma natural, sem menu numerado.
 
 Se a pessoa já tem conta: oriente a gerar um código de 6 dígitos em /configuracoes/whatsapp no aplicativo e mandar esse código aqui pra esta mesma conversa — não chame nenhuma ferramenta, só oriente.
 
-Se é a primeira vez: colete o nome completo e o e-mail da pessoa (uma pergunta de cada vez, sem pedir os dois juntos) e então chame agent_criar_conta. Depois de chamar, avise que um link de confirmação foi mandado por e-mail e que ela precisa clicar nesse link pra continuar.
+Se é a primeira vez: não presuma que ela já quer criar conta agora. Pode ter só dúvida sobre o produto — responda à vontade antes de empurrar pro cadastro. Planos reais (não invente valor nem recurso):
+- Grátis: R$ 0/mês. Gestão básica de agenda e pacientes, 1 consultório.
+- Psi Gestão: R$ 49,90/mês. Agenda, financeiro, documentos, lembrete automático por WhatsApp, Carnê-Leão automático, consultórios ilimitados. Sem perfil no diretório público.
+- Psi Marketing: R$ 39,90/mês. Perfil no diretório público de psicólogos, consultórios ilimitados. Sem os recursos de gestão do Psi Gestão.
+- Psi Gestão + Marketing: R$ 79,90/mês. Tudo do Psi Gestão + perfil no diretório público.
+
+Quando a pessoa topar criar conta: colete o nome completo e o e-mail (uma pergunta de cada vez, sem pedir os dois juntos) e então chame agent_criar_conta. Depois de chamar, avise que um link de confirmação foi mandado por e-mail e que ela precisa clicar nesse link pra continuar.
+
+Chame agent_escalar_para_humano (parâmetro: motivo, um resumo curto do que a pessoa quer) quando: ela pedir explicitamente pra falar com uma pessoa; perguntar algo que você não tem certeza de responder (negociação de preço/desconto, reclamação, caso muito específico do consultório dela); ou parecer insatisfeita com sua resposta. Depois de chamar, avise que alguém vai continuar a conversa em breve — não invente uma resposta que você não tem certeza.
 
 Tradução de erro: nunca mostre um código de erro cru. WHATSAPP_JA_CADASTRADO -> "esse número já tem uma conta vinculada — te mandei um link no e-mail dessa conta pra confirmar que é você"; EMAIL_JA_CADASTRADO -> "esse e-mail já tem uma conta — te mandei um link nesse e-mail pra confirmar que é você"; LIMITE_TENTATIVAS_CADASTRO -> "muitas tentativas em pouco tempo, espera um pouco e tenta de novo"; ERRO_ENVIAR_LINK -> "tive um problema pra mandar o e-mail agora, pode tentar de novo daqui a pouco?"; DADOS_INCOMPLETOS -> peça o dado que faltou de novo.`;
 
@@ -113,6 +157,7 @@ const workflow = {
       },
     },
     construirNoToolCriarConta(),
+    construirNoToolEscalar(),
     {
       parameters: {
         httpMethod: "POST",
@@ -221,6 +266,7 @@ const workflow = {
     "Google Gemini Chat Model": { ai_languageModel: [[{ node: "AI Agent Cadastro", type: "ai_languageModel", index: 0 }]] },
     "Postgres Chat Memory": { ai_memory: [[{ node: "AI Agent Cadastro", type: "ai_memory", index: 0 }]] },
     agent_criar_conta: { ai_tool: [[{ node: "AI Agent Cadastro", type: "ai_tool", index: 0 }]] },
+    agent_escalar_para_humano: { ai_tool: [[{ node: "AI Agent Cadastro", type: "ai_tool", index: 0 }]] },
     "Webhook Confirmacao Link": { main: [[{ node: "Confirmar Validacao", type: "main", index: 0 }]] },
     "Confirmar Validacao": {
       main: [
