@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
 import { enviarEmailResend, EMAIL_ADMIN } from "@/lib/email/resend";
 
@@ -71,16 +72,20 @@ export async function cadastrar(prevState, formData) {
   const cookieStore = await cookies();
   const sessaoVisitante = cookieStore.get("pv_id")?.value ?? null;
 
-  const { error: erroUsuarios } = await supabase.from("Usuarios").insert({
-    id_user: data.user.id,
-    nome,
-    email,
-    contato: Number(String(contato).replace(/\D/g, "")),
-    crp: crp || null,
-    role: "psicologo",
-    aprovado: false,
-    visitante_sessao_id: sessaoVisitante,
-  });
+  const { data: usuarioInserido, error: erroUsuarios } = await supabase
+    .from("Usuarios")
+    .insert({
+      id_user: data.user.id,
+      nome,
+      email,
+      contato: Number(String(contato).replace(/\D/g, "")),
+      crp: crp || null,
+      role: "psicologo",
+      aprovado: false,
+      visitante_sessao_id: sessaoVisitante,
+    })
+    .select("id")
+    .single();
 
   if (erroUsuarios) {
     return { error: "Conta criada, mas não foi possível salvar seus dados. Avise o suporte." };
@@ -89,6 +94,22 @@ export async function cadastrar(prevState, formData) {
   // Melhor esforço: se falhar, o profissional ainda consegue carregar a
   // lista padrão depois pelo botão em /financeiro/classificacoes.
   await criarClassificacoesPadrao(supabase, data.user.id).catch(() => {});
+
+  // Melhor esforço: RLS do CRM só permite escrita por admin, então o
+  // insert automático roda com service-role (o profissional recém-criado
+  // não é admin e não teria como criar essa linha pela própria sessão).
+  createAdminClient()
+    .from("Lead")
+    .insert({
+      nome,
+      telefone: String(contato),
+      email,
+      usuario_id: usuarioInserido.id,
+      visitante_sessao_id: sessaoVisitante,
+      estagio: "novo",
+      origem: "cadastro",
+    })
+    .catch(() => {});
 
   // Melhor esforço: notificação pro ADM nunca bloqueia o cadastro do
   // profissional, mesmo se o Resend estiver fora do ar.
