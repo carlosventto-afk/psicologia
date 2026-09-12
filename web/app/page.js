@@ -8,6 +8,8 @@ import {
   IconeCarneLeao,
   IconeDocumentos,
 } from "@/components/icons/NavIcons";
+import { PLANOS } from "@/lib/planos";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 
 const CADASTRO_URL = "/cadastro?origem=home";
 
@@ -54,6 +56,33 @@ const RECURSOS = [
     Icone: IconeDocumentos,
     titulo: "Anamnese e documentos",
     texto: "Anamnese, prontuário e documentos organizados por paciente.",
+  },
+];
+
+const PRECOS = [
+  {
+    ...PLANOS.gratis,
+    destaque: false,
+    beneficios: ["Gestão básica de agenda e pacientes", "1 consultório"],
+  },
+  {
+    ...PLANOS.marketing,
+    destaque: false,
+    beneficios: ["Perfil no diretório público de psicólogos", "Consultórios ilimitados"],
+  },
+  {
+    ...PLANOS.gestao,
+    destaque: false,
+    beneficios: [
+      "Agenda, financeiro e documentos",
+      "Lembrete automático por WhatsApp",
+      "Carnê-Leão automático",
+    ],
+  },
+  {
+    ...PLANOS.gestao_marketing,
+    destaque: true,
+    beneficios: ["Tudo do Psi Gestão", "Perfil no diretório público de psicólogos"],
   },
 ];
 
@@ -111,6 +140,43 @@ export default function PaginaInicial() {
                   <Icone width={28} height={28} className="text-navy" />
                   <h3 className="mt-4 font-display font-bold text-foreground">{titulo}</h3>
                   <p className="mt-1.5 text-sm text-muted">{texto}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="precos" className="px-4 py-20 md:py-24 border-t border-border bg-white">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground text-center">
+              Um plano pra cada momento do consultório
+            </h2>
+            <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {PRECOS.map((plano) => (
+                <div
+                  key={plano.id}
+                  className={`card p-6 flex flex-col ${plano.destaque ? "border-2 border-primary" : ""}`}
+                >
+                  {plano.destaque && (
+                    <span className="self-start rounded-full bg-primary/10 text-primary-dark text-xs font-bold px-2.5 py-1 mb-3">
+                      Mais completo
+                    </span>
+                  )}
+                  <h3 className="font-display font-bold text-lg text-navy">{plano.nome}</h3>
+                  <p className="mt-2">
+                    <span className="font-display text-3xl font-bold text-foreground">
+                      {plano.preco === 0 ? "Grátis" : formatarMoeda(plano.preco)}
+                    </span>
+                    {plano.preco > 0 && <span className="text-sm text-muted"> /mês</span>}
+                  </p>
+                  <ul className="mt-4 space-y-2 text-sm text-muted flex-1">
+                    {plano.beneficios.map((b) => (
+                      <li key={b}>• {b}</li>
+                    ))}
+                  </ul>
+                  <Link href={CADASTRO_URL} className="btn-outline mt-6 justify-center">
+                    Começar
+                  </Link>
                 </div>
               ))}
             </div>
