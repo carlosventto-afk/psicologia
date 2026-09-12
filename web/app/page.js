@@ -10,8 +10,10 @@ import {
 } from "@/components/icons/NavIcons";
 import { PLANOS } from "@/lib/planos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { listarArtigosPublicados } from "@/lib/data/artigos";
 
 const CADASTRO_URL = "/cadastro?origem=home";
+const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL ?? "https://blog.psiagente.com.br";
 
 export const metadata = {
   title: "PsiAgente — Gestão de consultório para psicólogos",
@@ -86,7 +88,38 @@ const PRECOS = [
   },
 ];
 
-export default function PaginaInicial() {
+const FAQ = [
+  {
+    pergunta: "Preciso de cartão de crédito para começar?",
+    resposta: "Não. O plano Grátis não pede cartão; você faz upgrade quando quiser.",
+  },
+  {
+    pergunta: "Já uso planilha ou outra agenda — dá pra migrar meus pacientes?",
+    resposta: "Sim, tem um assistente de importação que lê a sua planilha de pacientes existente.",
+  },
+  {
+    pergunta: "O lembrete de sessão é automático?",
+    resposta: "Sim, por WhatsApp, nos planos Psi Gestão e Psi Gestão + Marketing.",
+  },
+  {
+    pergunta: "Posso usar em mais de um consultório na mesma conta?",
+    resposta: "Sim — nos planos pagos não há limite de consultórios.",
+  },
+  {
+    pergunta: "Posso cancelar quando quiser?",
+    resposta: "Sim, direto no painel, sem burocracia.",
+  },
+  {
+    pergunta: "Meus dados e os dos pacientes ficam seguros?",
+    resposta:
+      "Sim — os dados ficam armazenados com controle de acesso e criptografia, seguindo os princípios da LGPD.",
+  },
+];
+
+export default async function PaginaInicial() {
+  const artigos = await listarArtigosPublicados();
+  const artigosDestaque = artigos.slice(0, 3);
+
   return (
     <>
       <HeaderInstitucional />
@@ -178,6 +211,59 @@ export default function PaginaInicial() {
                     Começar
                   </Link>
                 </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Depoimentos — aguardando conteúdo real do usuário (ver
+            docs/superpowers/specs/2026-09-11-home-institucional-design.md).
+            Formato esperado por item: { nome, cargo_ou_cidade, foto_url?, texto }.
+        <section id="depoimentos"> ... </section>
+        */}
+
+        {artigosDestaque.length > 0 && (
+          <section className="px-4 py-20 md:py-24 border-t border-border">
+            <div className="max-w-5xl mx-auto">
+              <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground text-center">
+                Do blog
+              </h2>
+              <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6">
+                {artigosDestaque.map((a) => (
+                  <a key={a.id} href={`${BLOG_URL}/${a.slug}`} className="card overflow-hidden block">
+                    {a.imagem_capa ? (
+                      <img src={a.imagem_capa} alt={a.titulo} className="blog-card-img" />
+                    ) : (
+                      <div className="blog-card-fallback">
+                        <span>{a.titulo}</span>
+                      </div>
+                    )}
+                    <div className="p-5">
+                      <p className="blog-meta">{new Date(a.publicado_em).toLocaleDateString("pt-BR")}</p>
+                      <h3 className="mt-1 font-display font-bold text-navy">{a.titulo}</h3>
+                      {a.resumo && <p className="mt-2 text-sm text-muted">{a.resumo}</p>}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="px-4 py-20 md:py-24 border-t border-border bg-white">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground text-center">
+              Perguntas frequentes
+            </h2>
+            <div className="mt-10 space-y-3">
+              {FAQ.map(({ pergunta, resposta }) => (
+                <details key={pergunta} className="card p-5 group">
+                  <summary className="font-display font-bold text-navy cursor-pointer list-none flex items-center justify-between gap-4">
+                    {pergunta}
+                    <span className="text-muted group-open:rotate-45 transition-transform">+</span>
+                  </summary>
+                  <p className="mt-3 text-sm text-muted">{resposta}</p>
+                </details>
               ))}
             </div>
           </div>
