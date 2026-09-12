@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Criar a home institucional do PsiAgente em `psiagente.com.br/` (hoje inexistente — a raiz 404/redireciona pro login), com nav, hero, recursos, preços, blog em destaque, FAQ e footer institucional com WhatsApp/Instagram.
+**Goal:** Criar a home institucional do PsiAgente em `psiagente.com.br/`, com nav, hero, recursos, preços, blog em destaque, FAQ e footer institucional com WhatsApp/Instagram.
 
 **Architecture:** Página única server component (`web/app/page.js`), mesmo padrão de `web/app/comece/page.js` — sem quebrar em múltiplos arquivos de seção. Único componente novo extraído: `HeaderInstitucional` (client, por causa do menu mobile). Reaproveita dados já existentes (`PLANOS`, `listarArtigosPublicados`) e componentes já existentes (`LogoPsiAgente`, `ConsentimentoCookies`, ícones de `NavIcons.js`). Pré-requisito: o middleware de sessão (`web/lib/supabase/proxy.js`) precisa liberar a raiz `/`, hoje redirecionada pro `/login` por não estar em `PUBLIC_PATHS`.
+
+**Correção pós-brainstorming (2026-09-11):** a Task 1 original revelou que `/` já resolve pra uma página real — `web/app/(app)/(gestao)/page.js` (o painel "Resumo de Hoje"), que cai em `/` porque as route groups `(app)`/`(gestao)` não aparecem na URL. Liberar `/` no middleware sem mover essa página primeiro faz visitante deslogado bater no painel sem sessão (500, reproduzido e revertido nesta sessão). Decisão do usuário: mover o painel pra `/painel`. Isso virou a **Task 0** abaixo, que roda antes de tudo o mais. Ver `docs/superpowers/specs/2026-09-11-home-institucional-design.md`, seção "Correção descoberta durante a implementação".
 
 **Tech Stack:** Next.js 16 App Router (Server Components), Tailwind v4 (`@theme inline` em `web/app/globals.css`), Supabase (só leitura, via `listarArtigosPublicados` já existente).
 
@@ -20,16 +22,220 @@
 - WhatsApp de contato: `https://wa.me/5591981910295`. Instagram: `https://instagram.com/psiagente`. Footer sem CNPJ/endereço; texto "Criado por GESTÃO TECNOLOGIA".
 - Preços vêm de `web/lib/planos.js` (`PLANOS`) — nunca duplicar valor numérico solto no componente.
 - Sem framework de teste automatizado (convenção já estabelecida no projeto) — verificação via `npm run build` + `npm run start` (nunca contra dev server) e curl/inspeção manual no navegador.
+- **Task 0 roda antes de qualquer outra task** — libera `/` de verdade (hoje ocupado pelo painel via route group). Nenhuma task seguinte pode ser dispatchada antes da Task 0 estar completa e revisada.
 
 ---
 
 ## Arquivos deste plano
 
+- Mover: `web/app/(app)/(gestao)/page.js` → `web/app/(app)/(gestao)/painel/page.js` (Task 0).
+- Modificar: `web/lib/actions/auth.js`, `web/components/SidebarNav.js`, `web/app/(app)/diretorio/page.js`, `web/app/(app)/admin/layout.js` (Task 0 — atualiza referências a `/` que esperavam o painel).
 - Modificar: `web/lib/supabase/proxy.js` (libera `/` no middleware de sessão).
 - Modificar: `web/app/globals.css` (classe `.glow-suave` nova).
 - Criar: `web/components/HeaderInstitucional.js`.
 - Criar: `web/app/page.js` (a home em si, construída em 4 tasks incrementais).
 - Modificar: `web/app/sitemap.js` (inclui a home).
+
+---
+
+### Task 0: Mover o painel logado para `/painel`
+
+**Files:**
+- Modify: `web/lib/actions/auth.js:21,87,103`
+- Modify: `web/components/SidebarNav.js:33,258,283,325`
+- Modify: `web/app/(app)/diretorio/page.js:17`
+- Modify: `web/app/(app)/admin/layout.js:9`
+- Move: `web/app/(app)/(gestao)/page.js` → `web/app/(app)/(gestao)/painel/page.js` (conteúdo idêntico, só muda o caminho)
+
+**Interfaces:**
+- Produces: o painel logado ("Resumo de Hoje") passa a responder em `/painel`, não mais em `/`. Toda task seguinte (Task 1 em diante) depende disso — sem esta task, liberar `/` no middleware faz visitante deslogado bater no painel sem sessão.
+- Consumes: nenhuma interface de outra task deste plano — é pura limpeza de uma rota já existente.
+
+- [ ] **Step 1: Mover o arquivo do painel**
+
+```bash
+mkdir -p "web/app/(app)/(gestao)/painel"
+git mv "web/app/(app)/(gestao)/page.js" "web/app/(app)/(gestao)/painel/page.js"
+```
+
+(o conteúdo do arquivo não muda — ele não referencia o próprio caminho)
+
+- [ ] **Step 2: Atualizar `web/lib/actions/auth.js` (3 ocorrências)**
+
+Trocar (dentro de `entrar`):
+
+```js
+  redirect("/");
+}
+
+export async function sair() {
+```
+
+Por:
+
+```js
+  redirect("/painel");
+}
+
+export async function sair() {
+```
+
+Trocar (dentro de `cadastrar`):
+
+```js
+  redirect(origem === "busca" ? "/diretorio" : "/");
+```
+
+Por:
+
+```js
+  redirect(origem === "busca" ? "/diretorio" : "/painel");
+```
+
+Trocar (dentro de `atualizarSenha`, no final do arquivo):
+
+```js
+  redirect("/");
+}
+```
+
+Por:
+
+```js
+  redirect("/painel");
+}
+```
+
+- [ ] **Step 3: Atualizar `web/components/SidebarNav.js` (4 ocorrências)**
+
+Trocar:
+
+```js
+  { href: "/", label: "Painel", Icone: IconePainel, exact: true },
+```
+
+Por:
+
+```js
+  { href: "/painel", label: "Painel", Icone: IconePainel, exact: true },
+```
+
+Trocar (barra compacta mobile):
+
+```jsx
+        <Link href="/" className="flex items-center gap-2">
+          <LogoPsiAgente className="h-7 w-auto" />
+          <span className="font-display text-base font-bold text-navy">PsiAgente</span>
+        </Link>
+```
+
+Por:
+
+```jsx
+        <Link href="/painel" className="flex items-center gap-2">
+          <LogoPsiAgente className="h-7 w-auto" />
+          <span className="font-display text-base font-bold text-navy">PsiAgente</span>
+        </Link>
+```
+
+Trocar (gaveta mobile):
+
+```jsx
+              <Link
+                href="/"
+                className="flex items-center gap-2.5"
+                onClick={() => setMenuAberto(false)}
+              >
+```
+
+Por:
+
+```jsx
+              <Link
+                href="/painel"
+                className="flex items-center gap-2.5"
+                onClick={() => setMenuAberto(false)}
+              >
+```
+
+Trocar (sidebar fixa desktop):
+
+```jsx
+          <Link href="/" className="flex items-center gap-2.5">
+            <LogoPsiAgente className="h-9 w-auto" />
+            {!recolhida && <span className="font-display text-xl font-bold text-navy">PsiAgente</span>}
+          </Link>
+```
+
+Por:
+
+```jsx
+          <Link href="/painel" className="flex items-center gap-2.5">
+            <LogoPsiAgente className="h-9 w-auto" />
+            {!recolhida && <span className="font-display text-xl font-bold text-navy">PsiAgente</span>}
+          </Link>
+```
+
+- [ ] **Step 4: Atualizar `web/app/(app)/diretorio/page.js`**
+
+Trocar:
+
+```js
+  if (usuario.plano === "gestao") {
+    redirect("/");
+  }
+```
+
+Por:
+
+```js
+  if (usuario.plano === "gestao") {
+    redirect("/painel");
+  }
+```
+
+- [ ] **Step 5: Atualizar `web/app/(app)/admin/layout.js`**
+
+Trocar:
+
+```js
+  if (usuario.role !== "admin" && !usuario.criador_conteudo) {
+    redirect("/");
+  }
+```
+
+Por:
+
+```js
+  if (usuario.role !== "admin" && !usuario.criador_conteudo) {
+    redirect("/painel");
+  }
+```
+
+- [ ] **Step 6: Build e verificar**
+
+```bash
+cd web
+npm run build
+npm run start
+```
+
+Fazer login de verdade com um usuário de teste (ou usar uma sessão já autenticada no navegador) e confirmar: login redireciona pra `/painel` (não mais pra `/`) e a tela "Resumo de Hoje" aparece lá; os 3 links de logo na sidebar (mobile compacta, gaveta mobile, desktop) levam pra `/painel`; o item "Painel" da sidebar aponta e marca ativo em `/painel`. Confirmar visitando `/` **sem estar logado**: neste ponto (antes da Task 1) `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/` deve dar `307` (redireciona pro login, comportamento inalterado até a Task 1 rodar). Parar o servidor.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add web/app/\(app\)/\(gestao\)/painel/page.js web/lib/actions/auth.js web/components/SidebarNav.js "web/app/(app)/diretorio/page.js" "web/app/(app)/admin/layout.js"
+git status
+git commit -m "$(cat <<'EOF'
+refactor(painel): move o painel logado de "/" para "/painel"
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+(rodar `git status` antes do commit pra confirmar que a remoção do `web/app/(app)/(gestao)/page.js` antigo também está staged — `git mv` já cuida disso, mas vale conferir)
 
 ---
 
