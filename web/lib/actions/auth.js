@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
 import { enviarEmailResend, EMAIL_ADMIN } from "@/lib/email/resend";
@@ -67,6 +68,9 @@ export async function cadastrar(prevState, formData) {
     return { error: "Não foi possível criar a conta." };
   }
 
+  const cookieStore = await cookies();
+  const sessaoVisitante = cookieStore.get("pv_id")?.value ?? null;
+
   const { error: erroUsuarios } = await supabase.from("Usuarios").insert({
     id_user: data.user.id,
     nome,
@@ -75,6 +79,7 @@ export async function cadastrar(prevState, formData) {
     crp: crp || null,
     role: "psicologo",
     aprovado: false,
+    visitante_sessao_id: sessaoVisitante,
   });
 
   if (erroUsuarios) {
