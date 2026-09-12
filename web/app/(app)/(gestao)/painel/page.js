@@ -48,7 +48,7 @@ export default async function PaginaPainel() {
           Novo Paciente
         </Link>
         <Link
-          href="/agenda/nova-sessao?voltarPara=%2F"
+          href="/agenda/nova-sessao?voltarPara=%2Fpainel"
           className="btn-outline"
         >
           Nova Sessão
@@ -64,7 +64,7 @@ export default async function PaginaPainel() {
             {atendimentosHoje.map((s) => (
               <Link
                 key={s.id}
-                href={`/sessoes/${s.id}/editar?voltarPara=%2F`}
+                href={`/sessoes/${s.id}/editar?voltarPara=%2Fpainel`}
                 className="card flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm transition-shadow hover:shadow-md"
               >
                 <div className="flex min-w-0 items-center gap-3">

@@ -14,7 +14,7 @@ export default async function PaginaDiretorio() {
   ]);
 
   if (usuario.plano === "gestao") {
-    redirect("/");
+    redirect("/painel");
   }
 
   const buscaUrl = process.env.NEXT_PUBLIC_BUSCA_URL ?? "http://localhost:3000";

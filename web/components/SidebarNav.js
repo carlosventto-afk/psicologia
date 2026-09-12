@@ -30,7 +30,7 @@ import {
 } from "@/components/icons/NavIcons";
 
 const ITENS_NAV = [
-  { href: "/", label: "Painel", Icone: IconePainel, exact: true },
+  { href: "/painel", label: "Painel", Icone: IconePainel, exact: true },
   { href: "/agenda", label: "Agenda", Icone: IconeAgenda },
   { href: "/recorrencias", label: "Recorrências", Icone: IconeRecorrencia },
   { href: "/pacientes", label: "Pacientes", Icone: IconePaciente },
@@ -255,7 +255,7 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
     <>
       {/* Barra compacta mobile */}
       <div className="flex items-center justify-between border-b border-border bg-white px-4 py-3 lg:hidden">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/painel" className="flex items-center gap-2">
           <LogoPsiAgente className="h-7 w-auto" />
           <span className="font-display text-base font-bold text-navy">PsiAgente</span>
         </Link>
@@ -280,7 +280,7 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
           <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[80vw] flex-col bg-white shadow-xl">
             <div className="flex items-center justify-between px-5 py-4">
               <Link
-                href="/"
+                href="/painel"
                 className="flex items-center gap-2.5"
                 onClick={() => setMenuAberto(false)}
               >
@@ -322,7 +322,7 @@ export default function SidebarNav({ ehAdmin, nome, papel, plano }) {
         }`}
       >
         <div className={`flex items-center gap-2.5 px-5 py-6 ${recolhida ? "justify-center px-0" : ""}`}>
-          <Link href="/" className="flex items-center gap-2.5">
+          <Link href="/painel" className="flex items-center gap-2.5">
             <LogoPsiAgente className="h-9 w-auto" />
             {!recolhida && <span className="font-display text-xl font-bold text-navy">PsiAgente</span>}
           </Link>

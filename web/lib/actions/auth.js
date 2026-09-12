@@ -18,7 +18,7 @@ export async function entrar(prevState, formData) {
     return { error: "E-mail ou senha inválidos" };
   }
 
-  redirect("/");
+  redirect("/painel");
 }
 
 export async function sair() {
@@ -84,7 +84,7 @@ export async function cadastrar(prevState, formData) {
   // lista padrão depois pelo botão em /financeiro/classificacoes.
   await criarClassificacoesPadrao(supabase, data.user.id).catch(() => {});
 
-  redirect(origem === "busca" ? "/diretorio" : "/");
+  redirect(origem === "busca" ? "/diretorio" : "/painel");
 }
 
 export async function atualizarSenha(prevState, formData) {
@@ -100,5 +100,5 @@ export async function atualizarSenha(prevState, formData) {
     return { error: "Não foi possível atualizar a senha." };
   }
 
-  redirect("/");
+  redirect("/painel");
 }

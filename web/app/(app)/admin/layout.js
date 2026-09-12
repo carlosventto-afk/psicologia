@@ -6,7 +6,7 @@ export default async function LayoutAdmin({ children }) {
   const usuario = await buscarUsuarioAtual();
 
   if (usuario.role !== "admin" && !usuario.criador_conteudo) {
-    redirect("/");
+    redirect("/painel");
   }
 
   return (
