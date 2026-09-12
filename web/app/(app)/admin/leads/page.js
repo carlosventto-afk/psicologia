@@ -14,6 +14,12 @@ const ROTULOS_ESTAGIO = {
   perdido: "Perdido",
 };
 
+const ROTULOS_ORIGEM = {
+  cadastro: "Cadastro",
+  manual: "Manual",
+  whatsapp: "WhatsApp",
+};
+
 export default async function PaginaCrmLeads({ searchParams }) {
   const usuario = await buscarUsuarioAtual();
   if (usuario.role !== "admin") {
@@ -56,11 +62,18 @@ export default async function PaginaCrmLeads({ searchParams }) {
               className="card flex flex-wrap items-center justify-between gap-3 px-4 py-3"
             >
               <div className="min-w-0">
-                <Link href={`/admin/leads/${lead.id}`} className="font-semibold text-navy hover:underline">
-                  {lead.nome}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/admin/leads/${lead.id}`} className="font-semibold text-navy hover:underline">
+                    {lead.nome || lead.telefone}
+                  </Link>
+                  {lead.aguardando_humano && (
+                    <span className="rounded-full bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5">
+                      Aguardando você
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted">
-                  {lead.telefone} · {lead.origem === "cadastro" ? "Cadastro" : "Manual"} ·{" "}
+                  {lead.telefone} · {ROTULOS_ORIGEM[lead.origem] ?? lead.origem} ·{" "}
                   {new Date(lead.created_at).toLocaleDateString("pt-BR")}
                 </p>
               </div>

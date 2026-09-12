@@ -5,6 +5,19 @@ import { buscarLead } from "@/lib/data/crm";
 import { adicionarNotaLead } from "@/lib/actions/crm";
 import SeletorEstagioLead from "@/components/SeletorEstagioLead";
 import LeadNotaForm from "@/components/LeadNotaForm";
+import BotaoRetomarAgente from "@/components/BotaoRetomarAgente";
+
+const ROTULOS_ORIGEM = {
+  cadastro: "Veio de cadastro",
+  manual: "Lead manual",
+  whatsapp: "Veio do WhatsApp",
+};
+
+const ROTULOS_AUTOR = {
+  admin: "Você",
+  lead: "Lead",
+  agente: "Agente",
+};
 
 export default async function PaginaDetalheLead({ params }) {
   const usuario = await buscarUsuarioAtual();
@@ -28,15 +41,24 @@ export default async function PaginaDetalheLead({ params }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="page-title">{lead.nome}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="page-title">{lead.nome || lead.telefone}</h1>
+            {lead.aguardando_humano && (
+              <span className="rounded-full bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5">
+                Aguardando você
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted">
             {lead.telefone}
-            {lead.email && ` · ${lead.email}`} ·{" "}
-            {lead.origem === "cadastro" ? "Veio de cadastro" : "Lead manual"} ·{" "}
+            {lead.email && ` · ${lead.email}`} · {ROTULOS_ORIGEM[lead.origem] ?? lead.origem} ·{" "}
             {new Date(lead.created_at).toLocaleDateString("pt-BR")}
           </p>
         </div>
-        <SeletorEstagioLead id={lead.id} estagioAtual={lead.estagio} />
+        <div className="flex items-center gap-2">
+          {lead.aguardando_humano && <BotaoRetomarAgente id={lead.id} />}
+          <SeletorEstagioLead id={lead.id} estagioAtual={lead.estagio} />
+        </div>
       </div>
 
       <LeadNotaForm action={adicionarNotaLead.bind(null, lead.id)} />
@@ -50,6 +72,7 @@ export default async function PaginaDetalheLead({ params }) {
             <div key={nota.id} className="card p-4">
               <p className="whitespace-pre-wrap text-navy">{nota.texto}</p>
               <p className="mt-2 text-xs text-muted">
+                {ROTULOS_AUTOR[nota.autor] ?? nota.autor} ·{" "}
                 {new Date(nota.created_at).toLocaleString("pt-BR")}
               </p>
             </div>

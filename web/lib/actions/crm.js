@@ -45,6 +45,21 @@ export async function atualizarEstagioLead(leadId, novoEstagio) {
   return { error: null };
 }
 
+export async function retomarAgenteLead(leadId) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("Lead")
+    .update({ aguardando_humano: false, atualizado_em: new Date().toISOString() })
+    .eq("id", leadId);
+
+  if (error) {
+    return { error: "Não foi possível devolver pro agente." };
+  }
+
+  revalidatePath(`/admin/leads/${leadId}`);
+  return { error: null };
+}
+
 export async function adicionarNotaLead(leadId, prevState, formData) {
   const texto = formData.get("texto");
 

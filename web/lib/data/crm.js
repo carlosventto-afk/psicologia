@@ -5,7 +5,7 @@ export async function listarLeads({ estagio } = {}) {
 
   let query = supabase
     .from("Lead")
-    .select("id, nome, telefone, email, estagio, origem, created_at")
+    .select("id, nome, telefone, email, estagio, origem, aguardando_humano, created_at")
     .order("created_at", { ascending: false });
 
   if (estagio) {
@@ -22,14 +22,16 @@ export async function buscarLead(id) {
 
   const { data: lead, error: erroLead } = await supabase
     .from("Lead")
-    .select("id, nome, telefone, email, estagio, origem, usuario_id, visitante_sessao_id, created_at")
+    .select(
+      "id, nome, telefone, email, estagio, origem, usuario_id, visitante_sessao_id, aguardando_humano, created_at"
+    )
     .eq("id", id)
     .single();
   if (erroLead) throw new Error(erroLead.message);
 
   const { data: notas, error: erroNotas } = await supabase
     .from("LeadNota")
-    .select("id, texto, created_at")
+    .select("id, texto, autor, created_at")
     .eq("lead_id", id)
     .order("created_at", { ascending: false });
   if (erroNotas) throw new Error(erroNotas.message);

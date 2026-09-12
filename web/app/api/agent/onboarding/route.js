@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
-import { enviarEmailResend } from "@/lib/email/resend";
+import { enviarEmailResend, EMAIL_ADMIN } from "@/lib/email/resend";
 
 // FRONTEIRA DE CONFIANÇA -- whatsapp_number no corpo desta rota é confiado
 // cegamente, sem nenhuma prova de posse do número nesta camada HTTP. Quem
@@ -271,6 +271,76 @@ async function reenviarOuRevalidar(admin, { whatsapp_number }) {
   return Response.json({ success: true });
 }
 
+// Idempotente por telefone (índice único parcial em Lead, origem =
+// "whatsapp") -- chamado tanto pelo Inbound Router quanto por aqui,
+// então precisa funcionar não importa qual dos dois chega primeiro
+// pra um número novo.
+async function acharOuCriarLeadWhatsapp(admin, whatsapp_number) {
+  const { data: leadExistente } = await admin
+    .from("Lead")
+    .select("id")
+    .eq("telefone", whatsapp_number)
+    .eq("origem", "whatsapp")
+    .maybeSingle();
+
+  if (leadExistente) return leadExistente.id;
+
+  const { data: leadCriado, error } = await admin
+    .from("Lead")
+    .insert({ telefone: whatsapp_number, origem: "whatsapp", estagio: "novo" })
+    .select("id")
+    .single();
+
+  if (error) {
+    // Corrida rara com o Inbound Router inserindo ao mesmo tempo -- o
+    // índice único já garante que só um insert vence; o outro cai aqui
+    // e busca de novo em vez de falhar.
+    const { data: leadAposCorrida } = await admin
+      .from("Lead")
+      .select("id")
+      .eq("telefone", whatsapp_number)
+      .eq("origem", "whatsapp")
+      .single();
+    return leadAposCorrida?.id ?? null;
+  }
+
+  return leadCriado.id;
+}
+
+async function escalarParaHumano(admin, { whatsapp_number, motivo }) {
+  const leadId = await acharOuCriarLeadWhatsapp(admin, whatsapp_number);
+
+  if (!leadId) {
+    return Response.json({ success: false, error_code: "ERRO_ESCALAR" }, { status: 200 });
+  }
+
+  const { error: erroUpdate } = await admin
+    .from("Lead")
+    .update({ aguardando_humano: true, atualizado_em: new Date().toISOString() })
+    .eq("id", leadId);
+
+  if (erroUpdate) {
+    console.error("Falha ao marcar aguardando_humano:", erroUpdate.message);
+  }
+
+  await admin.from("LeadNota").insert({
+    lead_id: leadId,
+    autor: "agente",
+    texto: motivo || "Pediu pra falar com uma pessoa.",
+  });
+
+  enviarEmailResend({
+    to: EMAIL_ADMIN,
+    subject: `Lead precisa de você — ${whatsapp_number}`,
+    html: `<p>Um lead pediu atendimento humano no WhatsApp.</p>
+      <p><strong>Telefone:</strong> ${whatsapp_number}</p>
+      <p><strong>Motivo:</strong> ${motivo || "não informado"}</p>
+      <p><a href="${ORIGIN}/admin/leads/${leadId}">Ver no CRM</a></p>`,
+  }).catch(() => {});
+
+  return Response.json({ success: true });
+}
+
 export async function POST(request) {
   const segredo = request.headers.get("x-agent-secret");
   if (!segredo || segredo !== process.env.AGENT_TOOL_SECRET) {
@@ -298,6 +368,10 @@ export async function POST(request) {
 
   if (acao === "reenviar_link" || acao === "revalidar") {
     return reenviarOuRevalidar(admin, body);
+  }
+
+  if (acao === "escalar") {
+    return escalarParaHumano(admin, body);
   }
 
   return Response.json({ success: false, error_code: "ACAO_DESCONHECIDA" }, { status: 400 });
