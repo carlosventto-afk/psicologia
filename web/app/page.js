@@ -11,6 +11,8 @@ import {
 import { PLANOS } from "@/lib/planos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { listarArtigosPublicados } from "@/lib/data/artigos";
+import ConsentimentoCookies from "@/components/ConsentimentoCookies";
+import LogoPsiAgente from "@/components/LogoPsiAgente";
 
 const CADASTRO_URL = "/cadastro?origem=home";
 const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL ?? "https://blog.psiagente.com.br";
@@ -115,6 +117,26 @@ const FAQ = [
       "Sim — os dados ficam armazenados com controle de acesso e criptografia, seguindo os princípios da LGPD.",
   },
 ];
+
+function IconeInstagram(props) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <rect x="3" y="3" width="14" height="14" rx="4" />
+      <circle cx="10" cy="10" r="3.2" />
+      <circle cx="14.3" cy="5.7" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 export default async function PaginaInicial() {
   const artigos = await listarArtigosPublicados();
@@ -268,7 +290,57 @@ export default async function PaginaInicial() {
             </div>
           </div>
         </section>
+
+        <section className="px-4 py-20 md:py-28 border-t border-border bg-navy text-center">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-white">Pronto pra começar?</h2>
+            <p className="mt-4 text-white/80">Sua primeira sessão organizada é gratuita.</p>
+            <div className="mt-8">
+              <Link href={CADASTRO_URL} className="btn-primary px-8 py-3.5 text-base">
+                Criar conta grátis
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
+
+      <footer className="px-4 py-10 border-t border-border">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2.5">
+            <LogoPsiAgente className="h-7 w-auto" />
+            <span className="font-display font-bold text-navy">PsiAgente</span>
+          </div>
+
+          <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold text-navy">
+            <a href={BLOG_URL}>Blog</a>
+            <Link href="/login">Entrar</Link>
+            <Link href="/termos">Termos</Link>
+            <a
+              href="https://wa.me/5591981910295"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5"
+            >
+              <IconeWhatsapp width={16} height={16} />
+              WhatsApp
+            </a>
+            <a
+              href="https://instagram.com/psiagente"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5"
+            >
+              <IconeInstagram />
+              @psiagente
+            </a>
+          </nav>
+        </div>
+        <p className="mt-8 text-center text-xs text-muted">
+          Criado por GESTÃO TECNOLOGIA · © {new Date().getFullYear()} PsiAgente
+        </p>
+      </footer>
+
+      <ConsentimentoCookies />
     </>
   );
 }
