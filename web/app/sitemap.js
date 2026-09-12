@@ -4,6 +4,7 @@ import { buscarPerfisPublicos } from "@/lib/data/diretorio";
 export const revalidate = 3600;
 
 export default async function sitemap() {
+  const origemHome = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const origemBlog = process.env.NEXT_PUBLIC_BLOG_URL ?? "http://localhost:3000";
   const origemBusca = process.env.NEXT_PUBLIC_BUSCA_URL ?? "http://localhost:3000";
 
@@ -13,6 +14,11 @@ export default async function sitemap() {
   ]);
 
   return [
+    {
+      url: origemHome,
+      changeFrequency: "monthly",
+      priority: 1,
+    },
     {
       url: origemBlog,
       changeFrequency: "weekly",
