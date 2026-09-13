@@ -5,12 +5,16 @@
     "proxySecret": "UTGmdRt9IVuk9hmA",
     "evolutionApiKey": "B3BWRpH0DhAIxjq6",
     "webhookSecret": "ah9crriubxyilItg",
-    "onboardingWebhookSecret": "mmRYfcRUuuSASsIE"
+    "onboardingWebhookSecret": "mmRYfcRUuuSASsIE",
+    "emailQueueCronSecret": "tBwQfvlowgeHIhMM",
+    "resumoDiarioCronSecret": "59d60Q9oQxTOeXYW"
   },
   "workflows": {
     "enviarMensagem": "zzOUzuQ8kbEtkMyy",
     "agentPsicologo": "2DCUpWdgU1A2PyFv",
     "inboundRouter": "5muCm5Q2UYo2jWWe",
-    "onboarding": "hbKkCQUmU4ssWdK5"
+    "onboarding": "hbKkCQUmU4ssWdK5",
+    "reprocessarFilaEmail": "Tz3WsMNqPLjSsIo6",
+    "resumoDiario": "if1t0huWwT7jluog"
   }
 }
