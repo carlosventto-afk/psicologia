@@ -21,6 +21,8 @@ const PUBLIC_PATHS = [
   "/api/blog/artigos",
   "/api/asaas/webhook",
   "/api/assinaturas/aplicar-pendencias",
+  "/api/emails/reprocessar-fila",
+  "/api/relatorios/resumo-diario",
 ];
 
 export async function updateSession(request) {
