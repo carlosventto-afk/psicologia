@@ -19,6 +19,7 @@ const PUBLIC_PATHS = [
   "/api/agent/call-tool",
   "/api/agent/onboarding",
   "/api/blog/artigos",
+  "/api/noticias",
   "/api/asaas/webhook",
   "/api/assinaturas/aplicar-pendencias",
   "/api/emails/reprocessar-fila",
