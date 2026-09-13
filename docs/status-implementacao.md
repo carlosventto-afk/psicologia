@@ -1,6 +1,48 @@
 # Status da implementação
 
-Última atualização: 2026-09-08.
+Última atualização: 2026-09-13.
+
+## Pipeline diário de notícias CRP/CFP pro blog (2026-09-13)
+
+Spec: `docs/superpowers/specs/2026-09-13-pipeline-noticias-crp-cfp-design.md`.
+Plano: `docs/superpowers/plans/2026-09-13-pipeline-noticias-crp-cfp.md`.
+
+Monitora diariamente CFP + CRP-SP/RJ/SC, mantém histórico em
+`noticias_conselhos` (dedup por URL), e publica até 3 rascunhos/dia no
+blog reescrevendo o conteúdo (citação da fonte + aviso de IA + CTA pro
+PsiAgente + foto de capa via Pexels). Publica sempre como rascunho
+(`publicado: false`) — aprovação manual em `/admin/artigos` por enquanto.
+
+**Construído:**
+- Tabela `public.noticias_conselhos` (migration
+  `20260913000001_add_noticias_conselhos.sql`), aplicada em produção.
+- Rota `GET/POST /api/noticias` (mesmo padrão/segredo de
+  `/api/blog/artigos`), liberada em `PUBLIC_PATHS`, testada em produção.
+- Routine na nuvem `trig_01UaT7JzVFXo2iiEJ2APZmAf` ("Notícias CRP/CFP —
+  blog diário", antes "Daily blog post", baseada em YouTube — substituída)
+  reconfigurada com o prompt completo do fluxo, mesmo horário (`0 9 * * *`
+  UTC / 6h BRT), credenciais (`BLOG_API_SECRET`, `PEXELS_API_KEY`)
+  embutidas diretamente no prompt (o campo `environment_variables` da API
+  de routines não teve efeito observável — ver nota abaixo).
+
+**Bloqueio encontrado no teste real (`RemoteTrigger action: run`,
+2026-09-13):** o ambiente cloud `PostBlog` onde a routine roda tem uma
+política de rede (egress proxy) que bloqueia `WebFetch`/`curl` pra
+**qualquer** domínio externo, inclusive `psiagente.com.br` (nossa própria
+API) e `api.pexels.com` — erro `403`/`CONNECT tunnel failed` em todos.
+`WebSearch` funciona normalmente (não passa por esse proxy), então a
+rotina consegue achar notícias candidatas, mas não consegue confirmar o
+conteúdo real das páginas, nem chamar `/api/noticias`, `/api/blog/artigos`
+ou a Pexels API — ou seja, hoje ela roda sem publicar nada.
+
+**Ação pendente (só o usuário/admin da org consegue fazer, sem API
+disponível pra isso):** ajustar a política de rede do environment
+`PostBlog` (`env_01W2zKSApajxuCLkhhAhBxmT`) em claude.ai/code pra liberar
+egress pra: `psiagente.com.br`, `api.pexels.com`, `site.cfp.org.br`,
+`crpsp.org` (+ `www.`), `crprj.org.br` (+ `www.`), `site.crpsc.org.br`.
+Depois disso, rodar a routine de novo (`RemoteTrigger action: run`) e
+conferir em `/admin/artigos` se os 3 rascunhos saem com capa, citação da
+fonte, aviso de IA e CTA.
 
 ## Início de operação via WhatsApp — Fase 2/n8n (2026-09-08)
 
