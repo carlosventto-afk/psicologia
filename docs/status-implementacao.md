@@ -25,24 +25,22 @@ PsiAgente + foto de capa via Pexels). Publica sempre como rascunho
   embutidas diretamente no prompt (o campo `environment_variables` da API
   de routines não teve efeito observável — ver nota abaixo).
 
-**Bloqueio encontrado no teste real (`RemoteTrigger action: run`,
-2026-09-13):** o ambiente cloud `PostBlog` onde a routine roda tem uma
-política de rede (egress proxy) que bloqueia `WebFetch`/`curl` pra
-**qualquer** domínio externo, inclusive `psiagente.com.br` (nossa própria
-API) e `api.pexels.com` — erro `403`/`CONNECT tunnel failed` em todos.
-`WebSearch` funciona normalmente (não passa por esse proxy), então a
-rotina consegue achar notícias candidatas, mas não consegue confirmar o
-conteúdo real das páginas, nem chamar `/api/noticias`, `/api/blog/artigos`
-ou a Pexels API — ou seja, hoje ela roda sem publicar nada.
+**Bloqueio encontrado e resolvido (2026-09-13/14):** o ambiente cloud
+original (`PostBlog`) tinha rede "Trusted" (allowlist padrão), que
+bloqueava `WebFetch`/`curl` pra qualquer domínio externo — inclusive
+`psiagente.com.br` e `api.pexels.com`. Resolvido criando um ambiente
+cloud dedicado ("fontes de dados do blog") com Network access = Custom e
+os domínios necessários liberados (`psiagente.com.br`, `api.pexels.com`,
+`site.cfp.org.br`, `crpsp.org`, `crprj.org.br`, `site.crpsc.org.br` +
+variações `www.`), e apontando a routine pra esse ambiente.
 
-**Ação pendente (só o usuário/admin da org consegue fazer, sem API
-disponível pra isso):** ajustar a política de rede do environment
-`PostBlog` (`env_01W2zKSApajxuCLkhhAhBxmT`) em claude.ai/code pra liberar
-egress pra: `psiagente.com.br`, `api.pexels.com`, `site.cfp.org.br`,
-`crpsp.org` (+ `www.`), `crprj.org.br` (+ `www.`), `site.crpsc.org.br`.
-Depois disso, rodar a routine de novo (`RemoteTrigger action: run`) e
-conferir em `/admin/artigos` se os 3 rascunhos saem com capa, citação da
-fonte, aviso de IA e CTA.
+**Confirmado funcionando em produção (2026-09-14):** a routine rodou
+sozinha, publicou 3 rascunhos (`publicado:false`, todos com capa Pexels,
+citação da fonte, aviso de IA e CTA), e registrou as 3 notícias como
+usadas em `noticias_conselhos`. CRP-SP retornou 403 (Cloudflare do
+próprio site deles, não é limitação nossa) — a rotina contornou usando
+as outras 3 fontes nesse dia; fica como observação recorrente a
+monitorar, não bloqueio.
 
 ## Início de operação via WhatsApp — Fase 2/n8n (2026-09-08)
 
