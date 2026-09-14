@@ -11,9 +11,8 @@ export default function LayoutBusca({ children }) {
     <div className="min-h-screen">
       <header className="bg-white border-b border-border">
         <div className="max-w-5xl mx-auto px-4 py-3">
-          <a href="/" className="flex items-center gap-2.5">
+          <a href="/">
             <img src="/logo.svg" alt="PsiAgente" className="h-8 w-auto" />
-            <span className="font-display text-lg font-bold text-navy">PsiAgente</span>
           </a>
         </div>
       </header>
