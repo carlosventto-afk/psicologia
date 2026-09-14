@@ -4,11 +4,15 @@ import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
 
 export async function listarAgenda({ dataInicio, dataFim }) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("Sessao")
     .select(
       "id, data, horario, duracao_min, status, tipo_sessao, Realizado, valor, recorrencia_id, Paciente!inner(id, nome, apelido), RecebimentoSessao(valor_aplicado)"
     )
+    .eq("owner", user.id)
     .gte("data", dataInicio)
     .lte("data", dataFim)
     .order("data")
@@ -42,9 +46,13 @@ export async function listarAgenda({ dataInicio, dataFim }) {
 // (exclui canceladas) — usado nos contadores de resumo da Agenda.
 export async function resumoAgenda({ dataInicio, dataFim }) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("Sessao")
     .select("valor")
+    .eq("owner", user.id)
     .or("status.neq.Cancelada,status.is.null")
     .gte("data", dataInicio)
     .lte("data", dataFim);

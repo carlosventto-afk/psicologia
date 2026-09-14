@@ -7,9 +7,13 @@ import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
 // serem realizadas e viram um LancamentoFinanceiro de verdade).
 export async function calcularPrevisto({ dataInicio, dataFim }) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("Sessao")
     .select("valor")
+    .eq("owner", user.id)
     .or("status.neq.Cancelada,status.is.null")
     .gte("data", dataInicio)
     .lte("data", dataFim);
@@ -21,10 +25,14 @@ export async function calcularPrevisto({ dataInicio, dataFim }) {
 
 export async function resumoDoMes(mesReferencia) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("v_resumo_financeiro_mensal")
     .select("total_receita, total_despesa, saldo_mes")
     .eq("mes_referencia", mesReferencia)
+    .eq("owner", user.id)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -36,11 +44,15 @@ export async function resumoDoMes(mesReferencia) {
 // baseada em existência de PagamentoSessao.
 export async function listarInadimplentes() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("Sessao")
     .select(
       "id, data, valor, Paciente!inner(id, nome, apelido), RecebimentoSessao(valor_aplicado)"
     )
+    .eq("owner", user.id)
     .eq("Realizado", true)
     .order("data");
 

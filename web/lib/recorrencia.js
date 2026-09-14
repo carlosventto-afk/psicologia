@@ -99,11 +99,15 @@ export async function gerarSessoesAteHorizonte(recorrencia, ateISO) {
 // visitada depois que o horizonte de uma recorrência encolhe.
 export async function garantirRecorrenciasEstendidas() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const ateISO = horizonteAtual();
 
   const { data: recorrencias, error } = await supabase
     .from("Recorrencia")
     .select("id, paciente, frequencia, horario, duracao_min, tipo_sessao, data_inicio, gerado_ate, Paciente!inner(ativo)")
+    .eq("owner", user.id)
     .eq("ativa", true)
     .eq("Paciente.ativo", true)
     .lt("gerado_ate", ateISO);
