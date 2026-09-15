@@ -113,9 +113,13 @@ export async function criarArtigo(prevState, formData) {
 
   const categoriaIds = formData.getAll("categorias");
   if (categoriaIds.length > 0) {
-    await supabase
+    const { error: erroCategorias } = await supabase
       .from("artigo_categorias")
       .insert(categoriaIds.map((categoriaId) => ({ artigo_id: novoArtigo.id, categoria_id: categoriaId })));
+
+    if (erroCategorias) {
+      return { error: "Artigo criado, mas não foi possível salvar as categorias." };
+    }
   }
 
   revalidatePath("/admin/artigos");
@@ -173,12 +177,24 @@ export async function atualizarArtigo(id, prevState, formData) {
     return { error: "Não foi possível atualizar o artigo." };
   }
 
-  await supabase.from("artigo_categorias").delete().eq("artigo_id", id);
+  const { error: erroLimpaCategorias } = await supabase
+    .from("artigo_categorias")
+    .delete()
+    .eq("artigo_id", id);
+
+  if (erroLimpaCategorias) {
+    return { error: "Artigo atualizado, mas não foi possível atualizar as categorias." };
+  }
+
   const categoriaIds = formData.getAll("categorias");
   if (categoriaIds.length > 0) {
-    await supabase
+    const { error: erroCategorias } = await supabase
       .from("artigo_categorias")
       .insert(categoriaIds.map((categoriaId) => ({ artigo_id: id, categoria_id: categoriaId })));
+
+    if (erroCategorias) {
+      return { error: "Artigo atualizado, mas não foi possível atualizar as categorias." };
+    }
   }
 
   revalidatePath("/admin/artigos");
