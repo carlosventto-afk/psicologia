@@ -77,10 +77,15 @@ export async function buscarArtigoAdmin(id) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("artigos")
-    .select("id, titulo, slug, resumo, conteudo, autor, publicado, publicado_em, imagem_capa")
+    .select(
+      "id, titulo, slug, resumo, conteudo, autor, publicado, publicado_em, imagem_capa, artigo_categorias(categoria_id)"
+    )
     .eq("id", id)
     .single();
 
   if (error) throw new Error(error.message);
-  return data;
+  return {
+    ...data,
+    categoria_ids: (data.artigo_categorias || []).map((ac) => ac.categoria_id),
+  };
 }

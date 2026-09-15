@@ -6,7 +6,7 @@ import { normalizarSlug } from "@/lib/slugify";
 
 const estadoInicial = {};
 
-export default function ArtigoForm({ action, artigo }) {
+export default function ArtigoForm({ action, artigo, categorias }) {
   const [state, formAction, pending] = useActionState(action, estadoInicial);
   const capaOriginalExiste = Boolean(artigo?.imagem_capa);
   const [previewCapa, setPreviewCapa] = useState(artigo?.imagem_capa ?? null);
@@ -182,6 +182,23 @@ export default function ArtigoForm({ action, artigo }) {
           defaultValue={artigo?.autor}
           className="field"
         />
+      </div>
+
+      <div>
+        <p className="block text-sm font-semibold text-navy mb-2">Categorias</p>
+        <div className="grid grid-cols-2 gap-2">
+          {categorias.map((cat) => (
+            <label key={cat.id} className="flex items-center gap-2 text-sm text-navy">
+              <input
+                type="checkbox"
+                name="categorias"
+                value={cat.id}
+                defaultChecked={artigo?.categoria_ids?.includes(cat.id)}
+              />
+              {cat.nome}
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

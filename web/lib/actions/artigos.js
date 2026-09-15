@@ -87,24 +87,35 @@ export async function criarArtigo(prevState, formData) {
   // antes de datePublished no JSON-LD (achado da revisão final).
   const agora = new Date().toISOString();
 
-  const { error } = await supabase.from("artigos").insert({
-    titulo: formData.get("titulo"),
-    slug: slugNormalizado,
-    resumo: formData.get("resumo") || null,
-    conteudo: formData.get("conteudo"),
-    autor: formData.get("autor") || null,
-    imagem_capa: imagemCapa,
-    publicado,
-    publicado_em: publicado ? agora : null,
-    criado_em: agora,
-    atualizado_em: agora,
-  });
+  const { data: novoArtigo, error } = await supabase
+    .from("artigos")
+    .insert({
+      titulo: formData.get("titulo"),
+      slug: slugNormalizado,
+      resumo: formData.get("resumo") || null,
+      conteudo: formData.get("conteudo"),
+      autor: formData.get("autor") || null,
+      imagem_capa: imagemCapa,
+      publicado,
+      publicado_em: publicado ? agora : null,
+      criado_em: agora,
+      atualizado_em: agora,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     if (error.code === "23505") {
       return { error: "Já existe um artigo com esse slug." };
     }
     return { error: "Não foi possível salvar o artigo." };
+  }
+
+  const categoriaIds = formData.getAll("categorias");
+  if (categoriaIds.length > 0) {
+    await supabase
+      .from("artigo_categorias")
+      .insert(categoriaIds.map((categoriaId) => ({ artigo_id: novoArtigo.id, categoria_id: categoriaId })));
   }
 
   revalidatePath("/admin/artigos");
@@ -160,6 +171,14 @@ export async function atualizarArtigo(id, prevState, formData) {
       return { error: "Já existe um artigo com esse slug." };
     }
     return { error: "Não foi possível atualizar o artigo." };
+  }
+
+  await supabase.from("artigo_categorias").delete().eq("artigo_id", id);
+  const categoriaIds = formData.getAll("categorias");
+  if (categoriaIds.length > 0) {
+    await supabase
+      .from("artigo_categorias")
+      .insert(categoriaIds.map((categoriaId) => ({ artigo_id: id, categoria_id: categoriaId })));
   }
 
   revalidatePath("/admin/artigos");
