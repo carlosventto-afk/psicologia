@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { marked } from "marked";
 import { buscarArtigoPublicadoPorSlug } from "@/lib/data/artigos";
 import { calcularTempoLeitura } from "@/lib/tempo-leitura";
@@ -87,6 +88,15 @@ export default async function PaginaArtigo({ params }) {
           {` · ${tempoLeitura} min de leitura`}
         </p>
         <h1 className="page-title mt-1">{artigo.titulo}</h1>
+        {artigo.categorias.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {artigo.categorias.map((c) => (
+              <Link key={c.slug} href={`/?categoria=${c.slug}`} className="blog-categoria-badge">
+                {c.nome}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="article-content" dangerouslySetInnerHTML={{ __html: html }} />

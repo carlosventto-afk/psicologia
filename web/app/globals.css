@@ -257,6 +257,35 @@ body {
     color: var(--color-muted);
   }
 
+  .blog-categoria-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.85rem;
+    border-radius: 9999px;
+    border: 1px solid var(--color-border);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-navy);
+    background: var(--color-surface);
+  }
+
+  .blog-categoria-pill-ativa {
+    background: var(--color-navy);
+    border-color: var(--color-navy);
+    color: #ffffff;
+  }
+
+  .blog-categoria-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.6rem;
+    border-radius: 9999px;
+    background: var(--color-primary-dark);
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
   .glow-suave {
     animation: respirar-suave 7s ease-in-out infinite;
   }
