@@ -1,6 +1,21 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizarSlug } from "@/lib/slugify";
 
+async function vincularCategorias(admin, artigoId, categoriasSlugs) {
+  const { data: categoriasEncontradas } = await admin
+    .from("categorias")
+    .select("id")
+    .in("slug", categoriasSlugs);
+
+  await admin.from("artigo_categorias").delete().eq("artigo_id", artigoId);
+
+  if (categoriasEncontradas?.length > 0) {
+    await admin.from("artigo_categorias").insert(
+      categoriasEncontradas.map((c) => ({ artigo_id: artigoId, categoria_id: c.id }))
+    );
+  }
+}
+
 export async function POST(request) {
   const segredo = request.headers.get("x-blog-secret");
   if (!segredo || segredo !== process.env.BLOG_API_SECRET) {
@@ -42,7 +57,7 @@ export async function POST(request) {
     // corrigindo um typo em `conteudo`) apagaria capa/resumo/autor
     // existentes (achado da revisão final). `imagem_capa_url: null`
     // presente explicitamente continua sendo a forma legítima de remover
-    // a capa via esta rota.
+    // a capa via esta rota. Mesma convenção pra `categorias`.
     const patch = {
       titulo,
       slug: slugNormalizado,
@@ -66,6 +81,11 @@ export async function POST(request) {
       .select()
       .single();
     if (error) return Response.json({ success: false, error_code: error.message }, { status: 200 });
+
+    if (Array.isArray(body.categorias)) {
+      await vincularCategorias(admin, existente.id, body.categorias);
+    }
+
     return Response.json({ success: true, data, acao: "atualizado" });
   }
 
@@ -83,5 +103,10 @@ export async function POST(request) {
   };
   const { data, error } = await admin.from("artigos").insert(dados).select().single();
   if (error) return Response.json({ success: false, error_code: error.message }, { status: 200 });
+
+  if (Array.isArray(body.categorias) && body.categorias.length > 0) {
+    await vincularCategorias(admin, data.id, body.categorias);
+  }
+
   return Response.json({ success: true, data, acao: "criado" });
 }
