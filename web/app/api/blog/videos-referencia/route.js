@@ -20,8 +20,8 @@ export async function GET(request) {
     .select("url")
     .in("url", urls);
 
-  if (error) return Response.json({ success: false, error_code: error.message }, { status: 200 });
-  return Response.json({ conhecidas: data.map((r) => r.url) });
+  if (error) return Response.json({ success: false, error_code: error.message }, { status: 500 });
+  return Response.json({ success: true, conhecidas: data.map((r) => r.url) });
 }
 
 export async function POST(request) {

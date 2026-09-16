@@ -2,18 +2,23 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizarSlug } from "@/lib/slugify";
 
 async function vincularCategorias(admin, artigoId, categoriasSlugs) {
-  const { data: categoriasEncontradas } = await admin
+  const { data: categoriasEncontradas, error: erroBusca } = await admin
     .from("categorias")
     .select("id")
     .in("slug", categoriasSlugs);
+  if (erroBusca) return { error: erroBusca.message };
 
-  await admin.from("artigo_categorias").delete().eq("artigo_id", artigoId);
+  const { error: erroDelete } = await admin.from("artigo_categorias").delete().eq("artigo_id", artigoId);
+  if (erroDelete) return { error: erroDelete.message };
 
   if (categoriasEncontradas?.length > 0) {
-    await admin.from("artigo_categorias").insert(
+    const { error: erroInsert } = await admin.from("artigo_categorias").insert(
       categoriasEncontradas.map((c) => ({ artigo_id: artigoId, categoria_id: c.id }))
     );
+    if (erroInsert) return { error: erroInsert.message };
   }
+
+  return { error: null };
 }
 
 export async function POST(request) {
@@ -83,7 +88,10 @@ export async function POST(request) {
     if (error) return Response.json({ success: false, error_code: error.message }, { status: 200 });
 
     if (Array.isArray(body.categorias)) {
-      await vincularCategorias(admin, existente.id, body.categorias);
+      const { error: erroCategorias } = await vincularCategorias(admin, existente.id, body.categorias);
+      if (erroCategorias) {
+        return Response.json({ success: false, error_code: erroCategorias }, { status: 200 });
+      }
     }
 
     return Response.json({ success: true, data, acao: "atualizado" });
@@ -105,7 +113,10 @@ export async function POST(request) {
   if (error) return Response.json({ success: false, error_code: error.message }, { status: 200 });
 
   if (Array.isArray(body.categorias) && body.categorias.length > 0) {
-    await vincularCategorias(admin, data.id, body.categorias);
+    const { error: erroCategorias } = await vincularCategorias(admin, data.id, body.categorias);
+    if (erroCategorias) {
+      return Response.json({ success: false, error_code: erroCategorias }, { status: 200 });
+    }
   }
 
   return Response.json({ success: true, data, acao: "criado" });

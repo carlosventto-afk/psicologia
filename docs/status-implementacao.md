@@ -60,7 +60,7 @@ os dois pipelines de conteúdo.
 **Construído:**
 - Tabela `public.videos_referencia_blog` (migration
   `20260915000001_add_videos_referencia_blog.sql`), ledger de dedup por
-  YouTube (`url_video`), aplicada em produção — mesmo padrão da
+  YouTube (`url`), aplicada em produção — mesmo padrão da
   `noticias_conselhos` (coluna `usado_em_artigo_id` aponta pro artigo que
   consumiu a fonte, null enquanto não publicada).
 - Tabelas `public.categorias` + `public.artigo_categorias` (migration
@@ -121,7 +121,7 @@ citação de vídeo + criador, disclaimer + nota de responsabilidade + CTA
 PsiAgente, tudo na ordem correta no footer). Ambos os vídeos registrados
 como usados em `videos_referencia_blog`. Ambos os artigos com 2 categorias
 cada, corretas. Dedup verificado: as URLs dos 2 vídeos não aparecem
-novamente em `videos_referencia_blog.url_video` após a run (dedup
+novamente em `videos_referencia_blog.url` após a run (dedup
 functional).
 
 ## Próximos passos — conteúdo de blog (notícias + teórico/técnico)
