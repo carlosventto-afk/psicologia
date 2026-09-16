@@ -79,8 +79,11 @@ nunca finge transcrever fala que não foi de fato lida.
 
 Pra cada execução:
 
-1. Embaralhar/rotacionar a lista de 13 fontes, priorizando as que não
-   aparecem no ledger (`videos_referencia_blog`) nos últimos ~14 dias.
+1. Embaralhar/rotacionar a lista de 13 fontes, pulando as cujo vídeo
+   específico já apareça no ledger (`videos_referencia_blog`) — dedup é
+   permanente por URL exata (o endpoint `GET
+   /api/blog/videos-referencia` só devolve `url`, sem timestamp de
+   descoberta), não uma janela de recência.
 2. Para cada fonte, na ordem:
    - Se for `/watch?v=`: `WebFetch` direto na página do vídeo → título +
      descrição + canal.

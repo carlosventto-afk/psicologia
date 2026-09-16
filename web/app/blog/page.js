@@ -34,7 +34,9 @@ export default async function PaginaBlog({ searchParams }) {
         </div>
 
         {artigos.length === 0 ? (
-          <p className="empty-state">Nenhum artigo publicado nessa categoria ainda.</p>
+          <p className="empty-state">
+            {categoria ? "Nenhum artigo publicado nessa categoria ainda." : "Nenhum artigo publicado ainda."}
+          </p>
         ) : (
           (() => {
             const [destaque, ...restantes] = artigos;

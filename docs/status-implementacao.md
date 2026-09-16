@@ -1,6 +1,6 @@
 # Status da implementação
 
-Última atualização: 2026-09-13.
+Última atualização: 2026-09-16.
 
 ## Pipeline diário de notícias CRP/CFP pro blog (2026-09-13)
 
@@ -41,6 +41,96 @@ usadas em `noticias_conselhos`. CRP-SP retornou 403 (Cloudflare do
 próprio site deles, não é limitação nossa) — a rotina contornou usando
 as outras 3 fontes nesse dia; fica como observação recorrente a
 monitorar, não bloqueio.
+
+## Pipeline diário de conteúdo teórico/técnico de psicologia pro blog (2026-09-16)
+
+Spec: `docs/superpowers/specs/2026-09-15-pipeline-conteudo-teorico-psicologia-design.md`.
+Plano: `docs/superpowers/plans/2026-09-15-pipeline-conteudo-teorico-psicologia.md`.
+
+Complementa o pipeline de notícias: pesquisa diariamente 13 fontes do YouTube
+(canais/vídeos sobre psicanálise, TCC e psicologia geral), publica 2 rascunhos/dia
+no blog com conteúdo técnico mas acessível (reescrita educativa), cita o vídeo
+original + criador + Pexels + disclaimer + responsabilidade (inédito neste
+pipeline — cita criador pessoal ao contrário da news routine que cita instituições),
+e publica como rascunho (`publicado: false`) — aprovação manual em `/admin/artigos`.
+Junto, implementou sistema multi-tag de categorias (CRP/CFP, Normas, Psicologia,
+Psicanálise, TCC, Gestão de Consultório) — as 6 sementes — compartilhado entre
+os dois pipelines de conteúdo.
+
+**Construído:**
+- Tabela `public.videos_referencia_blog` (migration
+  `20260915000001_add_videos_referencia_blog.sql`), ledger de dedup por
+  YouTube (`url`), aplicada em produção — mesmo padrão da
+  `noticias_conselhos` (coluna `usado_em_artigo_id` aponta pro artigo que
+  consumiu a fonte, null enquanto não publicada).
+- Tabelas `public.categorias` + `public.artigo_categorias` (migration
+  `20260915000002_add_categorias.sql`), aplicadas em produção. `categorias`
+  seeded com 6 linhas: `crp-cfp`, `normas`, `psicologia`, `psicanalise`,
+  `tcc`, `gestao-de-consultorio`. `artigo_categorias` é join many-to-many
+  (um artigo pode ter múltiplas categorias, categoria pode estar em múltiplos
+  artigos).
+- Rota `GET/POST /api/blog/videos-referencia` (dedup check + registro,
+  mesmo padrão/segredo de `/api/blog/artigos` e `/api/noticias`), liberada
+  em `PUBLIC_PATHS`, testada em produção.
+- Rota `POST /api/blog/artigos` estendida: campo optional `categorias`
+  (array de slugs, ex `["psicanalise", "tcc"]`) — omitido deixa links
+  existentes intactos, presente substitui o set completo, slugs desconhecidos
+  ignorados silenciosamente.
+- Blog público (`web/app/blog/page.js`, `web/app/blog/[slug]/page.js`,
+  `web/lib/data/artigos.js`, nova `web/lib/data/categorias.js`): pills de
+  filtro por categoria no índice do blog (`/?categoria=slug`) e badges de
+  categoria nos cards de artigo e na página de detalhe.
+- Admin (`web/components/ArtigoForm.js`, `web/lib/actions/artigos.js`,
+  ambas as telas de artigo do admin): checkboxes multi-select pra atribuir
+  categorias ao criar/editar artigo.
+- Routine na nuvem `trig_01WMGYPz1FQFCrtm7UV1LPCU` ("Psicologia técnica/teórica
+  — blog diário") reconfigurada com o prompt completo do fluxo, horário
+  `0 10 * * *` UTC / 7h BRT (independente da news routine, que roda às
+  `0 9 * * *` / 6h BRT), credenciais (`BLOG_API_SECRET`, `PEXELS_API_KEY`)
+  embutidas no prompt. Reutiliza o mesmo ambiente cloud dedicado da news
+  routine ("fontes de dados do blog"), que ganhou `youtube.com` +
+  `www.youtube.com` adicionados ao allowlist (além de `psiagente.com.br`,
+  `api.pexels.com`, `site.cfp.org.br`, `crpsp.org`, `crprj.org.br`,
+  `site.crpsc.org.br` + variações `www.` já existentes).
+
+**Limitação conhecida (resilência, não bug):** das 13 fontes configuradas
+no prompt (mix de vídeos diretos e canais), apenas os 2 que são URLs
+diretas de vídeo (`/watch?v=...`) puderam ser resolvidos a um vídeo
+específico — a routine descobriu de forma self-service que o endpoint
+`oembed` do YouTube (`https://www.youtube.com/oembed?url=...&format=json`)
+retorna título/autor de forma confiável pra URLs conhecidas. Os outros 11
+(páginas de canal/handle como `/@handle/videos` ou `/channel/UC.../videos`)
+não puderam ser resolvidos a um vídeo recente específico: as páginas
+`/videos` só expõem uma footer renderizada via JS (sem lista de vídeos em
+HTML estático), e a feed RSS de canal (`/feeds/videos.xml?channel_id=...`)
+retornou 404/500 pra todos os `channel_id` testados. A resiliência
+built-in do prompt funcionou corretamente — abandonou cada fonte falhando
+sem bloquear a run — mas significa que, uma vez que os 2 vídeos de hoje
+sejam excluídos pelo dedup, futuras runs provavelmente vai precisar cair
+na fallback de escrita por tema (artigo sobre o que o canal é conhecido,
+sem citação de vídeo específico) até que uma técnica melhor de descoberta
+video-por-canal seja adicionada ao prompt (ex: ensinar a routine a tentar
+oembed contra uploads de canal que conseguir descobrir de outra forma).
+Marcado como item a monitorar: mesmo precedente da observação CRP-SP
+bloqueada por Cloudflare no pipeline de notícias.
+
+**Confirmado funcionando em produção (2026-09-16):** a routine rodou
+manualmente (session `cse_01WJPdujC9LrAoyWnMVzqU9e`, ~4 min, 25 turns),
+publicou exatamente 2 rascunhos (`publicado:false`, ambos com capa Pexels,
+citação de vídeo + criador, disclaimer + nota de responsabilidade + CTA
+PsiAgente, tudo na ordem correta no footer). Ambos os vídeos registrados
+como usados em `videos_referencia_blog`. Ambos os artigos com 2 categorias
+cada, corretas. Dedup verificado: as URLs dos 2 vídeos não aparecem
+novamente em `videos_referencia_blog.url` após a run (dedup
+functional).
+
+## Próximos passos — conteúdo de blog (notícias + teórico/técnico)
+
+Ambas as routines publicam como rascunho e aguardam aprovação manual em
+`/admin/artigos` — nenhuma auto-publicação ainda. Candidato futuro:
+auto-publicar depois de passar por uma gate mínima de validação (ex: checar
+se `conteudo` não é vazio ou muito curto), mas decisão de design fica em
+aberto.
 
 ## Início de operação via WhatsApp — Fase 2/n8n (2026-09-08)
 
