@@ -46,6 +46,13 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 22 | Liberação temporária de plano avançado pelo admin (período de teste sem cobrança) | 11 (metade 1) |
 | 24 (parte 4) | CRM próprio de vendas do SaaS — parte 4: agente comercial autônomo via WhatsApp (número/instância própria, separada da do agente que atende paciente) pra tirar dúvida de possível cliente (psicólogo interessado em assinar), com handoff pro ADM assumir a conversa quando o agente não resolver | 24 (parte 3) |
 | 23 | Diferencial real do plano Psi Marketing no diretório público: (a) prioridade de exibição em `/busca` pra perfis de plano pago (hoje ordena só por `criado_em desc`, sem distinção de plano) e (b) conteúdo tipo stories no perfil (foto/vídeo com expiração, ao estilo Instagram) — schema com expiração, upload de vídeo, visualizador na página pública, rotina de limpeza do que expirou, e revisão de regras do CFP sobre autopromoção antes de ir ao ar. Pedido surgido ao revisar o texto de preços da home institucional (2026-09-12): hoje o plano Grátis já tem `temDiretorio: true`, então "aparecer no diretório" não é diferencial de fato do Marketing — precisa de algo que o Grátis não tenha. Tratar como projeto próprio, com brainstorm dedicado (schema/storage/moderação) antes de codar. | — |
+| 25 | Criador de sites para o profissional (site próprio, além do perfil no diretório) | — |
+| 26 | Agendador de contato automático pro paciente — enviar mensagem predeterminada numa data programada (ex.: aniversário) | — |
+| 27 | Integração com Doctoralia pra receber e enviar agendamentos | — |
+| 28 | Aba Contabilidade — apurar se compensa mais ficar no Carnê-Leão ou abrir empresa (perspectiva de custo de taxas/impostos), incluindo honorários contábeis contratáveis dentro da própria ferramenta | — |
+| 29 | Agendador de resumo de atendimentos — mensagem às 7h com os atendimentos do dia; resumo financeiro + quantidade de atendimentos + previsão do dia seguinte ao final do dia | — |
+| 30 | No diretório/busca público, agendador de consultas automático, permitindo o paciente pagar diretamente pela ferramenta | 2 |
+| 31 | Gerar o Pix pela ferramenta e dar baixa automática no atendimento correspondente | — |
 
 Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também
 `docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original
