@@ -63,6 +63,7 @@ test("mapResponseToLead nunca inclui CPF no objeto retornado, mesmo que a API o 
   assert.equal("cpf" in lead, false);
   assert.equal("professional_profile_cpf" in lead, false);
   assert.equal(Object.values(lead).includes("04377490885"), false);
+  assert.equal(JSON.stringify(lead).includes("04377490885"), false);
 });
 
 test("mapResponseToLead retorna null quando professional está ausente", () => {
