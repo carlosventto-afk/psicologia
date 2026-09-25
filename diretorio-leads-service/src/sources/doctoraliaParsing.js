@@ -23,6 +23,7 @@ export function parseProfileHtml(html, url) {
   const $ = cheerio.load(html);
   let nome = null;
   let especialidade = null;
+  let maxPosition = 0;
 
   $('script[type="application/ld+json"]').each((_, el) => {
     let data;
@@ -34,7 +35,10 @@ export function parseProfileHtml(html, url) {
     if (data["@type"] !== "BreadcrumbList") return;
     for (const item of data.itemListElement ?? []) {
       if (item.position === 2) especialidade = item.name ?? especialidade;
-      if (item.position === 3) nome = item.name ?? nome;
+      if (item.position > maxPosition) {
+        maxPosition = item.position;
+        nome = item.name ?? nome;
+      }
     }
   });
 

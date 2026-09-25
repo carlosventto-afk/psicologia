@@ -67,3 +67,25 @@ test("parseProfileHtml retorna null quando o JSON-LD está malformado", () => {
   const html = "<html><head><script type=\"application/ld+json\">{ isso não é json </script></head><body></body></html>";
   assert.equal(parseProfileHtml(html, "https://www.doctoralia.com.br/x/psicologo/y"), null);
 });
+
+const SAMPLE_HTML_4_ITEMS = `<!DOCTYPE html><html><head>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Homepage","item":"https://www.doctoralia.com.br/"},{"@type":"ListItem","position":2,"name":"Psicólogo","item":"https://www.doctoralia.com.br/psicologo"},{"@type":"ListItem","position":3,"name":"Bom Jardim","item":"https://www.doctoralia.com.br/psicologo/bom-jardim"},{"@type":"ListItem","position":4,"name":"Maria De Fátima Dos Santos Miranda"}]}
+</script>
+</head><body></body></html>`;
+
+test("parseProfileHtml com 4 itens usa último position como nome, não posição fixa", () => {
+  const url = "https://www.doctoralia.com.br/maria-de-fatima-dos-santos-miranda/psicologo/bom-jardim";
+  const lead = parseProfileHtml(SAMPLE_HTML_4_ITEMS, url);
+  assert.deepEqual(lead, {
+    fonte: "doctoralia",
+    slug: "maria-de-fatima-dos-santos-miranda",
+    nome: "Maria De Fátima Dos Santos Miranda",
+    crp: null,
+    especialidade: "Psicólogo",
+    cidade: "bom-jardim",
+    telefone: null,
+    endereco: null,
+    url,
+  });
+});
