@@ -1,3 +1,5 @@
+import { slugify } from "../parsing.js";
+
 export function extractSlugFromSitemapUrl(url) {
   const parts = new URL(url).pathname.split("/").filter(Boolean);
   if (parts[0] !== "profissional" || !parts[1]) return null;
@@ -27,13 +29,20 @@ export function mapResponseToLead(apiResponse, slug, url) {
     address.neighborhood, address.city, address.state,
   ].filter(Boolean);
 
+  // A API real não tem `professional.schema` (campo assumido nos fixtures
+  // originais mas ausente no payload de verdade — confirmado inspecionando
+  // a resposta real em 24/09/2026: o payload traz `clinic.address.city`/
+  // `state`, não `schema.city`). Sem esse fix, `cidade` era sempre `null` e
+  // `filterRjLead` descartava 100% dos leads, mesmo os do RJ.
+  const cidade = address.city ? slugify(`${address.city}-${address.state ?? ""}`) : null;
+
   return {
     fonte: "nossos_psicologos",
     slug,
     nome: professional.name,
     crp,
     especialidade: schema.specialty_name ?? professional.occupation ?? null,
-    cidade: schema.city ?? null,
+    cidade,
     telefone: clinic.telephone ?? null,
     endereco: enderecoParts.length > 0 ? enderecoParts.join(", ") : null,
     url,

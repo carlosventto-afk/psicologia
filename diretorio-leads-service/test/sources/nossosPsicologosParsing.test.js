@@ -22,13 +22,16 @@ test("isRjCity: true só quando o slug termina em -rj", () => {
   assert.equal(isRjCity(undefined), false);
 });
 
+// Formato confirmado contra a API real em 24/09/2026 (GET
+// /v1/patient/professional/{slug}): não existe `professional.schema`; a
+// cidade/estado vêm de `clinic.address.city`/`state` (nomes, não slugs).
 const FULL_RESPONSE = {
   data: {
     message: {
       professional: {
         name: "Leila Aparecida Lopes",
         council: { type: "CRP", state: "SP", number: "06/26833" },
-        schema: { city: "sao-paulo-sp", specialty_name: "Psicólogo Clínico" },
+        occupation: "Psicóloga",
         clinic: {
           telephone: "1121112222",
           address: {
@@ -50,12 +53,28 @@ test("mapResponseToLead extrai todos os campos esperados e monta o endereço com
     slug: "leila-aparecida-lopes",
     nome: "Leila Aparecida Lopes",
     crp: "06/26833-SP",
-    especialidade: "Psicólogo Clínico",
+    especialidade: "Psicóloga",
     cidade: "sao-paulo-sp",
     telefone: "1121112222",
     endereco: "Avenida Paulista, 326, conjunto 95, Bela Vista, São Paulo, SP",
     url,
   });
+});
+
+test("mapResponseToLead deriva cidade de clinic.address.city/state (slugificado), não de schema.city", () => {
+  const resp = {
+    data: {
+      message: {
+        professional: {
+          name: "Fulana da Silva",
+          council: {},
+          clinic: { address: { city: "Niterói", state: "RJ" } },
+        },
+      },
+    },
+  };
+  const lead = mapResponseToLead(resp, "fulana", "https://x/fulana");
+  assert.equal(lead.cidade, "niteroi-rj");
 });
 
 test("mapResponseToLead nunca inclui CPF no objeto retornado, mesmo que a API o envie", () => {
