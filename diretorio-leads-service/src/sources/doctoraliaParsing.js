@@ -35,7 +35,7 @@ export function parseProfileHtml(html, url) {
     if (data["@type"] !== "BreadcrumbList") return;
     for (const item of data.itemListElement ?? []) {
       if (item.position === 2) especialidade = item.name ?? especialidade;
-      if (item.position > maxPosition) {
+      if (item.position > 2 && item.position > maxPosition) {
         maxPosition = item.position;
         nome = item.name ?? nome;
       }

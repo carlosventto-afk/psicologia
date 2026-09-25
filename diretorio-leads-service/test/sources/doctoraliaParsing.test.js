@@ -89,3 +89,14 @@ test("parseProfileHtml com 4 itens usa último position como nome, não posiçã
     url,
   });
 });
+
+const SAMPLE_HTML_2_ITEMS = `<!DOCTYPE html><html><head>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Homepage","item":"https://www.doctoralia.com.br/"},{"@type":"ListItem","position":2,"name":"Psicólogo","item":"https://www.doctoralia.com.br/psicologo"}]}
+</script>
+</head><body></body></html>`;
+
+test("parseProfileHtml retorna null quando breadcrumb só tem 2 itens (sem item de nome)", () => {
+  const html = SAMPLE_HTML_2_ITEMS;
+  assert.equal(parseProfileHtml(html, "https://www.doctoralia.com.br/x/psicologo/y"), null);
+});
