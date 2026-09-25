@@ -34,7 +34,12 @@ export function mapResponseToLead(apiResponse, slug, url) {
   // a resposta real em 24/09/2026: o payload traz `clinic.address.city`/
   // `state`, não `schema.city`). Sem esse fix, `cidade` era sempre `null` e
   // `filterRjLead` descartava 100% dos leads, mesmo os do RJ.
-  const cidade = address.city ? slugify(`${address.city}-${address.state ?? ""}`) : null;
+  // Só monta o slug com sufixo de estado quando `state` está presente: sem
+  // essa guarda, `address.state ?? ""` viraria string vazia e o trim de
+  // hífens finais do `slugify` apagaria o hífen inteiro, produzindo um slug
+  // sem UF (ex.: "niteroi" em vez de null) que nunca bate com o `-rj` do
+  // `isRjCity` — um lead real do RJ seria descartado silenciosamente.
+  const cidade = address.city && address.state ? slugify(`${address.city}-${address.state}`) : null;
 
   return {
     fonte: "nossos_psicologos",

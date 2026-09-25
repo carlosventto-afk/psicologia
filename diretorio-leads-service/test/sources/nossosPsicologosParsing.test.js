@@ -77,6 +77,22 @@ test("mapResponseToLead deriva cidade de clinic.address.city/state (slugificado)
   assert.equal(lead.cidade, "niteroi-rj");
 });
 
+test("mapResponseToLead: cidade fica null quando address.state está ausente, não perde o sufixo silenciosamente", () => {
+  const resp = {
+    data: {
+      message: {
+        professional: {
+          name: "Fulana da Silva",
+          council: {},
+          clinic: { address: { city: "Niterói" } },
+        },
+      },
+    },
+  };
+  const lead = mapResponseToLead(resp, "fulana", "https://x/fulana");
+  assert.equal(lead.cidade, null);
+});
+
 test("mapResponseToLead nunca inclui CPF no objeto retornado, mesmo que a API o envie", () => {
   const lead = mapResponseToLead(FULL_RESPONSE, "leila-aparecida-lopes", "https://x/leila-aparecida-lopes");
   assert.equal("cpf" in lead, false);
