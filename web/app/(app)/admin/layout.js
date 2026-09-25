@@ -15,6 +15,7 @@ export default async function LayoutAdmin({ children }) {
         {usuario.role === "admin" && <Link href="/admin/profissionais">Profissionais</Link>}
         {usuario.role === "admin" && <Link href="/admin/leads">CRM</Link>}
         {usuario.role === "admin" && <Link href="/admin/leads-cfp">Leads CFP</Link>}
+        {usuario.role === "admin" && <Link href="/admin/visitantes">Visitantes</Link>}
         <Link href="/admin/artigos">Blog</Link>
       </nav>
       {children}
