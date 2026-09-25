@@ -41,10 +41,25 @@ export const RJ_MUNICIPIOS = [
 // sim). Alias documentado aqui em vez de assumido — outras colisões
 // eventuais em municípios menores não são cobertas nesta entrega (risco
 // aceito, ver spec).
-const EXTRA_DOCTORALIA_SLUG_ALIASES = ["paraty-2"];
+//
+// Valença, Sapucaia e Cantagalo (RJ) colidem do mesmo jeito, mas com um
+// sufixo numérico SEM hífen: "valenca2", "sapucaia2", "cantagalo2"
+// (confirmado em sitemap.city.xml em 24/09/2026). Os slugs "puros" (sem
+// sufixo) pertencem a cidades homônimas de outros estados (Valença-BA,
+// Sapucaia-PA, Cantagalo-PR) e são excluídos abaixo em
+// PLAIN_SLUGS_BELONGING_TO_OTHER_STATES.
+//
+// Varre-Sai usa a grafia "varre-e-sai" no Doctoralia, diferente do
+// "varre-sai" que sai de slugify("Varre-Sai").
+const EXTRA_DOCTORALIA_SLUG_ALIASES = ["paraty-2", "valenca2", "sapucaia2", "cantagalo2", "varre-e-sai"];
+
+// Slugs que slugify(RJ_MUNICIPIOS) produziria, mas que no Doctoralia
+// pertencem a cidades de mesmo nome em outros estados, não às cidades do RJ.
+const PLAIN_SLUGS_BELONGING_TO_OTHER_STATES = ["valenca", "sapucaia", "cantagalo"];
 
 export function buildRjCitySlugSet() {
   const set = new Set(RJ_MUNICIPIOS.map(slugify));
+  for (const slug of PLAIN_SLUGS_BELONGING_TO_OTHER_STATES) set.delete(slug);
   for (const alias of EXTRA_DOCTORALIA_SLUG_ALIASES) set.add(alias);
   return set;
 }

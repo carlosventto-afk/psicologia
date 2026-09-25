@@ -25,6 +25,22 @@ test("buildRjCitySlugSet inclui os slugs normais e o alias conhecido do Doctoral
   assert.ok(set.has("paraty-2"), "Doctoralia usa sufixo -2 pro slug de Paraty (colisão com outro estado)");
 });
 
+test("buildRjCitySlugSet exclui os slugs puros de Valença/Sapucaia/Cantagalo (pertencem a outros estados no Doctoralia)", () => {
+  const set = buildRjCitySlugSet();
+  assert.ok(!set.has("valenca"), "valenca puro é Valença-BA no Doctoralia, não Valença-RJ");
+  assert.ok(!set.has("sapucaia"), "sapucaia puro é Sapucaia-PA no Doctoralia, não Sapucaia-RJ");
+  assert.ok(!set.has("cantagalo"), "cantagalo puro é Cantagalo-PR no Doctoralia, não Cantagalo-RJ");
+});
+
+test("buildRjCitySlugSet inclui os aliases numéricos de Valença/Sapucaia/Cantagalo e a grafia de Varre-Sai", () => {
+  const set = buildRjCitySlugSet();
+  assert.ok(set.has("valenca2"), "Doctoralia usa sufixo numérico 2 (sem hífen) pro slug de Valença-RJ");
+  assert.ok(set.has("sapucaia2"), "Doctoralia usa sufixo numérico 2 (sem hífen) pro slug de Sapucaia-RJ");
+  assert.ok(set.has("cantagalo2"), "Doctoralia usa sufixo numérico 2 (sem hífen) pro slug de Cantagalo-RJ");
+  assert.ok(set.has("varre-e-sai"), "Doctoralia usa a grafia varre-e-sai pro slug de Varre-Sai");
+  assert.ok(set.has("paraty-2"), "alias existente de Paraty não pode regredir");
+});
+
 test("parseSitemapLocs extrai URLs únicas de <loc>", () => {
   const xml = `<?xml version="1.0"?><urlset>
     <url><loc>https://x.com/a</loc></url>

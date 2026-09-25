@@ -44,10 +44,12 @@ export async function fetchNossosPsicologosLead(slug) {
     // zerada" e disparava o throw indevidamente.
     const remaining = Number(remainingHeader);
     if (Number.isFinite(remaining) && remaining < RATE_LIMIT_SAFETY_MARGIN) {
-      // Tratado como falha transitória (não como sucesso com dado ruim): o
-      // runSourceBatch retenta a mesma key com o delay normal antes de
-      // eventualmente parar o lote, dando tempo da cota se recuperar.
-      throw new Error(`x-ratelimit-remaining baixo (${remaining}) para professional/${slug}`);
+      // Sinal suave, não falha: a resposta já veio com sucesso (res.ok) e o
+      // corpo ainda não foi lido, então descartar o lead aqui seria jogar
+      // fora um dado bom. A proteção real contra estourar o rate limit é o
+      // `!res.ok` acima (um 429 de verdade cai lá e segue o fluxo normal de
+      // retry/halt). Isso aqui é só um alerta pra observabilidade.
+      console.warn(`x-ratelimit-remaining baixo (${remaining}) para professional/${slug}`);
     }
   }
 
