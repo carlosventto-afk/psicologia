@@ -8,7 +8,7 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const files = ["20260901000002_lockdown_leads_cfp.sql"];
+const files = ["20260924000001_add_leads_diretorio.sql", "20260924000002_lockdown_leads_diretorio.sql"];
 
 const migrationsDir = path.resolve("supabase/migrations");
 
