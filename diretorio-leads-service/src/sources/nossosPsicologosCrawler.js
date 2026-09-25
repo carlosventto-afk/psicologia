@@ -37,12 +37,18 @@ export async function fetchNossosPsicologosLead(slug) {
     throw new Error(`HTTP ${res.status} em professional/${slug}`);
   }
 
-  const remaining = Number(res.headers.get("x-ratelimit-remaining"));
-  if (Number.isFinite(remaining) && remaining < RATE_LIMIT_SAFETY_MARGIN) {
-    // Tratado como falha transitória (não como sucesso com dado ruim): o
-    // runSourceBatch retenta a mesma key com o delay normal antes de
-    // eventualmente parar o lote, dando tempo da cota se recuperar.
-    throw new Error(`x-ratelimit-remaining baixo (${remaining}) para professional/${slug}`);
+  const remainingHeader = res.headers.get("x-ratelimit-remaining");
+  if (remainingHeader !== null) {
+    // Só avalia quando o header está de fato presente: `Number(null)` é `0`,
+    // então sem essa checagem um header ausente seria lido como "cota
+    // zerada" e disparava o throw indevidamente.
+    const remaining = Number(remainingHeader);
+    if (Number.isFinite(remaining) && remaining < RATE_LIMIT_SAFETY_MARGIN) {
+      // Tratado como falha transitória (não como sucesso com dado ruim): o
+      // runSourceBatch retenta a mesma key com o delay normal antes de
+      // eventualmente parar o lote, dando tempo da cota se recuperar.
+      throw new Error(`x-ratelimit-remaining baixo (${remaining}) para professional/${slug}`);
+    }
   }
 
   const body = await res.json();
