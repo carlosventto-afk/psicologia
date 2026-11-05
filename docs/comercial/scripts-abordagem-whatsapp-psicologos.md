@@ -84,9 +84,13 @@ Uma única resposta curta, sem insistir e sem follow-up depois.
 
 ## Pontos em aberto
 
-- **Aprovação do perfil no diretório:** em 2026-11-04 o código gravava `aprovado: false`
-  no autocadastro (`web/lib/actions/auth.js:84`), e o diretório só exibe perfis aprovados.
-  O texto acima promete "perfil no diretório"; confirme se a aprovação é automática ou
-  manual antes de enviar em escala.
+- **Aprovação do perfil no diretório:** política definida pelo dono (2026-11-05): conta
+  gratuita é aprovada automaticamente e fica sob revisão; o administrador recebe e-mail
+  para conferir se o CRP está ativo. **Ainda não implementado no código**: em 2026-11-04
+  o autocadastro gravava `aprovado: false` (`web/lib/actions/auth.js:84`) e o diretório só
+  exibe perfis aprovados, então hoje o perfil só aparece após aprovação manual. O e-mail
+  ao administrador a cada cadastro novo já existe (item 24, parte 1). Até a aprovação
+  automática entrar, aprove manualmente em `/admin/profissionais` ou evite prometer
+  "aparece na hora".
 - **Origem do contato:** se vier de base coletada (ex.: scraper de leads), revisar a base
   legal antes de disparar em escala.
