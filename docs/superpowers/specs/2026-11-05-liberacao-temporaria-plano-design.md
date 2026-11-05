@@ -77,11 +77,13 @@ Peças:
 Textos exatos do e-mail/banner, layout do formulário de liberação, nomes de tipo de
 evento, tratamento de fuso (job roda por data; aviso "3 dias" aceita margem de ±1 dia).
 
-## Risco conhecido (verificar antes de planejar)
+## Risco conhecido — RESOLVIDO (2026-11-05)
 
-Não está confirmado que o job `aplicar-pendencias` está agendado de fato em produção
-(n8n/cron e `ASSINATURA_CRON_SECRET`). Sem agendamento diário, nem a expiração nem o
-aviso rodam. Item de infra a checar, não de código.
+O job `aplicar-pendencias` está agendado e rodando em produção: workflow n8n
+"Assinaturas - Aplicar Pendencias (diario)" ativo, 6 execuções diárias consecutivas com
+sucesso (de 30/10 a 04/11, ~14h UTC), e `ASSINATURA_CRON_SECRET` presente no app. Nenhuma
+tarefa de infra necessária; o n8n chama a mesma rota que vamos estender, então a
+expiração e o aviso do teste rodam sem mudança de agendamento.
 
 ## Resoluções da revisão do construtor
 
@@ -106,5 +108,3 @@ Decisões minhas (marcadas, simples de reverter):
 - **Estender**: soma dias ao fim atual (ou a agora, se já expirou e ainda é teste), mantém
   o plano e rearma o aviso (`teste_aviso_enviado_em = null`).
 - **Reconceder**: permitido, sem limite; histórico fica em `EventoAssinatura`.
-- **Agendamento do job**: item de infra a verificar na VPS/n8n antes do plano; se não
-  estiver agendado, entra como tarefa de infra, sem bloquear o código.
