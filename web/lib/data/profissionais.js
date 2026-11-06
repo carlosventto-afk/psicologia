@@ -5,7 +5,7 @@ export async function listarProfissionais() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Usuarios")
-    .select("id, nome, email, contato, role, crp, aprovado, crp_conferido, criador_conteudo, plano, created_at")
+    .select("id, nome, email, contato, role, crp, aprovado, crp_conferido, criador_conteudo, plano, teste_plano, teste_expira_em, teste_aviso_enviado_em, created_at")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
