@@ -2,6 +2,7 @@ import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
 import { escolherPlano } from "@/lib/actions/assinatura";
 import EscolherPlanoForm from "@/components/EscolherPlanoForm";
+import BannerTestePlano from "@/components/BannerTestePlano";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 
 export default async function PaginaAssinatura() {
@@ -10,6 +11,12 @@ export default async function PaginaAssinatura() {
   return (
     <div className="space-y-4">
       <h1 className="page-title">Assinatura</h1>
+
+      <BannerTestePlano
+        plano={usuario.plano}
+        expiraEm={usuario.teste_expira_em}
+        mostrarLink={false}
+      />
 
       {usuario.assinatura_status === "inadimplente" && (
         <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-lg px-4 py-2">

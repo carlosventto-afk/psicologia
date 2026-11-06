@@ -1,5 +1,6 @@
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import SidebarNav from "@/components/SidebarNav";
+import BannerTestePlano from "@/components/BannerTestePlano";
 
 export default async function LayoutApp({ children }) {
   const usuario = await buscarUsuarioAtual();
@@ -20,6 +21,10 @@ export default async function LayoutApp({ children }) {
             pode usar a ferramenta normalmente enquanto aguarda.
           </div>
         )}
+        <BannerTestePlano
+          plano={usuario.plano}
+          expiraEm={usuario.teste_expira_em}
+        />
         <main className="mx-auto max-w-5xl px-4 py-6 lg:px-8">{children}</main>
       </div>
     </div>
