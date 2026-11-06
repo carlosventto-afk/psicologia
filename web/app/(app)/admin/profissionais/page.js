@@ -2,8 +2,24 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { listarProfissionais } from "@/lib/data/profissionais";
-import { aprovarProfissional, alternarCriadorConteudo, marcarCrpConferido, revogarAprovacao } from "@/lib/actions/profissionais";
+import { aprovarProfissional, alternarCriadorConteudo, marcarCrpConferido, revogarAprovacao, encerrarTestePlano, estenderTestePlano } from "@/lib/actions/profissionais";
 import SeletorPlano from "@/components/SeletorPlano";
+import LiberarTesteForm from "@/components/LiberarTesteForm";
+import { podeReceberTeste } from "@/lib/teste-plano";
+
+const NOMES_PLANO = {
+  gestao: "Psi Gestão",
+  gestao_marketing: "Psi Gestão + Marketing",
+  marketing: "Psi Marketing",
+};
+
+function formatarDataCurta(iso) {
+  return new Date(iso).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+}
 
 export default async function PaginaProfissionais() {
   const usuario = await buscarUsuarioAtual();
@@ -70,6 +86,27 @@ export default async function PaginaProfissionais() {
                       {p.criador_conteudo ? "Remover criador de conteúdo" : "Tornar criador de conteúdo"}
                     </button>
                   </form>
+                )}
+                {p.role !== "admin" && p.teste_expira_em && (
+                  <>
+                    <span className="text-sm text-amber-700">
+                      Em teste ({NOMES_PLANO[p.teste_plano] ?? p.teste_plano}) até{" "}
+                      {formatarDataCurta(p.teste_expira_em)}
+                    </span>
+                    <form action={encerrarTestePlano.bind(null, p.id)}>
+                      <button type="submit" className="btn-outline text-sm">
+                        Encerrar
+                      </button>
+                    </form>
+                    <form action={estenderTestePlano.bind(null, p.id, 7)}>
+                      <button type="submit" className="btn-outline text-sm">
+                        Estender (+7 dias)
+                      </button>
+                    </form>
+                  </>
+                )}
+                {p.role !== "admin" && !p.teste_expira_em && podeReceberTeste(p) && (
+                  <LiberarTesteForm id={p.id} />
                 )}
                 <SeletorPlano id={p.id} planoAtual={p.plano} />
               </div>

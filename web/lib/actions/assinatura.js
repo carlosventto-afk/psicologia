@@ -43,11 +43,44 @@ export async function escolherPlano(planoAlvo, prevState, formData) {
   // mas ainda pode ter uma assinatura viva no Asaas pra cancelar -- nesse
   // caso não bloqueia com "você já está nesse plano", deixa prosseguir pro
   // cancelamento.
-  if (planoAlvo === usuario.plano && !(planoAlvo === "gratis" && temAssinaturaViva)) {
+  // Teste de plano (liberação temporária pelo admin): o plano atual é
+  // temporário, então escolher o mesmo plano é contratá-lo de verdade.
+  const emTeste = Boolean(usuario.teste_plano);
+
+  if (!emTeste && planoAlvo === usuario.plano && !(planoAlvo === "gratis" && temAssinaturaViva)) {
     return { error: "Você já está nesse plano." };
   }
 
   if (!temAssinaturaViva) {
+    if (planoAlvo === "gratis" && emTeste) {
+      // Encerra o teste voluntariamente: volta pro Grátis agora.
+      const { error: erroEncerrar } = await admin
+        .from("Usuarios")
+        .update({
+          plano: "gratis",
+          teste_plano: null,
+          teste_expira_em: null,
+          teste_aviso_enviado_em: null,
+        })
+        .eq("id", usuario.id);
+
+      if (erroEncerrar) {
+        return { error: "Não foi possível encerrar o teste. Tente novamente." };
+      }
+
+      // Auditoria: melhor esforço, não desfaz o encerramento se falhar.
+      await admin.from("EventoAssinatura").insert({
+        usuario: usuario.id,
+        asaas_event_id: `teste_encerrado:${usuario.id}:${Date.now()}`,
+        tipo: "teste_encerrado",
+        payload: { origem: "usuario", plano_teste: usuario.teste_plano },
+      });
+
+      revalidatePath("/assinatura");
+      revalidatePath("/painel", "layout");
+      return { sucesso: "Seu teste foi encerrado. Você voltou para o plano Grátis." };
+    }
+
     if (planoAlvo === "gratis") {
       return { error: "Você já está no plano Grátis." };
     }
@@ -124,9 +157,18 @@ export async function escolherPlano(planoAlvo, prevState, formData) {
     return { error: "Não foi possível atualizar sua assinatura. Tente novamente." };
   }
 
+  // Trial com checkout abandonado que escolhe Grátis: o teste termina junto.
+  const encerrandoTeste = planoAlvo === "gratis" && emTeste;
+
   const dadosAtualizacao =
     planoAlvo === "gratis"
       ? {
+          ...(encerrandoTeste && {
+            plano: "gratis",
+            teste_plano: null,
+            teste_expira_em: null,
+            teste_aviso_enviado_em: null,
+          }),
           plano_pretendido: planoAlvo,
           plano_pretendido_a_partir_de: assinaturaAtual.nextDueDate,
           // Limpa o estado de assinatura pra que uma futura tentativa de
@@ -144,6 +186,17 @@ export async function escolherPlano(planoAlvo, prevState, formData) {
 
   if (error) {
     return { error: "Não foi possível agendar a troca de plano. Tente novamente." };
+  }
+
+  if (encerrandoTeste) {
+    // Auditoria: melhor esforço, não desfaz o encerramento se falhar.
+    await admin.from("EventoAssinatura").insert({
+      usuario: usuario.id,
+      asaas_event_id: `teste_encerrado:${usuario.id}:${Date.now()}`,
+      tipo: "teste_encerrado",
+      payload: { origem: "usuario", plano_teste: usuario.teste_plano },
+    });
+    revalidatePath("/painel", "layout");
   }
 
   revalidatePath("/assinatura");

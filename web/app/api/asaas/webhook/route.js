@@ -51,7 +51,14 @@ export async function POST(request) {
       usuario.plano_pretendido &&
       (!usuario.plano_pretendido_a_partir_de || new Date(usuario.plano_pretendido_a_partir_de) <= new Date());
 
-    const atualizacao = { assinatura_status: "ativa", assinatura_vencida_em: null };
+    // Pagamento confirmado encerra qualquer teste de plano em andamento.
+    const atualizacao = {
+      assinatura_status: "ativa",
+      assinatura_vencida_em: null,
+      teste_plano: null,
+      teste_expira_em: null,
+      teste_aviso_enviado_em: null,
+    };
 
     if (pendenciaLiberada) {
       atualizacao.plano = usuario.plano_pretendido;
