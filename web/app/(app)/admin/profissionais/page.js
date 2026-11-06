@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { listarProfissionais } from "@/lib/data/profissionais";
-import { aprovarProfissional, alternarCriadorConteudo } from "@/lib/actions/profissionais";
+import { aprovarProfissional, alternarCriadorConteudo, marcarCrpConferido, revogarAprovacao } from "@/lib/actions/profissionais";
 import SeletorPlano from "@/components/SeletorPlano";
 
 export default async function PaginaProfissionais() {
@@ -47,6 +47,20 @@ export default async function PaginaProfissionais() {
                   <form action={aprovarProfissional.bind(null, p.id)}>
                     <button type="submit" className="btn-outline text-sm">
                       Aprovar (pendente)
+                    </button>
+                  </form>
+                )}
+                {p.aprovado && p.role !== "admin" && !p.crp_conferido && (
+                  <form action={marcarCrpConferido.bind(null, p.id)}>
+                    <button type="submit" className="btn-outline text-sm">
+                      CRP a conferir — marcar conferido
+                    </button>
+                  </form>
+                )}
+                {p.aprovado && p.role !== "admin" && (
+                  <form action={revogarAprovacao.bind(null, p.id)}>
+                    <button type="submit" className="btn-outline text-sm">
+                      Revogar aprovação
                     </button>
                   </form>
                 )}

@@ -81,7 +81,8 @@ export async function cadastrar(prevState, formData) {
       contato: Number(String(contato).replace(/\D/g, "")),
       crp: crp || null,
       role: "psicologo",
-      aprovado: false,
+      aprovado: true, // aprovacao automatica; admin confere o CRP depois (crp_conferido)
+      crp_conferido: false,
       visitante_sessao_id: sessaoVisitante,
     })
     .select("id")
@@ -115,8 +116,8 @@ export async function cadastrar(prevState, formData) {
   // profissional, mesmo se o Resend estiver fora do ar.
   enviarEmailResend({
     to: EMAIL_ADMIN,
-    subject: `Novo cadastro: ${nome}`,
-    html: `<p>Novo profissional cadastrado no PsiAgente.</p>
+    subject: `Novo cadastro (conferir CRP): ${nome}`,
+    html: `<p>Novo profissional cadastrado no PsiAgente. O perfil foi aprovado automaticamente e já pode aparecer no diretório — <strong>confira se o CRP está ativo</strong> e marque como conferido em /admin/profissionais (ou revogue a aprovação).</p>
       <p><strong>Nome:</strong> ${nome}</p>
       <p><strong>E-mail:</strong> ${email}</p>
       <p><strong>Contato:</strong> ${contato}</p>

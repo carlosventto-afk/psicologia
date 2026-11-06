@@ -162,3 +162,36 @@ export async function alterarPlano(id, novoPlano) {
 
   revalidatePath("/admin/profissionais");
 }
+
+async function exigirAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autorizado.");
+  const { data: usuarioAtual, error } = await supabase
+    .from("Usuarios")
+    .select("role")
+    .eq("id_user", user.id)
+    .single();
+  if (error || usuarioAtual?.role !== "admin") throw new Error("Não autorizado.");
+}
+
+export async function marcarCrpConferido(id) {
+  await exigirAdmin();
+  const { error } = await createAdminClient().from("Usuarios").update({ crp_conferido: true }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/profissionais");
+}
+
+// Tira o perfil do diretório (aprovado = false) e reabre a conferência.
+export async function revogarAprovacao(id) {
+  await exigirAdmin();
+  const { error } = await createAdminClient()
+    .from("Usuarios")
+    .update({ aprovado: false, crp_conferido: false })
+    .eq("id", id)
+    .neq("role", "admin");
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/profissionais");
+}
