@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { criarClassificacoesPadrao } from "@/lib/classificacoes-padrao";
+import { podeReceberTeste, calcularFimTeste, PLANOS_LIBERAVEIS } from "@/lib/teste-plano";
 
 export async function convidarProfissional(prevState, formData) {
   const supabase = await createClient();
@@ -154,7 +155,16 @@ export async function alterarPlano(id, novoPlano) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.from("Usuarios").update({ plano: novoPlano }).eq("id", id);
+  const { error } = await admin
+    .from("Usuarios")
+    .update({
+      plano: novoPlano,
+      // Atribuição manual sobrepõe o teste; as três colunas saem juntas.
+      teste_plano: null,
+      teste_expira_em: null,
+      teste_aviso_enviado_em: null,
+    })
+    .eq("id", id);
 
   if (error) {
     throw new Error(error.message);
@@ -181,6 +191,121 @@ export async function marcarCrpConferido(id) {
   await exigirAdmin();
   const { error } = await createAdminClient().from("Usuarios").update({ crp_conferido: true }).eq("id", id);
   if (error) throw new Error(error.message);
+  revalidatePath("/admin/profissionais");
+}
+
+function validarDias(dias) {
+  if (!Number.isInteger(dias) || dias < 1 || dias > 90) {
+    throw new Error("Informe uma duração entre 1 e 90 dias.");
+  }
+}
+
+async function buscarAlvoTeste(admin, id) {
+  const { data, error } = await admin
+    .from("Usuarios")
+    .select("id, role, plano, plano_pretendido, teste_plano, teste_expira_em")
+    .eq("id", id)
+    .single();
+  if (error || !data) throw new Error("Profissional não encontrado.");
+  return data;
+}
+
+async function registrarEventoTeste(admin, usuarioId, tipo, payload) {
+  const { error } = await admin.from("EventoAssinatura").insert({
+    usuario: usuarioId,
+    asaas_event_id: `${tipo}-${usuarioId}-${new Date().toISOString()}`,
+    tipo,
+    payload,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function liberarTestePlano(id, plano, dias) {
+  await exigirAdmin();
+  if (!PLANOS_LIBERAVEIS.includes(plano)) {
+    throw new Error("Plano inválido para teste.");
+  }
+  dias = Number(dias);
+  validarDias(dias);
+
+  const admin = createAdminClient();
+  const alvo = await buscarAlvoTeste(admin, id);
+  if (alvo.role === "admin" || !podeReceberTeste(alvo)) {
+    throw new Error("Este profissional não pode receber teste de plano.");
+  }
+
+  const expiraEm = calcularFimTeste(new Date(), dias);
+  const { error } = await admin
+    .from("Usuarios")
+    .update({
+      plano,
+      teste_plano: plano,
+      teste_expira_em: expiraEm.toISOString(),
+      teste_aviso_enviado_em: null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  await registrarEventoTeste(admin, id, "teste_liberado", {
+    plano,
+    dias,
+    expira_em: expiraEm.toISOString(),
+  });
+  revalidatePath("/admin/profissionais");
+}
+
+export async function encerrarTestePlano(id) {
+  await exigirAdmin();
+  const admin = createAdminClient();
+  const alvo = await buscarAlvoTeste(admin, id);
+  if (!alvo.teste_plano) {
+    throw new Error("Este profissional não está em teste.");
+  }
+
+  const { error } = await admin
+    .from("Usuarios")
+    .update({
+      plano: "gratis",
+      teste_plano: null,
+      teste_expira_em: null,
+      teste_aviso_enviado_em: null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  await registrarEventoTeste(admin, id, "teste_encerrado", {
+    plano: alvo.teste_plano,
+    motivo: "admin",
+  });
+  revalidatePath("/admin/profissionais");
+}
+
+export async function estenderTestePlano(id, dias) {
+  await exigirAdmin();
+  dias = Number(dias);
+  validarDias(dias);
+
+  const admin = createAdminClient();
+  const alvo = await buscarAlvoTeste(admin, id);
+  if (!alvo.teste_plano || !alvo.teste_expira_em) {
+    throw new Error("Este profissional não está em teste.");
+  }
+
+  const expiraEm = calcularFimTeste(new Date(), dias, new Date(alvo.teste_expira_em));
+  const { error } = await admin
+    .from("Usuarios")
+    .update({
+      teste_expira_em: expiraEm.toISOString(),
+      teste_aviso_enviado_em: null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  await registrarEventoTeste(admin, id, "teste_estendido", {
+    plano: alvo.teste_plano,
+    dias,
+    expira_em: expiraEm.toISOString(),
+  });
   revalidatePath("/admin/profissionais");
 }
 
