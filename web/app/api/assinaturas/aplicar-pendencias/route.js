@@ -56,7 +56,8 @@ export async function POST(request) {
     .select("id")
     .eq("assinatura_status", "inadimplente")
     .lte("assinatura_vencida_em", cincoDiasAtras)
-    .neq("plano", "gratis");
+    .neq("plano", "gratis")
+    .is("teste_plano", null);
 
   if (erroSelectInadimplentes) {
     console.error("Falha ao buscar carências expiradas:", erroSelectInadimplentes);
@@ -116,7 +117,8 @@ export async function POST(request) {
       .from("Usuarios")
       .update({ plano: "gratis", teste_plano: null, teste_expira_em: null, teste_aviso_enviado_em: null })
       .eq("id", usuario.id)
-      .is("plano_pago", null);
+      .is("plano_pago", null)
+      .lte("teste_expira_em", agora);
 
     await admin.from("EventoAssinatura").insert({
       usuario: usuario.id,

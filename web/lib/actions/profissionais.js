@@ -203,7 +203,7 @@ function validarDias(dias) {
 async function buscarAlvoTeste(admin, id) {
   const { data, error } = await admin
     .from("Usuarios")
-    .select("id, role, plano, plano_pretendido, plano_pago, teste_plano, teste_expira_em")
+    .select("id, role, plano, plano_pretendido, plano_pago, assinatura_status, teste_plano, teste_expira_em")
     .eq("id", id)
     .single();
   if (error || !data) throw new Error("Profissional não encontrado.");
@@ -235,7 +235,9 @@ export async function liberarTestePlano(id, plano, dias) {
   }
 
   const expiraEm = calcularFimTeste(new Date(), dias);
-  const { error } = await admin
+  // O próprio UPDATE repete a elegibilidade (check-then-write): se o
+  // profissional mudou de plano no meio, nenhuma linha casa.
+  const { data: atualizados, error } = await admin
     .from("Usuarios")
     .update({
       plano,
@@ -243,8 +245,15 @@ export async function liberarTestePlano(id, plano, dias) {
       teste_expira_em: expiraEm.toISOString(),
       teste_aviso_enviado_em: null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("plano", "gratis")
+    .is("plano_pago", null)
+    .is("plano_pretendido", null)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!atualizados || atualizados.length === 0) {
+    throw new Error("O profissional mudou de plano enquanto você liberava o teste. Atualize a página e tente de novo.");
+  }
 
   await registrarEventoTeste(admin, id, "teste_liberado", {
     plano,

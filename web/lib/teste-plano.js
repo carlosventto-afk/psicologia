@@ -11,12 +11,15 @@ export const DIAS_AVISO = 3;
 
 // Elegível: plano grátis, sem plano pretendido e sem plano pago (um
 // inadimplente pós-carência é rebaixado para grátis mas mantém plano_pago;
-// o teste dele nunca expiraria e mascararia o plano pago).
+// o teste dele nunca expiraria e mascararia o plano pago). Também não é
+// elegível quem tem assinatura viva (ativa/inadimplente).
 export function podeReceberTeste(usuario) {
   return (
     usuario?.plano === "gratis" &&
     !usuario?.plano_pretendido &&
-    !usuario?.plano_pago
+    !usuario?.plano_pago &&
+    usuario?.assinatura_status !== "ativa" &&
+    usuario?.assinatura_status !== "inadimplente"
   );
 }
 

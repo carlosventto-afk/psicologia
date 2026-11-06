@@ -13,7 +13,7 @@ export default async function PaginaAssinatura() {
       <h1 className="page-title">Assinatura</h1>
 
       <BannerTestePlano
-        plano={usuario.plano}
+        plano={usuario.teste_plano ?? usuario.plano}
         expiraEm={usuario.teste_expira_em}
         mostrarLink={false}
       />

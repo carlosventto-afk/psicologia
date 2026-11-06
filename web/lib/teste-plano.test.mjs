@@ -29,6 +29,12 @@ test("podeReceberTeste", () => {
     podeReceberTeste({ plano: "gratis", plano_pretendido: null, plano_pago: null }),
     true,
   );
+  // assinatura viva (ativa/inadimplente) não é elegível
+  assert.equal(podeReceberTeste({ plano: "gratis", assinatura_status: "ativa" }), false);
+  assert.equal(podeReceberTeste({ plano: "gratis", assinatura_status: "inadimplente" }), false);
+  assert.equal(podeReceberTeste({ plano: "gratis", assinatura_status: "cancelada" }), true);
+  assert.equal(podeReceberTeste({ plano: "gratis", assinatura_status: null }), true);
+  assert.equal(podeReceberTeste({ plano: "gratis" }), true);
 });
 
 test("calcularFimTeste sem fimAtual soma sobre agora", () => {

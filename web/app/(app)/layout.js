@@ -22,7 +22,7 @@ export default async function LayoutApp({ children }) {
           </div>
         )}
         <BannerTestePlano
-          plano={usuario.plano}
+          plano={usuario.teste_plano ?? usuario.plano}
           expiraEm={usuario.teste_expira_em}
         />
         <main className="mx-auto max-w-5xl px-4 py-6 lg:px-8">{children}</main>
