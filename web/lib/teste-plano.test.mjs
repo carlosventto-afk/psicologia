@@ -20,6 +20,15 @@ test("podeReceberTeste", () => {
   assert.equal(podeReceberTeste({ plano: "gratis", plano_pretendido: null }), true);
   assert.equal(podeReceberTeste({ plano: "gestao", plano_pretendido: null }), false);
   assert.equal(podeReceberTeste({ plano: "gratis", plano_pretendido: "gestao" }), false);
+  // inadimplente pós-carência: rebaixado para gratis, mas ainda com plano_pago
+  assert.equal(
+    podeReceberTeste({ plano: "gratis", plano_pretendido: null, plano_pago: "gestao" }),
+    false,
+  );
+  assert.equal(
+    podeReceberTeste({ plano: "gratis", plano_pretendido: null, plano_pago: null }),
+    true,
+  );
 });
 
 test("calcularFimTeste sem fimAtual soma sobre agora", () => {

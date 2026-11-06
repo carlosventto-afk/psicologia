@@ -203,7 +203,7 @@ function validarDias(dias) {
 async function buscarAlvoTeste(admin, id) {
   const { data, error } = await admin
     .from("Usuarios")
-    .select("id, role, plano, plano_pretendido, teste_plano, teste_expira_em")
+    .select("id, role, plano, plano_pretendido, plano_pago, teste_plano, teste_expira_em")
     .eq("id", id)
     .single();
   if (error || !data) throw new Error("Profissional não encontrado.");
@@ -231,7 +231,7 @@ export async function liberarTestePlano(id, plano, dias) {
   const admin = createAdminClient();
   const alvo = await buscarAlvoTeste(admin, id);
   if (alvo.role === "admin" || !podeReceberTeste(alvo)) {
-    throw new Error("Este profissional não pode receber teste de plano.");
+    throw new Error("Este profissional não pode receber teste de plano: ele precisa estar no plano Grátis, sem assinatura paga pendente ou em atraso.");
   }
 
   const expiraEm = calcularFimTeste(new Date(), dias);

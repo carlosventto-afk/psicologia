@@ -9,9 +9,15 @@ export const PLANOS_LIBERAVEIS = ["gestao", "gestao_marketing", "marketing"];
 // Quantos dias antes do fim o usuário é avisado.
 export const DIAS_AVISO = 3;
 
-// Elegível: plano grátis e sem plano pretendido.
+// Elegível: plano grátis, sem plano pretendido e sem plano pago (um
+// inadimplente pós-carência é rebaixado para grátis mas mantém plano_pago;
+// o teste dele nunca expiraria e mascararia o plano pago).
 export function podeReceberTeste(usuario) {
-  return usuario?.plano === "gratis" && usuario?.plano_pretendido == null;
+  return (
+    usuario?.plano === "gratis" &&
+    !usuario?.plano_pretendido &&
+    !usuario?.plano_pago
+  );
 }
 
 // Soma `dias` ao maior entre `agora` e `fimAtual` (estende teste vigente).
