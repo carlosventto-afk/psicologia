@@ -49,3 +49,50 @@ export function intervaloDoMes(anoEntrada, mesEntrada) {
   const fim = mes === 12 ? fmt(ano + 1, 1) : fmt(ano, mes + 1);
   return { inicio, fim };
 }
+
+// Agrupa sessoes (ja trazidas com Paciente e RecebimentoSessao) por paciente,
+// mantendo so as elegiveis. Ordena por nome do paciente.
+export function agruparPendenciasPorPaciente(sessoes) {
+  const porPaciente = new Map();
+  for (const s of sessoes ?? []) {
+    if (!sessaoElegivel(s) || !s.paciente) continue;
+    let grupo = porPaciente.get(s.paciente.id);
+    if (!grupo) {
+      grupo = { paciente: s.paciente, sessoes: [] };
+      porPaciente.set(s.paciente.id, grupo);
+    }
+    grupo.sessoes.push(s);
+  }
+  return [...porPaciente.values()]
+    .map(({ paciente, sessoes: lista }) => ({
+      paciente,
+      qtdSessoes: lista.length,
+      total: totalCobranca(lista),
+      tipoDocumentoPadrao: tipoDocumentoDoPaciente(paciente.documento),
+      sessaoIds: lista.map((s) => s.id),
+    }))
+    .sort((a, b) => String(a.paciente.nome).localeCompare(String(b.paciente.nome), "pt-BR"));
+}
+
+// Mesma regra do recebimento em lote: um unico responsavel vinculado e usado
+// automaticamente; com varios, o usuario precisa escolher um deles.
+export function escolherResponsavel(responsaveis, escolhidoId) {
+  const lista = responsaveis ?? [];
+  if (lista.length === 0) {
+    return { error: "Cadastre um responsável financeiro para este paciente antes de criar a cobrança." };
+  }
+  if (lista.length === 1) return { id: Number(lista[0].id) };
+  const escolhido = lista.find((r) => Number(r.id) === Number(escolhidoId));
+  if (!escolhido) return { error: "Selecione o responsável financeiro da cobrança." };
+  return { id: Number(escolhido.id) };
+}
+
+const PREFIXO_ERRO = "COBRANCA: ";
+
+// Traduz o erro do Supabase/Postgres em mensagem para o usuario.
+export function mensagemErroCobranca(erro) {
+  const msg = String(erro?.message ?? "");
+  if (msg.startsWith(PREFIXO_ERRO)) return msg.slice(PREFIXO_ERRO.length);
+  if (erro?.code === "23505") return "Algumas dessas sessões já foram incluídas em outra cobrança.";
+  return "Não foi possível concluir a operação. Tente novamente.";
+}

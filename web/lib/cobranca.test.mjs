@@ -6,6 +6,9 @@ import {
   totalCobranca,
   tipoDocumentoDoPaciente,
   intervaloDoMes,
+  agruparPendenciasPorPaciente,
+  escolherResponsavel,
+  mensagemErroCobranca,
 } from "./cobranca.js";
 
 test("saldoSessao desconta pagamento parcial", () => {
@@ -79,4 +82,46 @@ test("intervaloDoMes", () => {
 
 test("intervaloDoMes aceita strings", () => {
   assert.deepEqual(intervaloDoMes("2026", "12"), { inicio: "2026-12-01", fim: "2027-01-01" });
+});
+
+test("agruparPendenciasPorPaciente agrupa, soma saldo e ignora inelegiveis", () => {
+  const joao = { id: 1, nome: "Joao", documento: "recibo" };
+  const ana = { id: 2, nome: "Ana", documento: null };
+  const sessoes = [
+    { id: 10, valor: 100, paciente: joao, RecebimentoSessao: [{ valor_aplicado: 40 }] },
+    { id: 11, valor: 100, paciente: joao },
+    { id: 12, valor: 100, paciente: joao, status: "Cancelada" },
+    { id: 13, valor: 100, paciente: joao, emCobrancaAtiva: true },
+    { id: 14, valor: 80, paciente: ana },
+    { id: 15, valor: 50, paciente: ana, RecebimentoSessao: [{ valor_aplicado: 50 }] },
+  ];
+  const r = agruparPendenciasPorPaciente(sessoes);
+  assert.equal(r.length, 2);
+  assert.equal(r[0].paciente.nome, "Ana");
+  assert.equal(r[0].qtdSessoes, 1);
+  assert.equal(r[0].total, 80);
+  assert.equal(r[0].tipoDocumentoPadrao, "nenhum");
+  assert.equal(r[1].qtdSessoes, 2);
+  assert.equal(r[1].total, 160);
+  assert.equal(r[1].tipoDocumentoPadrao, "recibo");
+  assert.deepEqual(r[1].sessaoIds, [10, 11]);
+});
+
+test("escolherResponsavel: nenhum, unico e varios", () => {
+  assert.ok(escolherResponsavel([], null).error);
+  assert.deepEqual(escolherResponsavel([{ id: 5 }], null), { id: 5 });
+  assert.deepEqual(escolherResponsavel([{ id: 5 }], 99), { id: 5 });
+  assert.ok(escolherResponsavel([{ id: 5 }, { id: 6 }], null).error);
+  assert.ok(escolherResponsavel([{ id: 5 }, { id: 6 }], 7).error);
+  assert.deepEqual(escolherResponsavel([{ id: 5 }, { id: 6 }], "6"), { id: 6 });
+});
+
+test("mensagemErroCobranca traduz erros", () => {
+  assert.equal(mensagemErroCobranca({ message: "COBRANCA: cobrança não encontrada." }), "cobrança não encontrada.");
+  assert.equal(
+    mensagemErroCobranca({ code: "23505", message: "duplicate key" }),
+    "Algumas dessas sessões já foram incluídas em outra cobrança."
+  );
+  assert.match(mensagemErroCobranca({ message: "boom" }), /Não foi possível/);
+  assert.match(mensagemErroCobranca(null), /Não foi possível/);
 });
