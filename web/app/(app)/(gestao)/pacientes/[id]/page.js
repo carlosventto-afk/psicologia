@@ -15,11 +15,18 @@ import DesfazerRecebimentoBotao from "@/components/DesfazerRecebimentoBotao";
 import { listarResponsaveisDoPaciente, listarResponsaveisParaVincular } from "@/lib/data/responsaveis-financeiros";
 import { vincularResponsavelExistente, criarEVincularResponsavel, desvincularResponsavel } from "@/lib/actions/responsaveis-financeiros";
 import ResponsaveisFinanceirosPaciente from "@/components/ResponsaveisFinanceirosPaciente";
+import { listarSessoesElegiveis, listarCobrancas } from "@/lib/data/cobrancas";
+import { listarContas } from "@/lib/data/contas";
+import { sessaoRealizada, saldoSessao, tipoDocumentoDoPaciente, hojeSaoPaulo } from "@/lib/cobranca";
+import AgruparSessoesForm from "@/components/AgruparSessoesForm";
+import ReceberCobrancaToggle from "@/components/ReceberCobrancaToggle";
+import SituacaoCobrancaBadge, { ROTULOS_DOCUMENTO, dataBR } from "@/components/SituacaoCobrancaBadge";
 
 const ABAS = [
   { chave: "dados", rotulo: "Dados" },
   { chave: "anamnese", rotulo: "Anamnese" },
   { chave: "sessoes", rotulo: "Sessões" },
+  { chave: "cobrancas", rotulo: "Cobranças" },
 ];
 
 function rotuloCampo(chave) {
@@ -41,6 +48,18 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
     listarResponsaveisDoPaciente(pacienteId),
     listarResponsaveisParaVincular(pacienteId),
   ]);
+  const [elegiveis, cobrancas, contas] =
+    aba === "cobrancas"
+      ? await Promise.all([listarSessoesElegiveis(pacienteId), listarCobrancas({ pacienteId }), listarContas()])
+      : [[], [], []];
+  const sessoesParaAgrupar = elegiveis.map((s) => ({
+    id: s.id,
+    data: s.data,
+    horario: s.horario,
+    status: s.status ?? "Marcada",
+    realizada: sessaoRealizada(s),
+    saldo: saldoSessao(s),
+  }));
   const vincularAcaoComId = vincularResponsavelExistente.bind(null, pacienteId);
   const criarEVincularAcaoComId = criarEVincularResponsavel.bind(null, pacienteId);
   const desvincularAcaoComId = desvincularResponsavel.bind(null, pacienteId);
@@ -265,13 +284,27 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                     {s.saldo_devedor > 0 ? (
                       s.status !== "Cancelada" && (
                         <>
-                          <Link
-                            href={`/sessoes/${s.id}/receber?voltarPara=${encodeURIComponent(`/pacientes/${pacienteId}?aba=sessoes`)}`}
-                            className="link"
-                          >
-                            Receber
-                          </Link>
-                          {(() => {
+                          {s.cobranca_aberta_id ? (
+                            <>
+                              <Link
+                                href={`/cobrancas/${s.cobranca_aberta_id}`}
+                                className="rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-800"
+                              >
+                                Cobrada
+                              </Link>
+                              <Link href={`/cobrancas/${s.cobranca_aberta_id}`} className="link text-xs">
+                                Receba pela cobrança #{s.cobranca_aberta_id}
+                              </Link>
+                            </>
+                          ) : (
+                            <Link
+                              href={`/sessoes/${s.id}/receber?voltarPara=${encodeURIComponent(`/pacientes/${pacienteId}?aba=sessoes`)}`}
+                              className="link"
+                            >
+                              Receber
+                            </Link>
+                          )}
+                          {!s.cobranca_aberta_id && (() => {
                             const recebimentoSuficiente = credito.recebimentos.find((r) => r.saldo >= s.saldo_devedor);
                             return (
                               recebimentoSuficiente && (
@@ -305,6 +338,52 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {aba === "cobrancas" && (
+        <div className="space-y-8">
+          <div className="space-y-3">
+            <h2 className="text-lg font-bold text-navy">Sessões sem cobrança</h2>
+            <AgruparSessoesForm
+              pacienteId={pacienteId}
+              sessoes={sessoesParaAgrupar}
+              tipoDocumentoPadrao={tipoDocumentoDoPaciente(paciente.documento)}
+              responsaveis={responsaveis}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-lg font-bold text-navy">Cobranças do paciente</h2>
+            {cobrancas.length === 0 ? (
+              <p className="empty-state">Nenhuma cobrança deste paciente.</p>
+            ) : (
+              <div className="space-y-3">
+                {cobrancas.map((c) => (
+                  <div key={c.id} className="card space-y-3 px-4 py-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="font-semibold text-navy">{formatarMoeda(c.valor_total)}</span>
+                      <span className="text-muted">
+                        {c.data_inicio
+                          ? c.data_inicio === c.data_fim
+                            ? dataBR(c.data_inicio)
+                            : `${dataBR(c.data_inicio)} a ${dataBR(c.data_fim)}`
+                          : "—"}
+                      </span>
+                      <span className="text-muted">{ROTULOS_DOCUMENTO[c.tipo_documento] ?? c.tipo_documento}</span>
+                      <SituacaoCobrancaBadge situacao={c.situacao} />
+                      <Link href={`/cobrancas/${c.id}`} className="link">
+                        Ver
+                      </Link>
+                    </div>
+                    {c.situacao === "aberta" && (
+                      <ReceberCobrancaToggle cobrancaId={c.id} contas={contas} hoje={hojeSaoPaulo()} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

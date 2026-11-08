@@ -6,7 +6,7 @@ import { hojeISO } from "@/lib/periodo-agenda";
 
 const estadoInicial = {};
 
-export default function ReceberCobrancaForm({ cobrancaId, contas }) {
+export default function ReceberCobrancaForm({ cobrancaId, contas, hoje }) {
   const acao = receberCobranca.bind(null, cobrancaId);
   const [state, formAction, pending] = useActionState(acao, estadoInicial);
 
@@ -21,7 +21,7 @@ export default function ReceberCobrancaForm({ cobrancaId, contas }) {
           name="data_recebimento"
           type="date"
           required
-          defaultValue={hojeISO()}
+          defaultValue={hoje ?? hojeISO()}
           className="field"
         />
       </div>

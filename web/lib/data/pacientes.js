@@ -161,7 +161,7 @@ export async function listarSessoesDoPaciente(pacienteId) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Sessao")
-    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(recebimento, valor_aplicado)")
+    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(recebimento, valor_aplicado), CobrancaSessao(ativa, cobranca, Cobranca(id, situacao))")
     .eq("paciente", pacienteId)
     .order("data", { ascending: false })
     .order("horario", { ascending: false });
@@ -170,11 +170,13 @@ export async function listarSessoesDoPaciente(pacienteId) {
 
   return normalizarIdsLista(data, ["id"]).map((s) => {
     const valorRecebido = (s.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
+    const vinculoAberto = (s.CobrancaSessao ?? []).find((c) => c.ativa && c.Cobranca?.situacao === "aberta");
     return {
       id: s.id,
       data: s.data,
       horario: s.horario,
       status: s.status,
+      cobranca_aberta_id: vinculoAberto ? Number(vinculoAberto.Cobranca.id) : null,
       tipo_sessao: s.tipo_sessao,
       valor: Number(s.valor),
       valor_recebido: valorRecebido,

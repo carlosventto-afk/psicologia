@@ -17,6 +17,7 @@ import {
   mesDoParametro,
   valorMes,
   rotuloMes,
+  hojeSaoPaulo,
 } from "./cobranca.js";
 
 test("saldoSessao desconta pagamento parcial", () => {
@@ -183,4 +184,9 @@ test("mes: anterior, validacao do parametro, valor e rotulo", () => {
 test("mesAnterior usa America/Sao_Paulo", () => {
   assert.deepEqual(mesAnterior(new Date("2026-12-01T01:00:00Z")), { ano: 2026, mes: 10 });
   assert.deepEqual(mesAnterior(new Date("2026-01-15T12:00:00Z")), { ano: 2025, mes: 12 });
+});
+
+test("hojeSaoPaulo usa America/Sao_Paulo", () => {
+  assert.equal(hojeSaoPaulo(new Date("2026-12-01T01:00:00Z")), "2026-11-30");
+  assert.equal(hojeSaoPaulo(new Date("2026-12-01T12:00:00Z")), "2026-12-01");
 });

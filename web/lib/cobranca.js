@@ -164,3 +164,13 @@ export function valorMes({ ano, mes }) {
 export function rotuloMes({ ano, mes }) {
   return `${MESES_ROTULO[mes - 1]}/${ano}`;
 }
+
+// Data de hoje (YYYY-MM-DD) em Brasilia; o servidor pode rodar em UTC.
+export function hojeSaoPaulo(agora = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(agora);
+}

@@ -5,6 +5,7 @@ import { listarContas } from "@/lib/data/contas";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import ReceberCobrancaForm from "@/components/ReceberCobrancaForm";
 import CancelarCobrancaBotao from "@/components/CancelarCobrancaBotao";
+import { hojeSaoPaulo } from "@/lib/cobranca";
 import SituacaoCobrancaBadge, { ROTULOS_DOCUMENTO, dataBR } from "@/components/SituacaoCobrancaBadge";
 
 export default async function PaginaCobranca({ params }) {
@@ -103,7 +104,7 @@ export default async function PaginaCobranca({ params }) {
       {aberta && (
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-navy">Receber cobrança</h2>
-          <ReceberCobrancaForm cobrancaId={cobranca.id} contas={contas} />
+          <ReceberCobrancaForm cobrancaId={cobranca.id} contas={contas} hoje={hojeSaoPaulo()} />
           <CancelarCobrancaBotao cobrancaId={cobranca.id} />
         </div>
       )}
