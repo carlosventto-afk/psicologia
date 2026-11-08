@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { gerarSessoesAteHorizonte, horizonteAtual, diffDias, somarDias } from "@/lib/recorrencia";
 import { criarRecebimento } from "@/lib/recebimento";
+import { mensagemBloqueioOu } from "@/lib/cobranca";
 import { cancelarRecorrencia } from "@/lib/actions/recorrencias";
 
 export async function criarSessao(prevState, formData) {
@@ -114,7 +115,7 @@ export async function atualizarSessao(sessaoId, prevState, formData) {
     .eq("id", sessaoId);
 
   if (error) {
-    return { error: "Não foi possível atualizar a sessão." };
+    return { error: mensagemBloqueioOu(error, "Não foi possível atualizar a sessão.") };
   }
 
   if (aplicarSerie && sessaoAntes.recorrencia_id) {
@@ -170,7 +171,7 @@ async function propagarDataHorarioParaSerie({
   }
 }
 
-export async function cancelarSessao(sessaoId, formData) {
+export async function cancelarSessao(sessaoId, prevState, formData) {
   const supabase = await createClient();
 
   const { data: sessaoAtual, error: erroSessaoAtual } = await supabase
@@ -184,7 +185,7 @@ export async function cancelarSessao(sessaoId, formData) {
   }
 
   if (sessaoAtual.Realizado) {
-    throw new Error("Esta sessão já foi registrada como realizada e não pode ser cancelada.");
+    return { error: "Esta sessão já foi registrada como realizada e não pode ser cancelada." };
   }
 
   const aplicarSerie = formData?.get?.("aplicar_serie") === "true";
@@ -194,7 +195,10 @@ export async function cancelarSessao(sessaoId, formData) {
   // série inteira e cancela as sessões futuras não realizadas (inclusive
   // esta) — evita duplicar essa decisão em dois lugares.
   if (aplicarSerie && sessaoAtual.recorrencia_id) {
-    await cancelarRecorrencia(sessaoAtual.recorrencia_id);
+    const { error: erroSerie } = await cancelarRecorrencia(sessaoAtual.recorrencia_id);
+    if (erroSerie) {
+      return { error: erroSerie };
+    }
     revalidatePath("/agenda");
     revalidatePath("/painel");
     redirect(voltarPara);
@@ -210,7 +214,7 @@ export async function cancelarSessao(sessaoId, formData) {
   }
 
   if (alocacoes.length > 0) {
-    throw new Error("Esta sessão já tem recebimento aplicado. Desfaça a alocação no recebimento antes de cancelar.");
+    return { error: "Esta sessão já tem recebimento aplicado. Desfaça a alocação no recebimento antes de cancelar." };
   }
 
   // Sem recebimento vinculado (checado acima): apaga de vez em vez de marcar
@@ -218,7 +222,7 @@ export async function cancelarSessao(sessaoId, formData) {
   const { error } = await supabase.from("Sessao").delete().eq("id", sessaoId);
 
   if (error) {
-    throw new Error(error.message);
+    return { error: mensagemBloqueioOu(error, "Não foi possível cancelar a sessão.") };
   }
 
   revalidatePath("/agenda");

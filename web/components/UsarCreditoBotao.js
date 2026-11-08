@@ -10,7 +10,8 @@ export default function UsarCreditoBotao({ pacienteId, sessaoId, recebimentoId, 
     setErro(null);
     startTransition(async () => {
       try {
-        await onUsarCredito(pacienteId, sessaoId, recebimentoId);
+        const r = await onUsarCredito(pacienteId, sessaoId, recebimentoId);
+        if (r?.error) setErro(r.error);
       } catch (e) {
         setErro(e.message);
       }
