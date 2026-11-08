@@ -134,9 +134,15 @@ const MESES_ROTULO = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
-export function mesAnterior(hoje = new Date()) {
-  const ano = hoje.getFullYear();
-  const mes = hoje.getMonth() + 1;
+export function mesAnterior(agora = new Date()) {
+  // Mes corrente em Brasilia (o servidor pode rodar em UTC).
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(agora);
+  const ano = Number(partes.find((p) => p.type === "year").value);
+  const mes = Number(partes.find((p) => p.type === "month").value);
   return mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
 }
 

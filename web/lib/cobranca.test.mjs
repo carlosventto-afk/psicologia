@@ -169,13 +169,18 @@ test("pacientesParaEnviar exclui marcados sem sessoes", () => {
 });
 
 test("mes: anterior, validacao do parametro, valor e rotulo", () => {
-  assert.deepEqual(mesAnterior(new Date(2026, 10, 7)), { ano: 2026, mes: 10 });
-  assert.deepEqual(mesAnterior(new Date(2026, 0, 15)), { ano: 2025, mes: 12 });
-  const hoje = new Date(2026, 10, 7);
+  assert.deepEqual(mesAnterior(new Date("2026-11-07T15:00:00Z")), { ano: 2026, mes: 10 });
+  assert.deepEqual(mesAnterior(new Date("2026-01-15T12:00:00Z")), { ano: 2025, mes: 12 });
+  const hoje = new Date("2026-11-07T15:00:00Z");
   assert.deepEqual(mesDoParametro("2026-03", hoje), { ano: 2026, mes: 3 });
   for (const ruim of ["2026-13", "2026-00", "2026-3", "abc", "", null, undefined, "2026-03-01", "1999-05", ["2026-03"]]) {
     assert.deepEqual(mesDoParametro(ruim, hoje), { ano: 2026, mes: 10 }, String(ruim));
   }
   assert.equal(valorMes({ ano: 2026, mes: 3 }), "2026-03");
   assert.equal(rotuloMes({ ano: 2026, mes: 3 }), "Março/2026");
+});
+
+test("mesAnterior usa America/Sao_Paulo", () => {
+  assert.deepEqual(mesAnterior(new Date("2026-12-01T01:00:00Z")), { ano: 2026, mes: 10 });
+  assert.deepEqual(mesAnterior(new Date("2026-01-15T12:00:00Z")), { ano: 2025, mes: 12 });
 });

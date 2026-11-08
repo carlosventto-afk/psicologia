@@ -29,11 +29,13 @@ export default async function PaginaNovaCobranca({ searchParams }) {
         </button>
       </form>
 
-      {pacientes.length === 0 ? (
-        <p className="empty-state">Nenhum paciente com sessões pendentes de cobrança em {rotuloMes(mes)}.</p>
-      ) : (
-        <NovaCobrancaMesForm key={valorMes(mes)} action={criarCobrancasDoMes} periodo={inicio} pacientes={pacientes} />
-      )}
+      <NovaCobrancaMesForm
+        key={valorMes(mes)}
+        action={criarCobrancasDoMes}
+        periodo={inicio}
+        pacientes={pacientes}
+        rotuloMes={rotuloMes(mes)}
+      />
     </div>
   );
 }
