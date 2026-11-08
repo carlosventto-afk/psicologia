@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listarRecorrencias } from "@/lib/data/recorrencias";
-import { cancelarRecorrencia } from "@/lib/actions/recorrencias";
+import { cancelarRecorrenciaForm } from "@/lib/actions/recorrencias";
 
 export default async function PaginaRecorrencias() {
   const recorrencias = await listarRecorrencias();
@@ -14,7 +14,7 @@ export default async function PaginaRecorrencias() {
       ) : (
         <div className="space-y-3">
           {recorrencias.map((r) => {
-            const acao = cancelarRecorrencia.bind(null, r.id);
+            const acao = cancelarRecorrenciaForm.bind(null, r.id);
             return (
               <div
                 key={r.id}

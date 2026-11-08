@@ -97,11 +97,12 @@ export async function listarPacientesParaSelect(excluirId, incluirId) {
 export async function verificarVinculosPaciente(id) {
   const supabase = await createClient();
 
-  const [sessoes, recibos, recorrencias, recebimentos, responsavelProprio] = await Promise.all([
+  const [sessoes, recibos, recorrencias, recebimentos, cobrancas, responsavelProprio] = await Promise.all([
     supabase.from("Sessao").select("id", { count: "exact", head: true }).eq("paciente", id),
     supabase.from("Recibo").select("id", { count: "exact", head: true }).eq("paciente", id),
     supabase.from("Recorrencia").select("id", { count: "exact", head: true }).eq("paciente", id),
     supabase.from("Recebimento").select("id", { count: "exact", head: true }).eq("paciente", id),
+    supabase.from("Cobranca").select("id", { count: "exact", head: true }).eq("paciente", id),
     supabase.from("ResponsavelFinanceiro").select("id").eq("paciente_vinculado", id).maybeSingle(),
   ]);
 
@@ -109,6 +110,7 @@ export async function verificarVinculosPaciente(id) {
   if (recibos.error) throw new Error(recibos.error.message);
   if (recorrencias.error) throw new Error(recorrencias.error.message);
   if (recebimentos.error) throw new Error(recebimentos.error.message);
+  if (cobrancas.error) throw new Error(cobrancas.error.message);
   if (responsavelProprio.error) throw new Error(responsavelProprio.error.message);
 
   const vinculos = [];
@@ -118,6 +120,7 @@ export async function verificarVinculosPaciente(id) {
   if (recebimentos.count > 0) {
     vinculos.push({ tipo: "recebimento(s) (crédito antecipado)", quantidade: recebimentos.count });
   }
+  if (cobrancas.count > 0) vinculos.push({ tipo: "cobrança(s)", quantidade: cobrancas.count });
 
   if (responsavelProprio.data) {
     const { data: outrosPacientes, error: erroOutros } = await supabase

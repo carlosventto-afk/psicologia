@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { gerarSessoesAteHorizonte, horizonteAtual, diffDias, somarDias } from "@/lib/recorrencia";
 import { criarRecebimento } from "@/lib/recebimento";
+import { mensagemBloqueioOu } from "@/lib/cobranca";
 import { cancelarRecorrencia } from "@/lib/actions/recorrencias";
 
 export async function criarSessao(prevState, formData) {
@@ -114,7 +115,7 @@ export async function atualizarSessao(sessaoId, prevState, formData) {
     .eq("id", sessaoId);
 
   if (error) {
-    return { error: "Não foi possível atualizar a sessão." };
+    return { error: mensagemBloqueioOu(error, "Não foi possível atualizar a sessão.") };
   }
 
   if (aplicarSerie && sessaoAntes.recorrencia_id) {
@@ -194,7 +195,10 @@ export async function cancelarSessao(sessaoId, formData) {
   // série inteira e cancela as sessões futuras não realizadas (inclusive
   // esta) — evita duplicar essa decisão em dois lugares.
   if (aplicarSerie && sessaoAtual.recorrencia_id) {
-    await cancelarRecorrencia(sessaoAtual.recorrencia_id);
+    const { error: erroSerie } = await cancelarRecorrencia(sessaoAtual.recorrencia_id);
+    if (erroSerie) {
+      throw new Error(erroSerie);
+    }
     revalidatePath("/agenda");
     revalidatePath("/painel");
     redirect(voltarPara);
@@ -218,7 +222,7 @@ export async function cancelarSessao(sessaoId, formData) {
   const { error } = await supabase.from("Sessao").delete().eq("id", sessaoId);
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(mensagemBloqueioOu(error, error.message));
   }
 
   revalidatePath("/agenda");
