@@ -18,7 +18,7 @@ export function saldoSessao(sessao) {
 }
 
 export function sessaoElegivel(sessao) {
-  if (sessao?.status === "Cancelada") return false;
+  if (String(sessao?.status ?? "").toLowerCase() === "cancelada") return false;
   if (sessao?.emCobrancaAtiva) return false;
   return saldoEmCentavos(sessao) > 0;
 }
@@ -41,7 +41,9 @@ export function tipoDocumentoDoPaciente(documento) {
 }
 
 // mes de 1 a 12; fim exclusivo (primeiro dia do mes seguinte).
-export function intervaloDoMes(ano, mes) {
+export function intervaloDoMes(anoEntrada, mesEntrada) {
+  const ano = Number(anoEntrada);
+  const mes = Number(mesEntrada);
   const fmt = (a, m) => `${String(a).padStart(4, "0")}-${String(m).padStart(2, "0")}-01`;
   const inicio = fmt(ano, mes);
   const fim = mes === 12 ? fmt(ano + 1, 1) : fmt(ano, mes + 1);

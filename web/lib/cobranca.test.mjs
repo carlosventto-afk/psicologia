@@ -32,6 +32,10 @@ test("sessaoElegivel: Cancelada e inelegivel", () => {
   assert.equal(sessaoElegivel({ status: "Cancelada", valor: 150 }), false);
 });
 
+test("sessaoElegivel: 'cancelada' em minusculas (agente WhatsApp) e inelegivel", () => {
+  assert.equal(sessaoElegivel({ status: "cancelada", valor: 150 }), false);
+});
+
 test("sessaoElegivel: saldo zero e inelegivel", () => {
   assert.equal(
     sessaoElegivel({ status: "Realizada", valor: 150, RecebimentoSessao: [{ valor_aplicado: 150 }] }),
@@ -71,4 +75,8 @@ test("intervaloDoMes", () => {
   assert.deepEqual(intervaloDoMes(2026, 2), { inicio: "2026-02-01", fim: "2026-03-01" });
   assert.deepEqual(intervaloDoMes(2026, 12), { inicio: "2026-12-01", fim: "2027-01-01" });
   assert.deepEqual(intervaloDoMes(2026, 1), { inicio: "2026-01-01", fim: "2026-02-01" });
+});
+
+test("intervaloDoMes aceita strings", () => {
+  assert.deepEqual(intervaloDoMes("2026", "12"), { inicio: "2026-12-01", fim: "2027-01-01" });
 });
