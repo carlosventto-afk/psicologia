@@ -122,5 +122,28 @@ export async function listarPacientesComPendencias(intervalo) {
     paciente: normalizarIds(s.Paciente, ["id"]),
   }));
 
-  return agruparPendenciasPorPaciente(sessoes);
+  const grupos = agruparPendenciasPorPaciente(sessoes);
+  if (grupos.length === 0) return grupos;
+
+  // Responsaveis financeiros vinculados (campo extra `responsaveis`; o resto do
+  // formato e o mesmo de antes).
+  const ids = grupos.map((g) => g.paciente.id);
+  const { data: vinculos, error: erroResp } = await supabase
+    .from("PacienteResponsavelFinanceiro")
+    .select("paciente, ResponsavelFinanceiro!inner(id, nome, paciente_vinculado)")
+    .in("paciente", ids);
+  if (erroResp) throw new Error(erroResp.message);
+
+  const porPaciente = new Map();
+  for (const v of vinculos ?? []) {
+    const pid = Number(v.paciente);
+    const lista = porPaciente.get(pid) ?? [];
+    lista.push({
+      id: Number(v.ResponsavelFinanceiro.id),
+      nome: v.ResponsavelFinanceiro.nome,
+      eh_proprio: Number(v.ResponsavelFinanceiro.paciente_vinculado) === pid,
+    });
+    porPaciente.set(pid, lista);
+  }
+  return grupos.map((g) => ({ ...g, responsaveis: porPaciente.get(Number(g.paciente.id)) ?? [] }));
 }

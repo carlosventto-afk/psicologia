@@ -95,6 +95,7 @@ export async function criarCobrancasDoMes(prevState, formData) {
     }
   }
 
+  revalidatePath("/cobrancas/nova");
   revalidatePath("/cobrancas");
   revalidatePath("/agenda");
   revalidatePath("/financeiro");

@@ -70,6 +70,14 @@ export function agruparPendenciasPorPaciente(sessoes) {
       total: totalCobranca(lista),
       tipoDocumentoPadrao: tipoDocumentoDoPaciente(paciente.documento),
       sessaoIds: lista.map((s) => s.id),
+      sessoes: lista.map((s) => ({
+        id: s.id,
+        data: s.data,
+        horario: s.horario,
+        status: s.status ?? "Marcada",
+        realizada: sessaoRealizada(s),
+        saldo: saldoSessao(s),
+      })),
     }))
     .sort((a, b) => String(a.paciente.nome).localeCompare(String(b.paciente.nome), "pt-BR"));
 }
@@ -95,4 +103,58 @@ export function mensagemErroCobranca(erro) {
   if (msg.startsWith(PREFIXO_ERRO)) return msg.slice(PREFIXO_ERRO.length);
   if (erro?.code === "23505") return "Algumas dessas sessões já foram incluídas em outra cobrança.";
   return "Não foi possível concluir a operação. Tente novamente.";
+}
+
+// Sessao conta como realizada pelo status ou pela flag Realizado.
+export function sessaoRealizada(sessao) {
+  return String(sessao?.status ?? "").toLowerCase() === "realizada" || sessao?.Realizado === true;
+}
+
+// Ids das sessoes marcadas por padrao: so as realizadas.
+export function sessoesMarcadasPorPadrao(sessoes) {
+  return (sessoes ?? []).filter((s) => s.realizada).map((s) => s.id);
+}
+
+// Total (display) das sessoes marcadas; o servidor recalcula. sessoes tem { id, saldo }.
+export function totalSelecionado(sessoes, idsMarcados) {
+  const marcados = new Set(idsMarcados ?? []);
+  const centavos = (sessoes ?? [])
+    .filter((s) => marcados.has(s.id))
+    .reduce((soma, s) => soma + paraCentavos(s.saldo), 0);
+  return centavos / 100;
+}
+
+// Pacientes que entram no envio: marcados e com ao menos uma sessao marcada.
+export function pacientesParaEnviar(pacientesMarcados, sessoesMarcadasPorPaciente) {
+  return (pacientesMarcados ?? []).filter((id) => (sessoesMarcadasPorPaciente?.[id] ?? []).length > 0);
+}
+
+const MESES_ROTULO = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+export function mesAnterior(hoje = new Date()) {
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth() + 1;
+  return mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
+}
+
+// Valida o parametro ?mes=YYYY-MM estritamente; invalido cai no mes anterior.
+export function mesDoParametro(param, hoje = new Date()) {
+  const m = typeof param === "string" ? /^(\d{4})-(\d{2})$/.exec(param) : null;
+  if (m) {
+    const ano = Number(m[1]);
+    const mes = Number(m[2]);
+    if (ano >= 2000 && ano <= 2100 && mes >= 1 && mes <= 12) return { ano, mes };
+  }
+  return mesAnterior(hoje);
+}
+
+export function valorMes({ ano, mes }) {
+  return `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}`;
+}
+
+export function rotuloMes({ ano, mes }) {
+  return `${MESES_ROTULO[mes - 1]}/${ano}`;
 }

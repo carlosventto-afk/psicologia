@@ -9,6 +9,14 @@ import {
   agruparPendenciasPorPaciente,
   escolherResponsavel,
   mensagemErroCobranca,
+  sessaoRealizada,
+  sessoesMarcadasPorPadrao,
+  totalSelecionado,
+  pacientesParaEnviar,
+  mesAnterior,
+  mesDoParametro,
+  valorMes,
+  rotuloMes,
 } from "./cobranca.js";
 
 test("saldoSessao desconta pagamento parcial", () => {
@@ -124,4 +132,50 @@ test("mensagemErroCobranca traduz erros", () => {
   );
   assert.match(mensagemErroCobranca({ message: "boom" }), /Não foi possível/);
   assert.match(mensagemErroCobranca(null), /Não foi possível/);
+});
+
+test("sessaoRealizada e marcadas por padrao", () => {
+  assert.equal(sessaoRealizada({ status: "Realizada" }), true);
+  assert.equal(sessaoRealizada({ status: "realizada" }), true);
+  assert.equal(sessaoRealizada({ status: "Marcada", Realizado: true }), true);
+  assert.equal(sessaoRealizada({ status: "Marcada" }), false);
+  assert.deepEqual(
+    sessoesMarcadasPorPadrao([{ id: 1, realizada: true }, { id: 2, realizada: false }, { id: 3, realizada: true }]),
+    [1, 3]
+  );
+});
+
+test("agrupar expoe detalhe das sessoes", () => {
+  const r = agruparPendenciasPorPaciente([
+    { id: 1, status: "Realizada", valor: 80, data: "2026-10-01", horario: "10:00", paciente: { id: 1, nome: "Ana" } },
+    { id: 2, status: null, valor: 80, data: "2026-10-08", horario: "10:00", paciente: { id: 1, nome: "Ana" } },
+  ]);
+  assert.equal(r[0].sessoes[0].realizada, true);
+  assert.equal(r[0].sessoes[1].realizada, false);
+  assert.equal(r[0].sessoes[1].status, "Marcada");
+  assert.equal(r[0].sessoes[0].saldo, 80);
+});
+
+test("totalSelecionado soma so as marcadas", () => {
+  const ss = [{ id: 1, saldo: 80.1 }, { id: 2, saldo: 0.2 }, { id: 3, saldo: 50 }];
+  assert.equal(totalSelecionado(ss, [1, 2]), 80.3);
+  assert.equal(totalSelecionado(ss, []), 0);
+  assert.equal(totalSelecionado(null, null), 0);
+});
+
+test("pacientesParaEnviar exclui marcados sem sessoes", () => {
+  assert.deepEqual(pacientesParaEnviar([1, 2, 3], { 1: [10], 2: [], 3: [5, 6] }), [1, 3]);
+  assert.deepEqual(pacientesParaEnviar([4], {}), []);
+});
+
+test("mes: anterior, validacao do parametro, valor e rotulo", () => {
+  assert.deepEqual(mesAnterior(new Date(2026, 10, 7)), { ano: 2026, mes: 10 });
+  assert.deepEqual(mesAnterior(new Date(2026, 0, 15)), { ano: 2025, mes: 12 });
+  const hoje = new Date(2026, 10, 7);
+  assert.deepEqual(mesDoParametro("2026-03", hoje), { ano: 2026, mes: 3 });
+  for (const ruim of ["2026-13", "2026-00", "2026-3", "abc", "", null, undefined, "2026-03-01", "1999-05", ["2026-03"]]) {
+    assert.deepEqual(mesDoParametro(ruim, hoje), { ano: 2026, mes: 10 }, String(ruim));
+  }
+  assert.equal(valorMes({ ano: 2026, mes: 3 }), "2026-03");
+  assert.equal(rotuloMes({ ano: 2026, mes: 3 }), "Março/2026");
 });
