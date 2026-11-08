@@ -20,7 +20,9 @@ as $$
   select c.id
     from "CobrancaSessao" cs
     join "Cobranca" c on c.id = cs.cobranca
+    join "Sessao" s on s.id = cs.sessao
     where cs.sessao = p_sessao
+      and c.owner = s.owner
       and cs.ativa
       and c.situacao = 'aberta'
     limit 1;

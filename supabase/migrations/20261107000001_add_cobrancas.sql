@@ -50,19 +50,52 @@ alter table "CobrancaSessao" enable row level security;
 
 create policy "cobranca_select_own" on "Cobranca"
   for select using (owner = auth.uid() or public.is_admin());
+-- WITH CHECK confere tambem que paciente/responsavel/recebimento referenciados
+-- sao do proprio usuario (a checagem de FK ignora RLS). Os subselects rodam com
+-- a RLS do chamador, que enxerga as proprias linhas.
 create policy "cobranca_insert_own" on "Cobranca"
-  for insert with check (owner = auth.uid());
+  for insert with check (
+    owner = auth.uid()
+    and exists (select 1 from "Paciente" p where p.id = "Cobranca".paciente and p.owner = auth.uid())
+    and exists (select 1 from "ResponsavelFinanceiro" r where r.id = "Cobranca".responsavel_financeiro and r.owner = auth.uid())
+    and ("Cobranca".recebimento is null
+         or exists (select 1 from "Recebimento" rc where rc.id = "Cobranca".recebimento and rc.owner = auth.uid()))
+  );
 create policy "cobranca_update_own" on "Cobranca"
-  for update using (owner = auth.uid() or public.is_admin()) with check (owner = auth.uid() or public.is_admin());
+  for update using (owner = auth.uid() or public.is_admin())
+  with check (
+    public.is_admin()
+    or (
+      owner = auth.uid()
+      and exists (select 1 from "Paciente" p where p.id = "Cobranca".paciente and p.owner = auth.uid())
+      and exists (select 1 from "ResponsavelFinanceiro" r where r.id = "Cobranca".responsavel_financeiro and r.owner = auth.uid())
+      and ("Cobranca".recebimento is null
+           or exists (select 1 from "Recebimento" rc where rc.id = "Cobranca".recebimento and rc.owner = auth.uid()))
+    )
+  );
 create policy "cobranca_delete_own" on "Cobranca"
   for delete using (owner = auth.uid() or public.is_admin());
 
 create policy "cobrancasessao_select_own" on "CobrancaSessao"
   for select using (owner = auth.uid() or public.is_admin());
+-- WITH CHECK: a cobranca e a sessao referenciadas tem que ser do proprio usuario
+-- (impede vincular sessao de outro dono e, com isso, bloquear/enumerar a dele).
 create policy "cobrancasessao_insert_own" on "CobrancaSessao"
-  for insert with check (owner = auth.uid());
+  for insert with check (
+    owner = auth.uid()
+    and exists (select 1 from "Cobranca" c where c.id = "CobrancaSessao".cobranca and c.owner = auth.uid())
+    and exists (select 1 from "Sessao" s where s.id = "CobrancaSessao".sessao and s.owner = auth.uid())
+  );
 create policy "cobrancasessao_update_own" on "CobrancaSessao"
-  for update using (owner = auth.uid() or public.is_admin()) with check (owner = auth.uid() or public.is_admin());
+  for update using (owner = auth.uid() or public.is_admin())
+  with check (
+    public.is_admin()
+    or (
+      owner = auth.uid()
+      and exists (select 1 from "Cobranca" c where c.id = "CobrancaSessao".cobranca and c.owner = auth.uid())
+      and exists (select 1 from "Sessao" s where s.id = "CobrancaSessao".sessao and s.owner = auth.uid())
+    )
+  );
 create policy "cobrancasessao_delete_own" on "CobrancaSessao"
   for delete using (owner = auth.uid() or public.is_admin());
 
