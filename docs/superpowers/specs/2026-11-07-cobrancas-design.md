@@ -130,5 +130,7 @@ Decisões minhas (marcadas; o usuário pode reverter):
   também no banco (trigger ou checagem na função SQL de receber), para as RPCs do agente
   não furarem a regra.
 
-Pendente do usuário (uma pergunta): comportamento do agente de WhatsApp e dos fluxos
-individuais quando o paciente paga uma sessão que já está em cobrança aberta.
+Decisão do usuário (2026-11-07): quando o paciente paga uma sessão que já está em cobrança
+aberta, o sistema **bloqueia e avisa** para receber pela cobrança — vale para recebimento
+individual, lote, crédito e para o agente de WhatsApp (que responde indicando a cobrança).
+O desenho foi aprovado pelo usuário em 2026-11-07.
