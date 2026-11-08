@@ -25,13 +25,13 @@ import {
 } from "./cobranca.js";
 
 test("textoBloqueioCobranca remove o prefixo ou devolve null", () => {
-  assert.equal(textoBloqueioCobranca({ message: "COBRANCA: na cobrança #3." }), "na cobrança #3.");
+  assert.equal(textoBloqueioCobranca({ message: "COBRANCA: na cobrança #3." }), "Na cobrança #3.");
   assert.equal(textoBloqueioCobranca({ message: "duplicate key" }), null);
   assert.equal(textoBloqueioCobranca(null), null);
 });
 
 test("mensagemBloqueioOu usa o bloqueio ou a mensagem generica", () => {
-  assert.equal(mensagemBloqueioOu({ message: "COBRANCA: x" }, "generica"), "x");
+  assert.equal(mensagemBloqueioOu({ message: "COBRANCA: x" }, "generica"), "X");
   assert.equal(mensagemBloqueioOu({ message: "boom" }, "generica"), "generica");
 });
 
@@ -162,7 +162,7 @@ test("escolherResponsavel: nenhum, unico e varios", () => {
 });
 
 test("mensagemErroCobranca traduz erros", () => {
-  assert.equal(mensagemErroCobranca({ message: "COBRANCA: cobrança não encontrada." }), "cobrança não encontrada.");
+  assert.equal(mensagemErroCobranca({ message: "COBRANCA: cobrança não encontrada." }), "Cobrança não encontrada.");
   assert.equal(
     mensagemErroCobranca({ code: "23505", message: "duplicate key" }),
     "Algumas dessas sessões já foram incluídas em outra cobrança."

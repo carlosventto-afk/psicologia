@@ -97,10 +97,12 @@ export function escolherResponsavel(responsaveis, escolhidoId) {
 
 const PREFIXO_ERRO = "COBRANCA: ";
 
+const capitalizar = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
 // Traduz o erro do Supabase/Postgres em mensagem para o usuario.
 export function mensagemErroCobranca(erro) {
   const msg = String(erro?.message ?? "");
-  if (msg.startsWith(PREFIXO_ERRO)) return msg.slice(PREFIXO_ERRO.length);
+  if (msg.startsWith(PREFIXO_ERRO)) return capitalizar(msg.slice(PREFIXO_ERRO.length));
   if (erro?.code === "23505") return "Algumas dessas sessões já foram incluídas em outra cobrança.";
   return "Não foi possível concluir a operação. Tente novamente.";
 }
@@ -109,7 +111,7 @@ export function mensagemErroCobranca(erro) {
 // de cobranca; null quando e outro tipo de erro.
 export function textoBloqueioCobranca(erro) {
   const msg = String(erro?.message ?? "");
-  return msg.startsWith(PREFIXO_ERRO) ? msg.slice(PREFIXO_ERRO.length) : null;
+  return msg.startsWith(PREFIXO_ERRO) ? capitalizar(msg.slice(PREFIXO_ERRO.length)) : null;
 }
 
 // Mensagem de bloqueio de cobranca se houver; senao o texto generico informado.

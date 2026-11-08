@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { mensagemBloqueioOu, primeiraCobrancaAberta } from "@/lib/cobranca";
@@ -71,5 +72,5 @@ export async function cancelarRecorrencia(recorrenciaId) {
 // de forma visivel em vez de agir como se tudo tivesse dado certo.
 export async function cancelarRecorrenciaForm(recorrenciaId) {
   const { error } = await cancelarRecorrencia(recorrenciaId);
-  if (error) throw new Error(error);
+  if (error) redirect(`/recorrencias?erro=${encodeURIComponent(error)}`);
 }

@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { cancelarSessao } from "@/lib/actions/sessoes";
 
 export default function CancelarSessaoButton({ sessaoId, recorrenciaId, voltarPara, className, children }) {
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
+  const [state, formAction] = useActionState(cancelarSessao.bind(null, sessaoId), null);
   const formRef = useRef(null);
   const aplicarSerieRef = useRef(null);
 
@@ -22,13 +23,15 @@ export default function CancelarSessaoButton({ sessaoId, recorrenciaId, voltarPa
 
   return (
     <>
-      <form ref={formRef} action={cancelarSessao.bind(null, sessaoId)}>
+      <form ref={formRef} action={formAction}>
         <input type="hidden" name="aplicar_serie" defaultValue="false" ref={aplicarSerieRef} />
         {voltarPara && <input type="hidden" name="voltar_para" value={voltarPara} />}
         <button type="button" onClick={handleClick} className={className}>
           {children ?? "Cancelar"}
         </button>
       </form>
+
+      {state?.error && <p className="text-xs text-red-600">{state.error}</p>}
 
       {mostrarConfirmacao && (
         <div className="fixed inset-0 z-50">

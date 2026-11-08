@@ -2,12 +2,17 @@ import Link from "next/link";
 import { listarRecorrencias } from "@/lib/data/recorrencias";
 import { cancelarRecorrenciaForm } from "@/lib/actions/recorrencias";
 
-export default async function PaginaRecorrencias() {
+export default async function PaginaRecorrencias({ searchParams }) {
+  const { erro } = await searchParams;
   const recorrencias = await listarRecorrencias();
 
   return (
     <div className="space-y-4">
       <h1 className="page-title">Recorrências</h1>
+
+      {typeof erro === "string" && erro && (
+        <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{erro}</p>
+      )}
 
       {recorrencias.length === 0 ? (
         <p className="empty-state">Nenhuma recorrência ativa.</p>

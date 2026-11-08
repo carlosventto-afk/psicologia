@@ -106,7 +106,7 @@ export async function usarCreditoNaSessao(pacienteId, sessaoId, recebimentoId) {
     .single();
 
   if (erroSessao) {
-    throw new Error("Sessão não encontrada.");
+    return { error: "Sessão não encontrada." };
   }
 
   const valorRecebido = (sessao.RecebimentoSessao ?? []).reduce((soma, r) => soma + Number(r.valor_aplicado), 0);
@@ -116,7 +116,7 @@ export async function usarCreditoNaSessao(pacienteId, sessaoId, recebimentoId) {
   const recebimento = credito.recebimentos.find((r) => r.id === recebimentoId);
 
   if (!recebimento || recebimento.saldo < saldoDevedor) {
-    throw new Error("Crédito insuficiente para quitar esta sessão.");
+    return { error: "Crédito insuficiente para quitar esta sessão." };
   }
 
   const { error } = await consumirCredito(supabase, {
@@ -126,11 +126,12 @@ export async function usarCreditoNaSessao(pacienteId, sessaoId, recebimentoId) {
   });
 
   if (error) {
-    throw new Error(error);
+    return { error };
   }
 
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/agenda");
+  return { error: null };
 }
 
 export async function excluirRecebimento(pacienteId, recebimentoId) {

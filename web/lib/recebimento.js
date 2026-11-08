@@ -9,6 +9,7 @@ export async function buscarCobrancaAbertaDasSessoes(supabase, sessaoIds) {
   const { data, error } = await supabase
     .from("CobrancaSessao")
     .select("ativa, Cobranca(id, situacao)")
+    .eq("ativa", true)
     .in("sessao", ids);
 
   if (error) return { cobrancaId: null, error };
