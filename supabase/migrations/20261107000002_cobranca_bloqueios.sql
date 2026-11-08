@@ -46,6 +46,17 @@ begin
     return new;
   end if;
 
+  -- No UPDATE so interessa quando a sessao do rateio muda (OLD so e lido aqui).
+  if tg_op = 'UPDATE' then
+    if new.sessao is not distinct from old.sessao then
+      return new;
+    end if;
+  end if;
+
+  -- Trava a sessao em modo compartilhado: espera uma criar_cobranca concorrente
+  -- (FOR UPDATE) terminar, e a leitura abaixo ja enxerga o vinculo dela.
+  perform 1 from "Sessao" where id = new.sessao for share;
+
   v_cobranca := public._cobranca_aberta_da_sessao(new.sessao);
 
   if v_cobranca is not null then
@@ -58,8 +69,9 @@ $$;
 
 revoke all on function public._cobranca_bloqueia_recebimento_sessao() from public, anon, authenticated;
 
+drop trigger if exists "RecebimentoSessao_cobranca_bloqueia_insert" on "RecebimentoSessao";
 create trigger "RecebimentoSessao_cobranca_bloqueia_insert"
-  before insert on "RecebimentoSessao"
+  before insert or update of sessao on "RecebimentoSessao"
   for each row
   execute function public._cobranca_bloqueia_recebimento_sessao();
 
@@ -88,12 +100,24 @@ begin
     end if;
   end if;
 
+  -- Trocar paciente/dono faria receber_cobranca cobrar o pagador errado.
+  if (new.paciente is distinct from old.paciente)
+     or (new.owner is distinct from old.owner) then
+
+    v_cobranca := public._cobranca_aberta_da_sessao(old.id);
+
+    if v_cobranca is not null then
+      raise exception 'COBRANCA: cancele ou receba a cobrança #% antes de trocar o paciente da sessão.', v_cobranca;
+    end if;
+  end if;
+
   return new;
 end;
 $$;
 
 revoke all on function public._cobranca_bloqueia_update_sessao() from public, anon, authenticated;
 
+drop trigger if exists "Sessao_cobranca_bloqueia_update" on "Sessao";
 create trigger "Sessao_cobranca_bloqueia_update"
   before update on "Sessao"
   for each row
@@ -123,6 +147,7 @@ $$;
 
 revoke all on function public._cobranca_bloqueia_delete_sessao() from public, anon, authenticated;
 
+drop trigger if exists "Sessao_cobranca_bloqueia_delete" on "Sessao";
 create trigger "Sessao_cobranca_bloqueia_delete"
   before delete on "Sessao"
   for each row
@@ -152,6 +177,7 @@ $$;
 
 revoke all on function public._cobranca_reabre_ao_excluir_recebimento() from public, anon, authenticated;
 
+drop trigger if exists "Recebimento_cobranca_reabre_delete" on "Recebimento";
 create trigger "Recebimento_cobranca_reabre_delete"
   before delete on "Recebimento"
   for each row
