@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listarCobrancas } from "@/lib/data/cobrancas";
 import { listarPacientesParaSelect } from "@/lib/data/pacientes";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { mesFiltroValido } from "@/lib/cobranca";
 import SituacaoCobrancaBadge, { ROTULOS_DOCUMENTO, dataBR } from "@/components/SituacaoCobrancaBadge";
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -23,15 +24,16 @@ const SITUACOES = [
 ];
 
 export default async function PaginaCobrancas({ searchParams }) {
-  const { situacao = "", paciente = "" } = await searchParams;
+  const { situacao = "", paciente = "", mes = "" } = await searchParams;
   const situacaoValida = SITUACOES.some((s) => s.valor && s.valor === situacao) ? situacao : "";
   const pacienteId = Number(paciente) || null;
+  const mesValido = mesFiltroValido(mes);
 
   const [cobrancas, pacientes] = await Promise.all([
-    listarCobrancas({ situacao: situacaoValida || undefined, pacienteId: pacienteId ?? undefined }),
+    listarCobrancas({ situacao: situacaoValida || undefined, pacienteId: pacienteId ?? undefined, periodo: mesValido ?? undefined }),
     listarPacientesParaSelect(null, pacienteId),
   ]);
-  const filtrado = Boolean(situacaoValida || pacienteId);
+  const filtrado = Boolean(situacaoValida || pacienteId || mesValido);
 
   return (
     <div className="space-y-4">
@@ -58,6 +60,13 @@ export default async function PaginaCobrancas({ searchParams }) {
             </option>
           ))}
         </select>
+        <input
+          type="month"
+          name="mes"
+          defaultValue={mesValido ?? ""}
+          aria-label="Mês"
+          className="field mt-0 sm:max-w-44"
+        />
         <button type="submit" className="btn-outline">
           Filtrar
         </button>

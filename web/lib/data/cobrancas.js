@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIds, normalizarIdsLista } from "@/lib/normalizar-ids";
-import { sessaoElegivel, agruparPendenciasPorPaciente } from "@/lib/cobranca";
+import { sessaoElegivel, agruparPendenciasPorPaciente, cobrancaNoMes } from "@/lib/cobranca";
 
 const CAMPOS_SESSAO =
   "id, data, horario, valor, status, Realizado, RecebimentoSessao(valor_aplicado), CobrancaSessao(ativa)";
@@ -30,6 +30,7 @@ function intervaloDeDatas(vinculos) {
   return { data_inicio: datas[0] ?? null, data_fim: datas[datas.length - 1] ?? null };
 }
 
+// periodo: "YYYY-MM" (periodo_referencia, ou datas das sessoes se for nulo).
 export async function listarCobrancas({ situacao, pacienteId, periodo } = {}) {
   const supabase = await createClient();
   let query = supabase
@@ -41,12 +42,17 @@ export async function listarCobrancas({ situacao, pacienteId, periodo } = {}) {
 
   if (situacao) query = query.eq("situacao", situacao);
   if (pacienteId) query = query.eq("paciente", pacienteId);
-  if (periodo) query = query.eq("periodo_referencia", periodo);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
-  return normalizarIdsLista(data, ["id", "paciente", "responsavel_financeiro"]).map((c) => ({
+  const lista = periodo
+    ? data.filter((c) =>
+        cobrancaNoMes(c, periodo, (c.CobrancaSessao ?? []).map((v) => v.Sessao?.data).filter(Boolean))
+      )
+    : data;
+
+  return normalizarIdsLista(lista, ["id", "paciente", "responsavel_financeiro"]).map((c) => ({
     ...c,
     valor_total: Number(c.valor_total),
     qtd_sessoes: (c.CobrancaSessao ?? []).filter((v) => v.ativa).length,

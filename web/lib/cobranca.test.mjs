@@ -18,6 +18,8 @@ import {
   valorMes,
   rotuloMes,
   hojeSaoPaulo,
+  mesFiltroValido,
+  cobrancaNoMes,
   textoBloqueioCobranca,
   mensagemBloqueioOu,
   primeiraCobrancaAberta,
@@ -225,4 +227,32 @@ test("mesAnterior usa America/Sao_Paulo", () => {
 test("hojeSaoPaulo usa America/Sao_Paulo", () => {
   assert.equal(hojeSaoPaulo(new Date("2026-12-01T01:00:00Z")), "2026-11-30");
   assert.equal(hojeSaoPaulo(new Date("2026-12-01T12:00:00Z")), "2026-12-01");
+});
+
+test("mesFiltroValido: aceita YYYY-MM e ignora o resto", () => {
+  assert.equal(mesFiltroValido("2026-11"), "2026-11");
+  for (const ruim of ["2026-13", "2026-00", "2026-1", "26-11", "2026-11-01", "", undefined, null, ["2026-11"], "1999-12"]) {
+    assert.equal(mesFiltroValido(ruim), null);
+  }
+});
+
+test("cobrancaNoMes: periodo_referencia no mes", () => {
+  assert.equal(cobrancaNoMes({ periodo_referencia: "2026-10-01" }, "2026-10", ["2026-11-05"]), true);
+  assert.equal(cobrancaNoMes({ periodo_referencia: "2026-10-01" }, "2026-11", ["2026-11-05"]), false);
+});
+
+test("cobrancaNoMes: sem periodo, usa a data das sessoes", () => {
+  assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-11", ["2026-10-31", "2026-11-05"]), true);
+});
+
+test("cobrancaNoMes: sem periodo e nenhuma sessao no mes", () => {
+  assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-11", ["2026-10-31", "2026-12-01"]), false);
+  assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-11", []), false);
+  assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-11", undefined), false);
+});
+
+test("cobrancaNoMes: limites do mes", () => {
+  assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-11", ["2026-11-01"]), true);
+  assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-11", ["2026-11-30"]), true);
+  assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-02", ["2026-03-01"]), false);
 });

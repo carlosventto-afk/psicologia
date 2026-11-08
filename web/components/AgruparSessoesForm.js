@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useState } from "react";
 import { criarCobranca } from "@/lib/actions/cobrancas";
 import { formatarMoeda } from "@/lib/formatar-moeda";
@@ -14,7 +13,7 @@ function dataBR(iso) {
 }
 
 // sessoes: [{ id, data, horario, status, realizada, saldo }]; responsaveis: [{ id, nome, eh_proprio }].
-// A action redireciona para a cobranca criada; `state.id` (se vier) mostra o link.
+// A action redireciona para a cobranca criada.
 export default function AgruparSessoesForm({ pacienteId, sessoes, tipoDocumentoPadrao, responsaveis }) {
   const [state, formAction, pending] = useActionState(criarCobranca, estadoInicial);
   const [marcadas, setMarcadas] = useState(() => sessoesMarcadasPorPadrao(sessoes));
@@ -33,7 +32,7 @@ export default function AgruparSessoesForm({ pacienteId, sessoes, tipoDocumentoP
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="paciente" value={pacienteId} />
 
-      {sessoes.length === 0 && !state?.id ? (
+      {sessoes.length === 0 ? (
         <p className="empty-state">Nenhuma sessão sem cobrança.</p>
       ) : (
         <div className="card divide-y divide-border text-sm">
@@ -119,14 +118,6 @@ export default function AgruparSessoesForm({ pacienteId, sessoes, tipoDocumentoP
       )}
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
-      {state?.id && (
-        <p className="text-sm font-semibold text-navy">
-          Cobrança criada.{" "}
-          <Link href={`/cobrancas/${state.id}`} className="link">
-            Ver cobrança
-          </Link>
-        </p>
-      )}
 
       {sessoes.length > 0 && (
         <button

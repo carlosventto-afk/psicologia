@@ -20,7 +20,16 @@ export default async function PaginaCobranca({ params }) {
   const recebida = cobranca.situacao === "recebida";
   const rec = cobranca.recebimento;
   // Contas sao necessarias no form (aberta) e para exibir o nome (recebida).
-  const contas = aberta || (recebida && rec) ? await listarContas() : [];
+  let contas = [];
+  if (aberta) {
+    contas = await listarContas();
+  } else if (recebida && rec) {
+    try {
+      contas = await listarContas();
+    } catch {
+      // Sem a lista, o nome da conta aparece como "—".
+    }
+  }
   const nomeConta = rec ? contas.find((c) => c.id === rec.conta)?.nome : null;
 
   return (

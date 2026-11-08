@@ -203,3 +203,20 @@ export function hojeSaoPaulo(agora = new Date()) {
     day: "2-digit",
   }).format(agora);
 }
+
+// Valida estritamente "YYYY-MM" (ano 2000-2100, mes 01-12); senao null.
+export function mesFiltroValido(param) {
+  const m = typeof param === "string" ? /^(\d{4})-(\d{2})$/.exec(param) : null;
+  if (!m) return null;
+  const ano = Number(m[1]);
+  const mes = Number(m[2]);
+  return ano >= 2000 && ano <= 2100 && mes >= 1 && mes <= 12 ? param : null;
+}
+
+// Filtro de periodo da lista: bate com o mes "YYYY-MM" quando periodo_referencia
+// esta no mes OU, sendo nulo, alguma sessao da cobranca cai no mes.
+// `datas` = datas (YYYY-MM-DD) das sessoes vinculadas; usa so o prefixo do mes.
+export function cobrancaNoMes(cobranca, mes, datas) {
+  if (cobranca?.periodo_referencia) return String(cobranca.periodo_referencia).slice(0, 7) === mes;
+  return (datas ?? []).some((d) => String(d ?? "").slice(0, 7) === mes);
+}
