@@ -105,6 +105,33 @@ export function mensagemErroCobranca(erro) {
   return "Não foi possível concluir a operação. Tente novamente.";
 }
 
+// Texto do bloqueio sem o prefixo "COBRANCA: " quando o erro vem dos triggers
+// de cobranca; null quando e outro tipo de erro.
+export function textoBloqueioCobranca(erro) {
+  const msg = String(erro?.message ?? "");
+  return msg.startsWith(PREFIXO_ERRO) ? msg.slice(PREFIXO_ERRO.length) : null;
+}
+
+// Mensagem de bloqueio de cobranca se houver; senao o texto generico informado.
+export function mensagemBloqueioOu(erro, generica) {
+  return textoBloqueioCobranca(erro) ?? generica;
+}
+
+// Primeira cobranca aberta entre linhas de CobrancaSessao
+// ({ ativa, Cobranca: { id, situacao } }); so vinculos ativos em cobranca
+// aberta contam. Devolve o id da cobranca ou null.
+export function primeiraCobrancaAberta(vinculos) {
+  for (const v of vinculos ?? []) {
+    const cobranca = Array.isArray(v?.Cobranca) ? v.Cobranca[0] : v?.Cobranca;
+    if (v?.ativa && cobranca?.situacao === "aberta") return cobranca.id;
+  }
+  return null;
+}
+
+export function mensagemSessaoEmCobranca(cobrancaId) {
+  return `A sessão está na cobrança #${cobrancaId} (aberta). Receba pela cobrança.`;
+}
+
 // Sessao conta como realizada pelo status ou pela flag Realizado.
 export function sessaoRealizada(sessao) {
   return String(sessao?.status ?? "").toLowerCase() === "realizada" || sessao?.Realizado === true;

@@ -18,7 +18,43 @@ import {
   valorMes,
   rotuloMes,
   hojeSaoPaulo,
+  textoBloqueioCobranca,
+  mensagemBloqueioOu,
+  primeiraCobrancaAberta,
+  mensagemSessaoEmCobranca,
 } from "./cobranca.js";
+
+test("textoBloqueioCobranca remove o prefixo ou devolve null", () => {
+  assert.equal(textoBloqueioCobranca({ message: "COBRANCA: na cobrança #3." }), "na cobrança #3.");
+  assert.equal(textoBloqueioCobranca({ message: "duplicate key" }), null);
+  assert.equal(textoBloqueioCobranca(null), null);
+});
+
+test("mensagemBloqueioOu usa o bloqueio ou a mensagem generica", () => {
+  assert.equal(mensagemBloqueioOu({ message: "COBRANCA: x" }, "generica"), "x");
+  assert.equal(mensagemBloqueioOu({ message: "boom" }, "generica"), "generica");
+});
+
+test("primeiraCobrancaAberta so considera vinculo ativo em cobranca aberta", () => {
+  assert.equal(primeiraCobrancaAberta(null), null);
+  assert.equal(primeiraCobrancaAberta([]), null);
+  assert.equal(primeiraCobrancaAberta([{ ativa: false, Cobranca: { id: 1, situacao: "aberta" } }]), null);
+  assert.equal(primeiraCobrancaAberta([{ ativa: true, Cobranca: { id: 2, situacao: "recebida" } }]), null);
+  assert.equal(primeiraCobrancaAberta([{ ativa: true, Cobranca: null }]), null);
+  assert.equal(
+    primeiraCobrancaAberta([
+      { ativa: true, Cobranca: { id: 2, situacao: "cancelada" } },
+      { ativa: true, Cobranca: { id: 7, situacao: "aberta" } },
+      { ativa: true, Cobranca: { id: 9, situacao: "aberta" } },
+    ]),
+    7
+  );
+  assert.equal(primeiraCobrancaAberta([{ ativa: true, Cobranca: [{ id: 4, situacao: "aberta" }] }]), 4);
+});
+
+test("mensagemSessaoEmCobranca cita a cobranca", () => {
+  assert.equal(mensagemSessaoEmCobranca(5), "A sessão está na cobrança #5 (aberta). Receba pela cobrança.");
+});
 
 test("saldoSessao desconta pagamento parcial", () => {
   assert.equal(saldoSessao({ valor: 150, RecebimentoSessao: [{ valor_aplicado: 50 }] }), 100);
