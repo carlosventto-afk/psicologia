@@ -22,12 +22,20 @@ function aplicarIntervalo(query, intervalo) {
   return query;
 }
 
+// Menor e maior data das sessoes vinculadas (historicas, se cancelada).
+function intervaloDeDatas(vinculos) {
+  const todos = vinculos ?? [];
+  const ativos = todos.filter((v) => v.ativa);
+  const datas = (ativos.length > 0 ? ativos : todos).map((v) => v.Sessao?.data).filter(Boolean).sort();
+  return { data_inicio: datas[0] ?? null, data_fim: datas[datas.length - 1] ?? null };
+}
+
 export async function listarCobrancas({ situacao, pacienteId, periodo } = {}) {
   const supabase = await createClient();
   let query = supabase
     .from("Cobranca")
     .select(
-      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, Paciente(id, nome, apelido), CobrancaSessao(ativa)"
+      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, Paciente(id, nome, apelido), CobrancaSessao(ativa, Sessao(data))"
     )
     .order("created_at", { ascending: false });
 
@@ -42,6 +50,7 @@ export async function listarCobrancas({ situacao, pacienteId, periodo } = {}) {
     ...c,
     valor_total: Number(c.valor_total),
     qtd_sessoes: (c.CobrancaSessao ?? []).filter((v) => v.ativa).length,
+    ...intervaloDeDatas(c.CobrancaSessao),
   }));
 }
 
