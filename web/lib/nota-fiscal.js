@@ -197,6 +197,86 @@ export function montarAtualizacaoResultado(resultado, tentativas) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Resultado incerto (SEFIN pode ter autorizado): a nota NUNCA vira rejeitada
+// nem recebe número novo; fica pendente até confirmação manual.
+// ---------------------------------------------------------------------------
+
+export const TITULO_FALHA_SEFIN = "Falha de comunicacao com a SEFIN";
+
+export const MENSAGEM_INCERTA =
+  "Aguardando confirmação da prefeitura; não emita de novo — verifique no portal da NFS-e.";
+
+export const MOTIVO_COMPETENCIA_FUTURA =
+  "Há sessões com data futura na cobrança; aguarde a data para emitir a nota.";
+
+// Entrada: { resposta } (o serviço respondeu 200) ou { erro } (a chamada lançou).
+// 'autorizada' | 'rejeitada' (recusa definitiva) | 'incerta'.
+export function classificarResultadoEmissao({ resposta, erro } = {}) {
+  if (erro) {
+    if (erro.naoEnviada === true) return "rejeitada";
+    const st = Number(erro.status);
+    return Number.isInteger(st) && st >= 400 && st <= 499 ? "rejeitada" : "incerta";
+  }
+  if (!resposta || typeof resposta !== "object") return "incerta";
+  if (resposta.autorizada === true) return "autorizada";
+  if (resposta.falha_transporte === true) return "incerta";
+  if (resposta.erros?.[0]?.titulo === TITULO_FALHA_SEFIN) return "incerta";
+  return "rejeitada";
+}
+
+// Mantém a nota pendente guardando o que houver da resposta.
+export function montarAtualizacaoIncerta({ resposta, erro }, tentativas) {
+  const detalhe =
+    resposta?.erros?.[0]?.explicacao ||
+    resposta?.erros?.[0]?.titulo ||
+    erro?.message ||
+    (erro ? String(erro) : "resposta inválida do serviço");
+  const colunas = {
+    status: "pendente",
+    ultimo_erro: `${MENSAGEM_INCERTA} (${detalhe})`,
+    tentativas,
+  };
+  if (resposta?.dps_id) colunas.dps_id = resposta.dps_id;
+  if (resposta?.xml_dps_base64) colunas.xml_dps = decodificar(resposta.xml_dps_base64);
+  return colunas;
+}
+
+// Toda nota planejada precisa ter competência <= hoje (ambos "YYYY-MM-DD").
+export function validarCompetencias({ planos, hoje }) {
+  const futura = (planos ?? []).some((p) => p.competencia > hoje);
+  return futura ? { ok: false, motivo: MOTIVO_COMPETENCIA_FUTURA } : { ok: true };
+}
+
+// ResponsavelFinanceiro "próprio" (aponta para o próprio paciente) não tem
+// cpf_cnpj: o paciente é o tomador (mesma regra de carne-leao.js).
+export function responsavelParaTomador({ responsavel, pacienteId }) {
+  if (!responsavel) return null;
+  if (
+    responsavel.paciente_vinculado != null &&
+    Number(responsavel.paciente_vinculado) === Number(pacienteId)
+  ) {
+    return null;
+  }
+  return responsavel;
+}
+
+// Itens do plano que ainda precisam de nota (sem nota ativa).
+export function itensSemNotaAtiva({ emissaoPor, plano, ativas }) {
+  if (emissaoPor === "sessao") {
+    return plano.filter((p) => !ativas.some((n) => n.recebimento_sessao === p.recebimentoSessao));
+  }
+  return ativas.length === 0 ? plano : [];
+}
+
+// tentativas = rejeitadas anteriores do mesmo item + 1.
+export function tentativasDoItem({ emissaoPor, recebimentoSessao, existentes }) {
+  const doItem = (existentes ?? []).filter((n) =>
+    emissaoPor === "sessao" ? n.recebimento_sessao === recebimentoSessao : true,
+  );
+  return contarRejeitadas(doItem) + 1;
+}
+
 // Falha ao chamar o serviço (exceção): a nota reservada fica rejeitada.
 export function montarAtualizacaoFalha(mensagem, tentativas) {
   return {

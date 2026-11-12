@@ -6,7 +6,9 @@ export async function chamarServicoNfse(caminho, corpo) {
   const url = process.env.NFSE_SERVICE_URL;
   const segredo = process.env.NFSE_SERVICE_SECRET;
   if (!url || !segredo) {
-    throw new Error("Servico de NFS-e nao configurado (NFSE_SERVICE_URL/NFSE_SERVICE_SECRET ausentes).");
+    const erro = new Error("Servico de NFS-e nao configurado (NFSE_SERVICE_URL/NFSE_SERVICE_SECRET ausentes).");
+    erro.naoEnviada = true; // nada foi enviado: recusa definitiva, sem risco de nota emitida
+    throw erro;
   }
 
   const resposta = await fetch(`${url}${caminho}`, {
@@ -21,7 +23,10 @@ export async function chamarServicoNfse(caminho, corpo) {
   const dados = await resposta.json().catch(() => null);
 
   if (!resposta.ok) {
-    throw new Error(dados?.detail || `Servico de NFS-e respondeu ${resposta.status}.`);
+    // status permite distinguir recusa definitiva (4xx do nosso servico) de falha incerta (5xx).
+    const erro = new Error(dados?.detail || `Servico de NFS-e respondeu ${resposta.status}.`);
+    erro.status = resposta.status;
+    throw erro;
   }
 
   return dados;

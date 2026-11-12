@@ -15,6 +15,14 @@ import {
   montarPayloadEmissao,
   montarAtualizacaoResultado,
   montarAtualizacaoFalha,
+  classificarResultadoEmissao,
+  montarAtualizacaoIncerta,
+  validarCompetencias,
+  responsavelParaTomador,
+  itensSemNotaAtiva,
+  tentativasDoItem,
+  MENSAGEM_INCERTA,
+  MOTIVO_COMPETENCIA_FUTURA,
 } from "./nota-fiscal.js";
 
 test("somarValores: centavos sem erro de ponto flutuante", () => {
@@ -268,4 +276,114 @@ test("canaisDeEntrega: matriz", () => {
     email: false,
     whatsapp: false,
   });
+});
+
+test("classificarResultadoEmissao: autorizada e recusa definitiva", () => {
+  assert.equal(classificarResultadoEmissao({ resposta: { autorizada: true, erros: [] } }), "autorizada");
+  assert.equal(
+    classificarResultadoEmissao({ resposta: { autorizada: false, erros: [{ codigo: "E0312", titulo: "Regra" }] } }),
+    "rejeitada",
+  );
+});
+
+test("classificarResultadoEmissao: falha de transporte é incerta (flag e titulo do serviço antigo)", () => {
+  assert.equal(
+    classificarResultadoEmissao({ resposta: { autorizada: false, falha_transporte: true, erros: [{ codigo: "E1", titulo: "x" }] } }),
+    "incerta",
+  );
+  assert.equal(
+    classificarResultadoEmissao({ resposta: { autorizada: false, erros: [{ codigo: "?", titulo: "Falha de comunicacao com a SEFIN" }] } }),
+    "incerta",
+  );
+  assert.equal(classificarResultadoEmissao({ resposta: null }), "incerta");
+});
+
+test("classificarResultadoEmissao: exceção 4xx rejeita, 5xx/rede é incerta, não enviada rejeita", () => {
+  assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("x"), { status: 400 }) }), "rejeitada");
+  assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("x"), { status: 422 }) }), "rejeitada");
+  assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("x"), { status: 500 }) }), "incerta");
+  assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("x"), { status: 502 }) }), "incerta");
+  assert.equal(classificarResultadoEmissao({ erro: new Error("fetch failed") }), "incerta");
+  assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("cfg"), { naoEnviada: true }) }), "rejeitada");
+});
+
+test("montarAtualizacaoIncerta: mantém pendente e guarda DPS", () => {
+  const u = montarAtualizacaoIncerta(
+    { resposta: { dps_id: "D9", xml_dps_base64: Buffer.from("<d/>").toString("base64"), erros: [{ titulo: "Falha de comunicacao com a SEFIN", explicacao: "timeout" }] } },
+    2,
+  );
+  assert.equal(u.status, "pendente");
+  assert.equal(u.dps_id, "D9");
+  assert.equal(u.xml_dps, "<d/>");
+  assert.equal(u.tentativas, 2);
+  assert.ok(u.ultimo_erro.startsWith(MENSAGEM_INCERTA));
+  assert.ok(u.ultimo_erro.includes("timeout"));
+  const e = montarAtualizacaoIncerta({ erro: new Error("boom") }, 1);
+  assert.equal(e.status, "pendente");
+  assert.ok(!("dps_id" in e));
+  assert.ok(e.ultimo_erro.includes("boom"));
+});
+
+test("validarCompetencias: hoje e passado ok, futuro bloqueia", () => {
+  const p = (c) => ({ competencia: c });
+  assert.deepEqual(validarCompetencias({ planos: [p("2026-11-12")], hoje: "2026-11-12" }), { ok: true });
+  assert.deepEqual(validarCompetencias({ planos: [p("2026-10-01"), p("2026-11-11")], hoje: "2026-11-12" }), { ok: true });
+  assert.deepEqual(validarCompetencias({ planos: [p("2026-10-01"), p("2026-11-13")], hoje: "2026-11-12" }), {
+    ok: false,
+    motivo: MOTIVO_COMPETENCIA_FUTURA,
+  });
+});
+
+test("responsavelParaTomador: próprio vira paciente; terceiro permanece", () => {
+  const proprio = { nome: "Ana", cpf_cnpj: null, paciente_vinculado: 10 };
+  const terceiro = { nome: "Mãe", cpf_cnpj: "12345678901", paciente_vinculado: null };
+  assert.equal(responsavelParaTomador({ responsavel: proprio, pacienteId: 10 }), null);
+  assert.equal(responsavelParaTomador({ responsavel: proprio, pacienteId: "10" }), null);
+  assert.equal(responsavelParaTomador({ responsavel: terceiro, pacienteId: 10 }), terceiro);
+  assert.equal(responsavelParaTomador({ responsavel: { ...terceiro, paciente_vinculado: 11 }, pacienteId: 10 }).nome, "Mãe");
+  assert.equal(responsavelParaTomador({ responsavel: null, pacienteId: 10 }), null);
+  const t = escolherTomador({
+    responsavel: responsavelParaTomador({ responsavel: proprio, pacienteId: 10 }),
+    paciente: { nome: "Ana", cpf: "111.222.333-44" },
+  });
+  assert.equal(t.origem, "paciente");
+  assert.equal(t.documento, "11122233344");
+});
+
+test("itensSemNotaAtiva: modo cobrança e modo sessão", () => {
+  const plano = [{ recebimentoSessao: 1 }, { recebimentoSessao: 2 }];
+  assert.equal(itensSemNotaAtiva({ emissaoPor: "cobranca", plano: [{ recebimentoSessao: null }], ativas: [] }).length, 1);
+  assert.equal(itensSemNotaAtiva({ emissaoPor: "cobranca", plano: [{ recebimentoSessao: null }], ativas: [{ status: "pendente" }] }).length, 0);
+  assert.deepEqual(
+    itensSemNotaAtiva({ emissaoPor: "sessao", plano, ativas: [{ recebimento_sessao: 1, status: "autorizada" }] }).map((p) => p.recebimentoSessao),
+    [2],
+  );
+});
+
+test("tentativasDoItem: rejeitadas anteriores + 1", () => {
+  const existentes = [
+    { recebimento_sessao: 1, status: "rejeitada" },
+    { recebimento_sessao: 1, status: "rejeitada" },
+    { recebimento_sessao: 2, status: "rejeitada" },
+    { recebimento_sessao: 2, status: "cancelada" },
+  ];
+  assert.equal(tentativasDoItem({ emissaoPor: "cobranca", recebimentoSessao: null, existentes }), 4);
+  assert.equal(tentativasDoItem({ emissaoPor: "sessao", recebimentoSessao: 1, existentes }), 3);
+  assert.equal(tentativasDoItem({ emissaoPor: "sessao", recebimentoSessao: 2, existentes }), 2);
+  assert.equal(tentativasDoItem({ emissaoPor: "sessao", recebimentoSessao: 3, existentes }), 1);
+});
+
+test("montarPayloadEmissao: descrição completa exata com várias datas", () => {
+  const payload = montarPayloadEmissao({
+    reserva: { ambiente: "homologacao", serie: "1", numero: 1 },
+    fiscal: {},
+    plano: { valor: 1, datasISO: ["2026-05-20", "2026-05-13", "2026-05-27"], competencia: "2026-05-27" },
+    tomador: { documento: "1", nome: "M" },
+    nomeProfissional: " Ana Souza ",
+    crp: " 06/12345 ",
+  });
+  assert.equal(
+    payload.descricao_servico,
+    "Atendimento(s) psicológico(s) em 13/05/2026, 20/05/2026 e 27/05/2026.\n\nServiço prestado por:\nAna Souza\nCRP: 06/12345",
+  );
 });

@@ -71,6 +71,8 @@ class EmitirResponse(BaseModel):
     xml_nfse_base64: str | None = None
     pdf_base64: str | None = None
     erros: list[ErroTraduzido] = []
+    # True quando a SEFIN nao respondeu (timeout/5xx/gateway): resultado incerto.
+    falha_transporte: bool = False
 
 
 class CancelarRequest(BaseModel):

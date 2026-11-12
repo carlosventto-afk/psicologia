@@ -147,6 +147,7 @@ async def emitir(req: EmitirRequest) -> EmitirResponse:
                 dps_id=dados.dps_id,
                 xml_dps_base64=_b64(assinado),
                 erros=erros,
+                falha_transporte=True,
             )
         resultado = ler_resposta_emissao(bruta)
     finally:
