@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { listarResponsaveisDoPaciente } from "@/lib/data/responsaveis-financeiros";
@@ -107,13 +108,9 @@ export async function criarCobrancasDoMes(prevState, formData) {
 
 // Emissão automática depois do recebimento. Nunca altera o resultado do recebimento:
 // qualquer falha vira só log (a cobrança mostra o estado da nota e o botão manual).
-async function emitirNotaAposRecebimento(supabase, cobrancaId) {
+// Roda em after(): não bloqueia a resposta do recebimento (a SEFIN pode levar ~60 s).
+async function emitirNotaAposRecebimento(supabase, cobrancaId, cob) {
   try {
-    const { data: cob } = await supabase
-      .from("Cobranca")
-      .select("tipo_documento, owner")
-      .eq("id", cobrancaId)
-      .maybeSingle();
     if (cob?.tipo_documento !== "nota_fiscal") return;
 
     const { data: fiscal } = await supabase
@@ -124,6 +121,9 @@ async function emitirNotaAposRecebimento(supabase, cobrancaId) {
     if (fiscal?.emissao_automatica !== true) return;
 
     await emitirEEntregarCobranca(supabase, cobrancaId);
+    // Atualiza as telas para mostrar a nota depois de pronta.
+    revalidatePath(`/cobrancas/${cobrancaId}`);
+    revalidatePath("/notas-fiscais");
   } catch (e) {
     console.error(`NFS-e: falha no gatilho de recebimento (cobranca ${cobrancaId}): ${e?.message ?? e}`);
   }
@@ -132,7 +132,7 @@ async function emitirNotaAposRecebimento(supabase, cobrancaId) {
 export async function receberCobranca(cobrancaId, prevState, formData) {
   const supabase = await createClient();
 
-  const { data: cob } = await supabase.from("Cobranca").select("paciente").eq("id", cobrancaId).maybeSingle();
+  const { data: cob } = await supabase.from("Cobranca").select("paciente, tipo_documento, owner").eq("id", cobrancaId).maybeSingle();
 
   const { error } = await supabase.rpc("receber_cobranca", {
     p_cobranca: cobrancaId,
@@ -142,7 +142,7 @@ export async function receberCobranca(cobrancaId, prevState, formData) {
   });
   if (error) return { error: mensagemErroCobranca(error) };
 
-  await emitirNotaAposRecebimento(supabase, cobrancaId);
+  after(() => emitirNotaAposRecebimento(supabase, cobrancaId, cob));
 
   revalidarTudo(cob ? Number(cob.paciente) : null);
   revalidatePath(`/cobrancas/${cobrancaId}`);

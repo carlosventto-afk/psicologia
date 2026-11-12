@@ -458,7 +458,7 @@ test("rotuloBotaoNota: nota ativa esconde o botao; rejeitada oferece tentar de n
   assert.equal(rotuloBotaoNota({ ...base, notas: [{ id: 1, status: "rejeitada" }] }), "Tentar de novo");
   assert.equal(
     rotuloBotaoNota({ ...base, notas: [{ id: 2, status: "cancelada" }, { id: 1, status: "rejeitada" }] }),
-    "Emitir nota"
+    "Tentar de novo"
   );
 });
 
@@ -481,4 +481,27 @@ test("sessaoDocumentada: nota por sessao autorizada", () => {
   assert.equal(sessaoDocumentada({ vinculos: [], rateios: [{ recebimento: 1, NotaFiscal: [{ status: "autorizada" }] }] }), true);
   assert.equal(sessaoDocumentada({ vinculos: [], rateios: [{ recebimento: 1, NotaFiscal: [{ status: "rejeitada" }] }] }), false);
   assert.equal(sessaoDocumentada({}), false);
+});
+
+import { formatarDataHoraSaoPaulo } from "./nota-fiscal.js";
+
+test("rotuloBotaoNota: regra por item", () => {
+  const base = { situacao: "recebida", tipoDocumento: "nota_fiscal" };
+  const ps = (id, status, rs) => ({ id, status, recebimento_sessao: rs, cobranca: null });
+  assert.equal(rotuloBotaoNota({ ...base, notas: [ps(1, "autorizada", 10), ps(2, "rejeitada", 11)] }), "Tentar de novo");
+  assert.equal(rotuloBotaoNota({ ...base, notas: [ps(1, "autorizada", 10), ps(2, "pendente", 11)] }), null);
+  assert.equal(rotuloBotaoNota({ ...base, notas: [ps(1, "rejeitada", 10), ps(2, "pendente", 11)] }), null);
+  assert.equal(rotuloBotaoNota({ ...base, notas: [ps(1, "autorizada", 10), ps(2, "autorizada", 11)] }), null);
+  assert.equal(rotuloBotaoNota({ ...base, notas: [ps(1, "rejeitada", 10), ps(2, "autorizada", 10)] }), null);
+  assert.equal(rotuloBotaoNota({ ...base, notas: [ps(1, "cancelada", 10)] }), "Emitir nota");
+});
+
+test("sessaoDocumentada: cobranca reaberta (recebimento nulo) nao documenta", () => {
+  const vinculos = [{ ativa: true, Cobranca: { recebimento: null, NotaFiscal: [{ status: "autorizada" }] } }];
+  assert.equal(sessaoDocumentada({ vinculos, rateios: [{ recebimento: null, NotaFiscal: [] }] }), false);
+});
+
+test("formatarDataHoraSaoPaulo: converte UTC para Sao Paulo", () => {
+  assert.match(formatarDataHoraSaoPaulo("2026-11-13T02:30:00Z"), /12\/11\/2026.*23:30/);
+  assert.equal(formatarDataHoraSaoPaulo(null), "");
 });

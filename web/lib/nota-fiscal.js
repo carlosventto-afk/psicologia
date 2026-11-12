@@ -328,15 +328,34 @@ export function montarAtualizacaoFalha(mensagem, tentativas) {
 // ---------------------------------------------------------------------------
 
 // Rótulo do botão manual: "Emitir nota", "Tentar de novo" ou null (sem botão).
-// Só para cobrança recebida do tipo nota_fiscal sem nota ativa (pendente/autorizada);
-// uma nota pendente pode ser resultado incerto, então nunca se oferece nova emissão.
+// Só para cobrança recebida do tipo nota_fiscal. Qualquer nota pendente (resultado
+// possivelmente incerto) esconde o botão. Regra por item (chave = recebimento_sessao
+// ?? cobranca): "Tentar de novo" se há rejeitada cujo item não tem autorizada;
+// "Emitir nota" quando não há notas (ou só canceladas).
 export function rotuloBotaoNota({ situacao, tipoDocumento, notas }) {
   if (situacao !== "recebida" || tipoDocumento !== "nota_fiscal") return null;
   const lista = notas ?? [];
-  if (notasAtivas(lista).length > 0) return null;
-  if (lista.length === 0) return "Emitir nota";
-  const ultima = lista.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a));
-  return ultima.status === "rejeitada" ? "Tentar de novo" : "Emitir nota";
+  if (lista.some((n) => n.status === "pendente")) return null;
+  const chave = (n) => n.recebimento_sessao ?? n.cobranca;
+  const autorizadas = new Set(lista.filter((n) => n.status === "autorizada").map(chave));
+  if (lista.some((n) => n.status === "rejeitada" && !autorizadas.has(chave(n)))) return "Tentar de novo";
+  if (lista.some((n) => n.status === "autorizada")) return null;
+  return "Emitir nota";
+}
+
+// Data e hora no fuso de São Paulo (timestamptz do banco vem em UTC).
+export function formatarDataHoraSaoPaulo(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 // Uma sessão está documentada quando uma nota autorizada a cobre:

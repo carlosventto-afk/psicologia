@@ -1,4 +1,4 @@
-import { dataBR } from "@/components/SituacaoCobrancaBadge";
+import { formatarDataHoraSaoPaulo } from "@/lib/nota-fiscal";
 
 const ROTULOS = { pendente: "Pendente", autorizada: "Autorizada", rejeitada: "Rejeitada", cancelada: "Cancelada" };
 const CORES = {
@@ -10,8 +10,8 @@ const CORES = {
 
 function entrega(nota) {
   const itens = [];
-  if (nota.enviada_email_em) itens.push(`E-mail enviado em ${dataBR(nota.enviada_email_em)}`);
-  if (nota.enviada_whatsapp_em) itens.push(`WhatsApp enviado em ${dataBR(nota.enviada_whatsapp_em)}`);
+  if (nota.enviada_email_em) itens.push(`E-mail enviado em ${formatarDataHoraSaoPaulo(nota.enviada_email_em)}`);
+  if (nota.enviada_whatsapp_em) itens.push(`WhatsApp enviado em ${formatarDataHoraSaoPaulo(nota.enviada_whatsapp_em)}`);
   return itens;
 }
 
