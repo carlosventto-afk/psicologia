@@ -298,6 +298,24 @@ test("classificarResultadoEmissao: falha de transporte é incerta (flag e titulo
   assert.equal(classificarResultadoEmissao({ resposta: null }), "incerta");
 });
 
+test("classificarResultadoEmissao: recusa sem erros listados é incerta", () => {
+  assert.equal(classificarResultadoEmissao({ resposta: { autorizada: false, erros: [] } }), "incerta");
+  assert.equal(classificarResultadoEmissao({ resposta: { autorizada: false } }), "incerta");
+  assert.equal(
+    classificarResultadoEmissao({ resposta: { autorizada: false, erros: [{ codigo: "E0312", titulo: "Regra" }] } }),
+    "rejeitada",
+  );
+});
+
+test("classificarResultadoEmissao: só 400/401/403/404/422 são recusa; demais 4xx são incertos", () => {
+  for (const status of [400, 401, 403, 404, 422]) {
+    assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("x"), { status }) }), "rejeitada");
+  }
+  for (const status of [408, 409, 429, 499]) {
+    assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("x"), { status }) }), "incerta");
+  }
+});
+
 test("classificarResultadoEmissao: exceção 4xx rejeita, 5xx/rede é incerta, não enviada rejeita", () => {
   assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("x"), { status: 400 }) }), "rejeitada");
   assert.equal(classificarResultadoEmissao({ erro: Object.assign(new Error("x"), { status: 422 }) }), "rejeitada");

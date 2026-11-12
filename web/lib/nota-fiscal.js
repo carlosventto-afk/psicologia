@@ -210,18 +210,23 @@ export const MENSAGEM_INCERTA =
 export const MOTIVO_COMPETENCIA_FUTURA =
   "Há sessões com data futura na cobrança; aguarde a data para emitir a nota.";
 
+const STATUS_RECUSA_DEFINITIVA = [400, 401, 403, 404, 422];
+
 // Entrada: { resposta } (o serviço respondeu 200) ou { erro } (a chamada lançou).
 // 'autorizada' | 'rejeitada' (recusa definitiva) | 'incerta'.
 export function classificarResultadoEmissao({ resposta, erro } = {}) {
   if (erro) {
     if (erro.naoEnviada === true) return "rejeitada";
-    const st = Number(erro.status);
-    return Number.isInteger(st) && st >= 400 && st <= 499 ? "rejeitada" : "incerta";
+    // Só estes 4xx do nosso próprio serviço são recusa definitiva; 408/429/499 e
+    // códigos de proxy são incertos.
+    return STATUS_RECUSA_DEFINITIVA.includes(Number(erro.status)) ? "rejeitada" : "incerta";
   }
   if (!resposta || typeof resposta !== "object") return "incerta";
   if (resposta.autorizada === true) return "autorizada";
   if (resposta.falha_transporte === true) return "incerta";
   if (resposta.erros?.[0]?.titulo === TITULO_FALHA_SEFIN) return "incerta";
+  // Recusa sem nenhum erro listado pode ser resposta não reconhecida: não é definitiva.
+  if (!resposta.erros?.length) return "incerta";
   return "rejeitada";
 }
 

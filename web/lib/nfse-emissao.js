@@ -29,6 +29,9 @@ import {
   montarAtualizacaoIncerta,
 } from "@/lib/nota-fiscal";
 
+const RESULTADO_INCERTO_GENERICO =
+  "Resultado incerto; confirme no portal da NFS-e antes de emitir de novo.";
+
 const COLUNAS_NOTA = "id, status, cobranca, recebimento_sessao, tentativas, ultimo_erro";
 
 const resumo = (n) => ({
@@ -88,14 +91,19 @@ async function emitirUmaNota({ supabase, owner, cobrancaId, plano, fiscal, usuar
 
   // Resultado incerto: mantém pendente (nunca rejeitada, nunca número novo).
   const fecharIncerta = async (entrada) => {
-    const colunas = montarAtualizacaoIncerta(entrada, tentativas);
-    const erroGravar = await gravarComRetry(supabase, notaId, colunas).catch((e) => e);
-    if (erroGravar) {
-      console.error(
-        `[nfse-emissao] resultado incerto não gravado (nota ${notaId}, numero ${reserva.numero}): ${erroGravar.message}`,
-      );
+    try {
+      const colunas = montarAtualizacaoIncerta(entrada, tentativas);
+      const erroGravar = await gravarComRetry(supabase, notaId, colunas).catch((e) => e);
+      if (erroGravar) {
+        console.error(
+          `[nfse-emissao] resultado incerto não gravado (nota ${notaId}, numero ${reserva.numero}): ${erroGravar.message}`,
+        );
+      }
+      return { nota: { ...nota, status: "pendente", erro: colunas.ultimo_erro } };
+    } catch (erro) {
+      console.error(`[nfse-emissao] falha ao fechar resultado incerto (nota ${notaId}, numero ${reserva.numero}): ${erro?.message}`);
+      return { nota: { ...nota, status: "pendente", erro: RESULTADO_INCERTO_GENERICO } };
     }
-    return { nota: { ...nota, status: "pendente", erro: colunas.ultimo_erro } };
   };
 
   try {
@@ -130,7 +138,7 @@ async function emitirUmaNota({ supabase, owner, cobrancaId, plano, fiscal, usuar
     } catch (erro) {
       if (classificarResultadoEmissao({ erro }) === "incerta") return await fecharIncerta({ erro });
       const falha = montarAtualizacaoFalha(erro?.message ?? String(erro), tentativas);
-      const erroGravar = await gravarComRetry(supabase, notaId, falha);
+      const erroGravar = await gravarComRetry(supabase, notaId, falha).catch((e) => e);
       if (erroGravar) {
         console.error(`[nfse-emissao] rejeição não gravada (nota ${notaId}): ${erroGravar.message}`);
         return { nota: { ...nota, status: "pendente", erro: falha.ultimo_erro } };
@@ -142,7 +150,7 @@ async function emitirUmaNota({ supabase, owner, cobrancaId, plano, fiscal, usuar
     if (classe === "incerta") return await fecharIncerta({ resposta });
 
     const atualizacao = montarAtualizacaoResultado(resposta, tentativas);
-    const erroGravar = await gravarComRetry(supabase, notaId, atualizacao);
+    const erroGravar = await gravarComRetry(supabase, notaId, atualizacao).catch((e) => e);
     if (erroGravar) {
       // A nota pode já estar autorizada no governo: registra para recuperação manual
       // e deixa a linha pendente (bloqueia nova emissão para a mesma cobrança).
@@ -230,6 +238,11 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
     const pendentesDeEmissao = itensSemNotaAtiva({ emissaoPor, plano, ativas });
     if (pendentesDeEmissao.length === 0) return { notas: ativas.map(resumo) };
 
+    // Configuração ausente nunca pode queimar números de DPS.
+    if (!process.env.NFSE_SERVICE_URL || !process.env.NFSE_SERVICE_SECRET) {
+      return { notas: ativas.map(resumo), pendencia: "Serviço de NFS-e não configurado." };
+    }
+
     // Pré-condições ANTES de reservar qualquer número.
     const comp = validarCompetencias({ planos: pendentesDeEmissao, hoje: hojeSaoPaulo() });
     if (!comp.ok) return { notas: ativas.map(resumo), pendencia: comp.motivo };
@@ -288,9 +301,18 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
       if (r.nota) notas.push(r.nota);
       if (r.jaAtiva) {
         // Outra chamada reservou a nota no meio: devolve a(s) nota(s) ativa(s) atual(is).
-        const { data: atuais } = await buscarNotas(supabase, { emissaoPor, cobrancaId: cobranca.id, rateioIds });
-        for (const n of notasAtivas(atuais)) {
+        const { data: atuais, error: erroAtuais } = await buscarNotas(supabase, {
+          emissaoPor,
+          cobrancaId: cobranca.id,
+          rateioIds,
+        });
+        const ativasAgora = erroAtuais ? [] : notasAtivas(atuais);
+        for (const n of ativasAgora) {
           if (!notas.some((x) => x.id === n.id)) notas.push(resumo(n));
+        }
+        if (ativasAgora.length === 0) {
+          const aviso = "A nota já está sendo emitida; recarregue a página para ver o resultado.";
+          pendencia = pendencia ? `${pendencia} ${aviso}` : aviso;
         }
       } else if (r.pendencia) {
         pendencia = pendencia ? `${pendencia} ${r.pendencia}` : r.pendencia;
