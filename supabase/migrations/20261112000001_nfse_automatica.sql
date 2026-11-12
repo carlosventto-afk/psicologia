@@ -46,6 +46,47 @@ create unique index notafiscal_cobranca_ativa
   on "NotaFiscal" (cobranca)
   where status in ('pendente', 'autorizada');
 
+-- Busca de notas rejeitadas/canceladas de uma cobranca (o parcial acima so cobre as ativas).
+create index notafiscal_cobranca_idx
+  on "NotaFiscal" (cobranca)
+  where cobranca is not null;
+
+-- RLS: antes so conferia owner = auth.uid(), entao um profissional podia gravar
+-- NotaFiscal apontando para a cobranca (ou recebimento) de outro e ocupar o
+-- indice unico parcial, bloqueando a emissao legitima. Agora as referencias
+-- tambem precisam ser do proprio usuario (a checagem de FK ignora RLS; os
+-- subselects rodam com a RLS do chamador, que enxerga as proprias linhas).
+-- Admin continua podendo atualizar (como na policy original); select/delete intactos.
+drop policy "notafiscal_insert_own" on "NotaFiscal";
+create policy "notafiscal_insert_own" on "NotaFiscal"
+  for insert with check (
+    owner = auth.uid()
+    and ("NotaFiscal".cobranca is null
+         or exists (select 1 from "Cobranca" c
+                      where c.id = "NotaFiscal".cobranca and c.owner = auth.uid()))
+    and ("NotaFiscal".recebimento_sessao is null
+         or exists (select 1 from "RecebimentoSessao" rs
+                      join "Sessao" s on s.id = rs.sessao
+                      where rs.id = "NotaFiscal".recebimento_sessao and s.owner = auth.uid()))
+  );
+
+drop policy "notafiscal_update_own" on "NotaFiscal";
+create policy "notafiscal_update_own" on "NotaFiscal"
+  for update using (owner = auth.uid() or public.is_admin())
+  with check (
+    public.is_admin()
+    or (
+      owner = auth.uid()
+      and ("NotaFiscal".cobranca is null
+           or exists (select 1 from "Cobranca" c
+                        where c.id = "NotaFiscal".cobranca and c.owner = auth.uid()))
+      and ("NotaFiscal".recebimento_sessao is null
+           or exists (select 1 from "RecebimentoSessao" rs
+                        join "Sessao" s on s.id = rs.sessao
+                        where rs.id = "NotaFiscal".recebimento_sessao and s.owner = auth.uid()))
+    )
+  );
+
 -- ============================================================
 -- 2. Flags
 -- ============================================================
@@ -113,6 +154,14 @@ begin
 
   if v_cob.situacao <> 'recebida' or v_cob.recebimento is null then
     raise exception 'NOTA: só é possível emitir nota de cobrança recebida (situação: %).', v_cob.situacao;
+  end if;
+
+  if v_cob.tipo_documento <> 'nota_fiscal' then
+    raise exception 'NOTA: a cobrança não é do tipo nota fiscal.';
+  end if;
+
+  if v_cob.emissao_por <> 'cobranca' then
+    raise exception 'NOTA: esta cobrança emite nota por sessão, não uma nota única.';
   end if;
 
   -- Trava as sessoes cobertas: vinculos ativos da cobranca + rateio do seu recebimento.
@@ -253,9 +302,14 @@ begin
     raise exception 'NOTA: dados fiscais não configurados para este profissional.';
   end if;
 
-  insert into "NotaFiscal" (owner, recebimento_sessao, status, ambiente, numero, serie)
-  values (v_owner, p_recebimento_sessao, 'pendente', v_ambiente, v_numero, v_serie)
-  returning "NotaFiscal".id into v_id;
+  begin
+    insert into "NotaFiscal" (owner, recebimento_sessao, status, ambiente, numero, serie)
+    values (v_owner, p_recebimento_sessao, 'pendente', v_ambiente, v_numero, v_serie)
+    returning "NotaFiscal".id into v_id;
+  exception when unique_violation then
+    -- O bloco interno desfaz o insert; a excecao abaixo desfaz tambem o numero consumido.
+    raise exception 'NOTA: este recebimento já tem nota fiscal pendente ou autorizada.';
+  end;
 
   return query select v_id, v_numero, v_serie, v_ambiente;
 end;
