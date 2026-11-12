@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { entregarNota } from "./nfse-entrega.js";
 
 // Fake mínimo de Supabase: tabelas em memória, query builder encadeável.
-function criarFake({ nota = {}, ambiente = "producao", optIn = true, claimZero = {} } = {}) {
+function criarFake({ nota = {}, ambiente = "producao", ambienteProfissional = ambiente, optIn = true, claimZero = {} } = {}) {
   const tabelas = {
     NotaFiscal: [
       {
         id: 1,
         owner: "u1",
         status: "autorizada",
+        ambiente,
         cobranca: 10,
         recebimento_sessao: null,
         chave_acesso: "CHAVE123",
@@ -25,7 +26,7 @@ function criarFake({ nota = {}, ambiente = "producao", optIn = true, claimZero =
       },
     ],
     Cobranca: [{ id: 10, paciente: 5 }],
-    DadosFiscaisProfissional: [{ owner: "u1", ambiente }],
+    DadosFiscaisProfissional: [{ owner: "u1", ambiente: ambienteProfissional }],
     Usuarios: [{ id_user: "u1", nome: "Ana Souza" }],
     Paciente: [{ id: 5, whatsapp_lembrete_opt_in: optIn }],
   };
@@ -124,6 +125,19 @@ test("homologação: tudo pulado", async () => {
   const s = senders();
   assert.deepEqual(await entregarNota(fake, 1, s), { email: "pulado", whatsapp: "pulado" });
   assert.deepEqual(s.chamadas, { email: 0, documento: 0, texto: 0 });
+});
+
+test("nota de homologação não é enviada mesmo com o profissional já em produção", async () => {
+  const fake = criarFake({ ambiente: "homologacao", ambienteProfissional: "producao" });
+  const s = senders();
+  assert.deepEqual(await entregarNota(fake, 1, s), { email: "pulado", whatsapp: "pulado" });
+  assert.deepEqual(s.chamadas, { email: 0, documento: 0, texto: 0 });
+});
+
+test("nota de produção é enviada mesmo se o profissional voltou para homologação", async () => {
+  const fake = criarFake({ ambiente: "producao", ambienteProfissional: "homologacao" });
+  const s = senders();
+  assert.deepEqual(await entregarNota(fake, 1, s), { email: "enviado", whatsapp: "enviado" });
 });
 
 test("canal já enviado não é reenviado", async () => {

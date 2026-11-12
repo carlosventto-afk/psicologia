@@ -76,7 +76,7 @@ export async function entregarNota(supabase, notaId, injetados = {}) {
     const { data: nota, error: erroNota } = await supabase
       .from("NotaFiscal")
       .select(
-        "id, owner, status, cobranca, recebimento_sessao, chave_acesso, xml_nfse, pdf_base64, tomador_nome, tomador_email, tomador_telefone, enviada_email_em, enviada_whatsapp_em",
+        "id, owner, status, ambiente, cobranca, recebimento_sessao, chave_acesso, xml_nfse, pdf_base64, tomador_nome, tomador_email, tomador_telefone, enviada_email_em, enviada_whatsapp_em",
       )
       .eq("id", notaId)
       .maybeSingle();
@@ -87,19 +87,20 @@ export async function entregarNota(supabase, notaId, injetados = {}) {
     if (!nota || nota.status !== "autorizada") return { ...PULADO };
 
     const pacienteId = await buscarPacienteId(supabase, nota);
-    const [fiscalRes, usuarioRes, pacienteRes] = await Promise.all([
-      supabase.from("DadosFiscaisProfissional").select("ambiente").eq("owner", nota.owner).maybeSingle(),
+    const [usuarioRes, pacienteRes] = await Promise.all([
       supabase.from("Usuarios").select("nome").eq("id_user", nota.owner).maybeSingle(),
       pacienteId
         ? supabase.from("Paciente").select("whatsapp_lembrete_opt_in").eq("id", pacienteId).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
     ]);
-    for (const r of [fiscalRes, usuarioRes, pacienteRes]) {
+    for (const r of [usuarioRes, pacienteRes]) {
       if (r.error) throw new Error(r.error.message);
     }
 
     const canais = canaisDeEntrega({
-      ambiente: fiscalRes.data?.ambiente,
+      // Ambiente da própria nota: homologação nunca vai ao paciente, mesmo que o
+      // profissional já tenha mudado para produção.
+      ambiente: nota.ambiente,
       tomador: { email: nota.tomador_email, telefone: nota.tomador_telefone },
       optInWhatsapp: pacienteRes.data?.whatsapp_lembrete_opt_in === true,
       jaEnviadoEmail: Boolean(nota.enviada_email_em),

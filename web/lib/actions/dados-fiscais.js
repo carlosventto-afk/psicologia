@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { chamarServicoNfse } from "@/lib/nfse-client";
 import { validarAtivacaoEmissaoAutomatica } from "@/lib/nota-fiscal";
+import { hojeSaoPaulo } from "@/lib/cobranca";
 
 function dadosDoFormulario(formData) {
   return {
@@ -132,7 +133,7 @@ export async function alterarEmissaoAutomatica(prevState, formData) {
     const [fiscalRes, usuarioRes] = await Promise.all([
       supabase
         .from("DadosFiscaisProfissional")
-        .select("certificado_pfx_cifrado")
+        .select("certificado_pfx_cifrado, certificado_validade")
         .eq("owner", user.id)
         .maybeSingle(),
       supabase.from("Usuarios").select("crp").eq("id_user", user.id).maybeSingle(),
@@ -140,7 +141,7 @@ export async function alterarEmissaoAutomatica(prevState, formData) {
     if (fiscalRes.error || usuarioRes.error) {
       return { error: "Não foi possível verificar os pré-requisitos. Tente novamente." };
     }
-    const validacao = validarAtivacaoEmissaoAutomatica({ fiscal: fiscalRes.data, usuario: usuarioRes.data });
+    const validacao = validarAtivacaoEmissaoAutomatica({ fiscal: fiscalRes.data, usuario: usuarioRes.data, hoje: hojeSaoPaulo() });
     if (!validacao.ok) return { error: validacao.motivo };
   }
 

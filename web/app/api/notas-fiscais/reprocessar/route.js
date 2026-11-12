@@ -40,7 +40,18 @@ export async function POST(request) {
   // Envia o alerta e marca alertada_em após qualquer tentativa. Devolve true se tentou.
   async function alertar(nota, tipo) {
     const profissional = await buscarProfissional(nota.owner);
-    if (!profissional?.email) return false;
+    if (!profissional?.email) {
+      // Sem e-mail não há o que enviar: grava alertada_em mesmo assim para a nota
+      // não ser selecionada de novo a cada hora e ocupar o lote.
+      console.error(`[nfse-reprocessar] profissional sem e-mail; alerta não enviado (nota ${nota.id})`);
+      const { error } = await admin
+        .from("NotaFiscal")
+        .update({ alertada_em: new Date().toISOString() })
+        .eq("id", nota.id)
+        .is("alertada_em", null);
+      if (error) console.error(`[nfse-reprocessar] alertada_em não gravado (nota ${nota.id}): ${error.message}`);
+      return false;
+    }
     const { subject, html } = montarEmailAlerta({ tipo, nota, nomeProfissional: profissional.nome });
     let envio;
     try {
