@@ -69,6 +69,7 @@ export function agruparPendenciasPorPaciente(sessoes) {
       qtdSessoes: lista.length,
       total: totalCobranca(lista),
       tipoDocumentoPadrao: tipoDocumentoDoPaciente(paciente.documento),
+      emissaoPorPadrao: paciente.nota_por_sessao === true ? "sessao" : "cobranca",
       sessaoIds: lista.map((s) => s.id),
       sessoes: lista.map((s) => ({
         id: s.id,
@@ -112,6 +113,13 @@ export function mensagemErroCobranca(erro) {
 export function textoBloqueioCobranca(erro) {
   const msg = String(erro?.message ?? "");
   return msg.startsWith(PREFIXO_ERRO) ? capitalizar(msg.slice(PREFIXO_ERRO.length)) : null;
+}
+
+// Texto do bloqueio sem o prefixo "NOTA: " quando o erro vem do gatilho de nota
+// fiscal; null quando e outro tipo de erro.
+export function textoBloqueioNota(erro) {
+  const msg = String(erro?.message ?? "");
+  return msg.startsWith("NOTA: ") ? capitalizar(msg.slice("NOTA: ".length)) : null;
 }
 
 // Mensagem de bloqueio de cobranca se houver; senao o texto generico informado.

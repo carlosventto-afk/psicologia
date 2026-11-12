@@ -26,3 +26,32 @@ export async function enviarWhatsapp({ numero, mensagem }) {
 
   return { error: null };
 }
+
+// Envia um PDF como documento (Evolution v2: message/sendMedia). `base64` pode vir
+// com ou sem o prefixo "data:...;base64,", que a API não aceita.
+export async function enviarDocumentoWhatsApp({ numero, base64, nomeArquivo, legenda }) {
+  const media = String(base64 ?? "").replace(/^data:[^,]*,/, "");
+
+  const resposta = await fetch(`${EVOLUTION_API_URL}/message/sendMedia/${EVOLUTION_INSTANCE}`, {
+    method: "POST",
+    headers: {
+      apikey: process.env.EVOLUTION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      number: numero,
+      mediatype: "document",
+      mimetype: "application/pdf",
+      media,
+      fileName: nomeArquivo,
+      caption: legenda,
+    }),
+  });
+
+  if (!resposta.ok) {
+    const corpo = await resposta.text().catch(() => "");
+    return { error: new Error(`Evolution API respondeu ${resposta.status}: ${corpo}`) };
+  }
+
+  return { error: null };
+}

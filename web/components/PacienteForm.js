@@ -183,6 +183,27 @@ export default function PacienteForm({ action, paciente, pacotes, consultorios }
         </select>
       </div>
 
+      <div className="space-y-2">
+        <label className="flex items-start gap-2 text-sm text-navy">
+          <input
+            type="checkbox"
+            name="nota_por_sessao"
+            defaultChecked={paciente?.nota_por_sessao === true}
+            className="mt-0.5 h-4 w-4"
+          />
+          Emitir nota fiscal por sessão (em vez de uma nota por cobrança)
+        </label>
+        <label className="flex items-start gap-2 text-sm text-navy">
+          <input
+            type="checkbox"
+            name="whatsapp_lembrete_opt_in"
+            defaultChecked={paciente?.whatsapp_lembrete_opt_in === true}
+            className="mt-0.5 h-4 w-4"
+          />
+          Autorizo receber lembretes e documentos (nota fiscal) por WhatsApp
+        </label>
+      </div>
+
       <fieldset className="space-y-3 border-t border-border pt-4">
         <legend className="text-sm font-semibold text-navy px-0">Documentos</legend>
         <div>

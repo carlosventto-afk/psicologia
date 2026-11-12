@@ -6,6 +6,19 @@ import { chamarServicoNfse } from "@/lib/nfse-client";
 import { enviarEmailNotaFiscal } from "@/lib/email";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
+import { classificarResultadoEmissao, montarAtualizacaoIncerta } from "@/lib/nota-fiscal";
+
+const ERRO_INCERTO = "Aguardando confirmação da prefeitura; não emita de novo — verifique no portal da NFS-e";
+
+// Resultado incerto: a nota fica pendente (dps_id/xml_dps/ultimo_erro guardados) e
+// o operador é avisado para não emitir de novo.
+async function manterIncerta(supabase, notaId, entrada) {
+  const colunas = montarAtualizacaoIncerta(entrada, 1);
+  const { error } = await supabase.from("NotaFiscal").update(colunas).eq("id", notaId);
+  if (error) console.error(`[notas-fiscais] resultado incerto não gravado (nota ${notaId}): ${error.message}`);
+  revalidatePath("/notas-fiscais");
+  return { error: ERRO_INCERTO };
+}
 
 export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
   const usuario = await buscarUsuarioAtual();
@@ -86,6 +99,10 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
       valor: Number(recebimentoSessao.valor_aplicado),
     });
   } catch (erro) {
+    // Timeout/5xx: a SEFIN pode ter autorizado. Mantém pendente (sem número novo).
+    if (classificarResultadoEmissao({ erro }) === "incerta") {
+      return await manterIncerta(supabase, notaId, { erro });
+    }
     await supabase
       .from("NotaFiscal")
       .update({
@@ -102,6 +119,10 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
       .eq("id", notaId);
     revalidatePath("/notas-fiscais");
     return { error: "Falha ao emitir: " + erro.message };
+  }
+
+  if (classificarResultadoEmissao({ resposta: resultado }) === "incerta") {
+    return await manterIncerta(supabase, notaId, { resposta: resultado });
   }
 
   await supabase

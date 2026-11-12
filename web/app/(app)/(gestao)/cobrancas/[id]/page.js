@@ -5,7 +5,10 @@ import { listarContas } from "@/lib/data/contas";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import ReceberCobrancaForm from "@/components/ReceberCobrancaForm";
 import CancelarCobrancaBotao from "@/components/CancelarCobrancaBotao";
+import NotaCobrancaStatus from "@/components/NotaCobrancaStatus";
+import EmitirNotaCobrancaBotao from "@/components/EmitirNotaCobrancaBotao";
 import { hojeSaoPaulo } from "@/lib/cobranca";
+import { rotuloBotaoNota } from "@/lib/nota-fiscal";
 import SituacaoCobrancaBadge, { ROTULOS_DOCUMENTO, dataBR } from "@/components/SituacaoCobrancaBadge";
 
 export default async function PaginaCobranca({ params }) {
@@ -19,6 +22,11 @@ export default async function PaginaCobranca({ params }) {
   const aberta = cobranca.situacao === "aberta";
   const recebida = cobranca.situacao === "recebida";
   const rec = cobranca.recebimento;
+  const rotuloNota = rotuloBotaoNota({
+    situacao: cobranca.situacao,
+    tipoDocumento: cobranca.tipo_documento,
+    notas: cobranca.notas,
+  });
   // Contas sao necessarias no form (aberta) e para exibir o nome (recebida).
   let contas = [];
   if (aberta) {
@@ -68,9 +76,16 @@ export default async function PaginaCobranca({ params }) {
           <div className="space-y-2">
             {cobranca.sessoes.map((s) => (
               <div key={s.id} className="card flex items-center justify-between px-4 py-2 text-sm">
-                <span className="text-navy">
-                  {dataBR(s.data)}
-                  {s.horario ? ` às ${String(s.horario).slice(0, 5)}` : ""}
+                <span className="flex items-center gap-2 text-navy">
+                  <span>
+                    {dataBR(s.data)}
+                    {s.horario ? ` às ${String(s.horario).slice(0, 5)}` : ""}
+                  </span>
+                  {s.documentada && (
+                    <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
+                      Documentada
+                    </span>
+                  )}
                 </span>
                 <span className="font-semibold text-navy">{formatarMoeda(s.valor)}</span>
               </div>
@@ -107,6 +122,16 @@ export default async function PaginaCobranca({ params }) {
               Ver notas fiscais
             </Link>
           )}
+        </div>
+      )}
+
+      {cobranca.tipo_documento === "nota_fiscal" && (recebida || cobranca.notas.length > 0) && (
+        <div className="space-y-3">
+          <NotaCobrancaStatus notas={cobranca.notas} />
+          {recebida && !cobranca.notas.some((n) => n.status === "pendente" || n.status === "autorizada") && cobranca.nota_pendencia && (
+            <p className="text-sm text-yellow-700">Nota pendente: {cobranca.nota_pendencia}</p>
+          )}
+          {rotuloNota && <EmitirNotaCobrancaBotao cobrancaId={cobranca.id} rotulo={rotuloNota} />}
         </div>
       )}
 

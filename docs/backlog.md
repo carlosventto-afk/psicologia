@@ -56,6 +56,7 @@ data. Detalhamento de escopo/decisões de cada item está em
 | 31 | Gerar o Pix pela ferramenta e dar baixa automática no atendimento correspondente | — |
 | 33 | Fluxo de documento fiscal automático: Agendado > Realizado > Cobrado > Recebido > Emissão da nota. Os passos até o recebimento continuam manuais (operador); ao receber, a NFS-e é emitida sozinha (sem ação do usuário) para quem tem documento "Nota Fiscal", enviada ao paciente por WhatsApp e e-mail, e a sessão ganha o estado "Documentada". Em desenho (spec em `docs/superpowers/specs/2026-11-12-nfse-automatica-design.md`) | 7 (NFS-e, ainda sem emissão real aceita em produção), 32 |
 | 34 | Cobrança pelo Asaas: gerar a cobrança (Pix/boleto/cartão) a partir da Cobrança do sistema; quando o paciente paga, o webhook do Asaas registra o recebimento sozinho, emite o documento (item 33) e avisa o paciente, tudo sem ação do operador. Pontos a decidir em brainstorm próprio: de quem é a conta Asaas (conta/subconta do profissional vs. da plataforma), taxas e quem as paga, conciliação e estorno | 32, 33 (e integração Asaas já existente do item 11) |
+| 35 | Ação de admin "verificar nota na SEFIN" (consultar DPS) para resolver notas pendentes incertas sem SQL — necessária antes de usar a emissão automática com clientes reais. Hoje a resolução é manual, pelo runbook `docs/runbooks/nfse-nota-incerta.md` | 33 |
 
 Detalhamento de cada item em `docs/backlog-novas-funcionalidades.md`. Ver também
 `docs/status-implementacao.md` pra funcionalidades feitas fora do backlog original

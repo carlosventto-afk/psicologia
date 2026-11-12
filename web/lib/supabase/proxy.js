@@ -24,6 +24,7 @@ const PUBLIC_PATHS = [
   "/api/asaas/webhook",
   "/api/assinaturas/aplicar-pendencias",
   "/api/emails/reprocessar-fila",
+  "/api/notas-fiscais/reprocessar",
   "/api/relatorios/resumo-diario",
 ];
 

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIds, normalizarIdsLista } from "@/lib/normalizar-ids";
 import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
+import { sessaoDocumentada } from "@/lib/nota-fiscal";
 
 export async function listarPacientes({ busca = "", status = "ativos" } = {}) {
   const supabase = await createClient();
@@ -146,7 +147,7 @@ export async function buscarPaciente(id) {
   const { data, error } = await supabase
     .from("Paciente")
     .select(
-      "id, nome, apelido, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, documento, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, dependente, responsavel_financeiro, ativo, ResponsavelFinanceiro:responsavel_financeiro(nome)"
+      "id, nome, apelido, data_nascimento, telefone, email, endereco, observacoes, valor_sessao, consultorio, pacote, documento, cpf, rg_numero, rg_data_expedicao, rg_orgao_emissor, nota_por_sessao, whatsapp_lembrete_opt_in, dependente, responsavel_financeiro, ativo, ResponsavelFinanceiro:responsavel_financeiro(nome)"
     )
     .eq("id", id)
     .single();
@@ -164,7 +165,7 @@ export async function listarSessoesDoPaciente(pacienteId) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Sessao")
-    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(recebimento, valor_aplicado), CobrancaSessao(ativa, cobranca, Cobranca(id, situacao))")
+    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(recebimento, valor_aplicado, NotaFiscal(status)), CobrancaSessao(ativa, cobranca, Cobranca(id, situacao, recebimento, NotaFiscal(status)))")
     .eq("paciente", pacienteId)
     .order("data", { ascending: false })
     .order("horario", { ascending: false });
@@ -179,6 +180,7 @@ export async function listarSessoesDoPaciente(pacienteId) {
       data: s.data,
       horario: s.horario,
       status: s.status,
+      documentada: sessaoDocumentada({ vinculos: s.CobrancaSessao, rateios: s.RecebimentoSessao }),
       cobranca_aberta_id: vinculoAberto ? Number(vinculoAberto.Cobranca.id) : null,
       tipo_sessao: s.tipo_sessao,
       valor: Number(s.valor),

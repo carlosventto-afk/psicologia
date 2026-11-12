@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { chamarServicoNfse } from "@/lib/nfse-client";
+import { validarAtivacaoEmissaoAutomatica } from "@/lib/nota-fiscal";
+import { hojeSaoPaulo } from "@/lib/cobranca";
 
 function dadosDoFormulario(formData) {
   return {
@@ -111,6 +113,44 @@ export async function trocarParaProducao(prevState, formData) {
     .eq("ambiente", "homologacao");
 
   if (error) return { error: "Não foi possível trocar de ambiente: " + error.message };
+
+  revalidatePath("/configuracoes/nfse");
+  return { sucesso: true };
+}
+
+// Liga/desliga a emissao automatica ao receber cobranca. Ligar exige dados fiscais,
+// certificado e CRP; desligar e sempre permitido. Falhas esperadas sao RETORNADAS.
+export async function alterarEmissaoAutomatica(prevState, formData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const ativar = formData.get("emissao_automatica") === "on";
+
+  if (ativar) {
+    const [fiscalRes, usuarioRes] = await Promise.all([
+      supabase
+        .from("DadosFiscaisProfissional")
+        .select("certificado_pfx_cifrado, certificado_validade")
+        .eq("owner", user.id)
+        .maybeSingle(),
+      supabase.from("Usuarios").select("crp").eq("id_user", user.id).maybeSingle(),
+    ]);
+    if (fiscalRes.error || usuarioRes.error) {
+      return { error: "Não foi possível verificar os pré-requisitos. Tente novamente." };
+    }
+    const validacao = validarAtivacaoEmissaoAutomatica({ fiscal: fiscalRes.data, usuario: usuarioRes.data, hoje: hojeSaoPaulo() });
+    if (!validacao.ok) return { error: validacao.motivo };
+  }
+
+  const { error } = await supabase
+    .from("DadosFiscaisProfissional")
+    .update({ emissao_automatica: ativar })
+    .eq("owner", user.id);
+
+  if (error) return { error: "Não foi possível salvar a configuração: " + error.message };
 
   revalidatePath("/configuracoes/nfse");
   return { sucesso: true };

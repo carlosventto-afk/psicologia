@@ -62,12 +62,16 @@ export default async function PaginaNotasFiscais() {
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-navy">
                     {n.pacienteNome} — Nº {n.numero}/{n.serie}
+                    {n.valor != null && ` — ${formatarMoeda(n.valor)}`}
                   </p>
                   <p className="text-muted">
                     {n.status === "autorizada" && `Autorizada (${n.ambiente})`}
-                    {n.status === "rejeitada" && `Rejeitada: ${n.erros?.[0]?.titulo ?? "erro"}`}
+                    {n.status === "rejeitada" && `Rejeitada: ${n.erros?.[0]?.titulo ?? n.ultimoErro ?? "erro"}`}
                     {n.status === "cancelada" && "Cancelada"}
-                    {n.status === "pendente" && "Pendente"}
+                    {n.status === "pendente" &&
+                      (n.daCobranca
+                        ? "Pendente — aguardando confirmação da prefeitura; não emita de novo, confira no portal da NFS-e"
+                        : "Pendente")}
                   </p>
                   {n.status === "autorizada" && n.chaveAcesso && (
                     <p className="text-xs text-muted">Chave de acesso: {n.chaveAcesso}</p>
