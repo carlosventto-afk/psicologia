@@ -160,7 +160,14 @@ Decisões minhas (marcadas; o usuário pode reverter):
 - **Competência** por cobrança = data da última sessão (a mais próxima da data de emissão
   e nunca posterior a ela). Vale confirmar com o contador do profissional.
 
-Pergunta pendente do usuário: quem é o **tomador** da nota quando a cobrança é paga por um
-responsável financeiro (ex.: pai de paciente menor). Recomendação: o responsável financeiro
-da cobrança (o pagador), alinhado ao Carnê-Leão, que já agrupa por pagador. O cadastro do
-responsável já tem `cpf_cnpj`, `telefone` e `email`.
+Decisão do usuário (2026-11-12): o **tomador** é o responsável financeiro da cobrança (o
+pagador) quando existir; quando não existir, é o paciente. CPF/CNPJ, nome, e-mail e telefone
+do tomador vêm do cadastro do responsável (`cpf_cnpj`, `telefone`, `email`) ou do paciente.
+O desenho foi **aprovado** pelo usuário em 2026-11-12.
+
+Correção de fato (descoberta ao montar o plano): o app **já envia WhatsApp direto** pela
+Evolution API em `web/lib/whatsapp.js` (`sendText`, chave `EVOLUTION_API_KEY`); o workflow
+n8n `WA - Enviar Mensagem` é só um subfluxo interno e não é chamável pelo app. Logo, a ação
+de mídia (PDF) entra em `web/lib/whatsapp.js` (`sendMedia`), sem mexer no n8n. O opt-in de
+WhatsApp é `Paciente.whatsapp_lembrete_opt_in` (já existe); para o tomador responsável usa-se
+o telefone do responsável e o mesmo opt-in do paciente.
