@@ -22,6 +22,8 @@ function dadosDoFormulario(formData) {
     rg_numero: formData.get("rg_numero") || null,
     rg_data_expedicao: formData.get("rg_data_expedicao") || null,
     rg_orgao_emissor: formData.get("rg_orgao_emissor") || null,
+    nota_por_sessao: formData.get("nota_por_sessao") === "on",
+    whatsapp_lembrete_opt_in: formData.get("whatsapp_lembrete_opt_in") === "on",
   };
 }
 

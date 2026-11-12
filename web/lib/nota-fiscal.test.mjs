@@ -505,3 +505,36 @@ test("formatarDataHoraSaoPaulo: converte UTC para Sao Paulo", () => {
   assert.match(formatarDataHoraSaoPaulo("2026-11-13T02:30:00Z"), /12\/11\/2026.*23:30/);
   assert.equal(formatarDataHoraSaoPaulo(null), "");
 });
+
+// ---------------------------------------------------------------------------
+// Task 6: emissao_por e ativacao da emissao automatica
+// ---------------------------------------------------------------------------
+import { resolverEmissaoPor, validarAtivacaoEmissaoAutomatica, MOTIVO_CRP_EMISSAO_AUTOMATICA } from "./nota-fiscal.js";
+
+test("resolverEmissaoPor: so vale para nota_fiscal", () => {
+  assert.deepEqual(resolverEmissaoPor("recibo", "sessao"), { valor: null });
+  assert.deepEqual(resolverEmissaoPor("nenhum", "cobranca"), { valor: null });
+  assert.deepEqual(resolverEmissaoPor("nota_fiscal", "sessao"), { valor: "sessao" });
+  assert.deepEqual(resolverEmissaoPor("nota_fiscal", "cobranca"), { valor: "cobranca" });
+});
+
+test("resolverEmissaoPor: vazio em nota_fiscal deriva do paciente (null); invalido e erro", () => {
+  assert.deepEqual(resolverEmissaoPor("nota_fiscal", null), { valor: null });
+  assert.deepEqual(resolverEmissaoPor("nota_fiscal", ""), { valor: null });
+  assert.deepEqual(resolverEmissaoPor("nota_fiscal", "mensal"), { error: "Forma de emissão da nota inválida." });
+});
+
+test("validarAtivacaoEmissaoAutomatica: exige dados fiscais, certificado e CRP", () => {
+  const fiscal = { certificado_pfx_cifrado: "x" };
+  assert.deepEqual(validarAtivacaoEmissaoAutomatica({ fiscal: null, usuario: { crp: "06/1" } }), {
+    ok: false,
+    motivo: MOTIVOS.semDadosFiscais,
+  });
+  assert.equal(validarAtivacaoEmissaoAutomatica({ fiscal: {}, usuario: { crp: "06/1" } }).motivo, MOTIVOS.certificadoAusente);
+  assert.equal(
+    validarAtivacaoEmissaoAutomatica({ fiscal, usuario: { crp: "  " } }).motivo,
+    "Cadastre seu CRP em Meus Dados para ativar a emissão automática.",
+  );
+  assert.equal(validarAtivacaoEmissaoAutomatica({ fiscal, usuario: null }).motivo, MOTIVO_CRP_EMISSAO_AUTOMATICA);
+  assert.deepEqual(validarAtivacaoEmissaoAutomatica({ fiscal, usuario: { crp: "06/12345" } }), { ok: true });
+});

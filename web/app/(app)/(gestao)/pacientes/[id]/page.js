@@ -354,6 +354,7 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
               pacienteId={pacienteId}
               sessoes={sessoesParaAgrupar}
               tipoDocumentoPadrao={tipoDocumentoDoPaciente(paciente.documento)}
+              emissaoPorPadrao={paciente.nota_por_sessao === true ? "sessao" : "cobranca"}
               responsaveis={responsaveis}
             />
           </div>

@@ -374,3 +374,27 @@ export function sessaoDocumentada({ vinculos, rateios }) {
     return lista.some((r) => String(r.recebimento) === String(c.recebimento)) && autorizada(c.NotaFiscal);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Flags na interface: emissao_por e emissao automatica
+// ---------------------------------------------------------------------------
+
+// Valor de emissao_por a enviar ao RPC criar_cobranca. So nota_fiscal usa o campo;
+// vazio => null (o SQL deriva de Paciente.nota_por_sessao). Invalido => { error }.
+export function resolverEmissaoPor(tipoDocumento, valor) {
+  if (tipoDocumento !== "nota_fiscal") return { valor: null };
+  if (valor === null || valor === undefined || valor === "") return { valor: null };
+  if (valor === "cobranca" || valor === "sessao") return { valor };
+  return { error: "Forma de emissão da nota inválida." };
+}
+
+export const MOTIVO_CRP_EMISSAO_AUTOMATICA = "Cadastre seu CRP em Meus Dados para ativar a emissão automática.";
+
+// Pode ligar a emissão automática? Desligar nunca passa por aqui.
+export function validarAtivacaoEmissaoAutomatica({ fiscal, usuario }) {
+  const falha = (motivo) => ({ ok: false, motivo });
+  if (!fiscal) return falha(MOTIVOS.semDadosFiscais);
+  if (!fiscal.certificado_pfx_cifrado) return falha(MOTIVOS.certificadoAusente);
+  if (!usuario?.crp || !String(usuario.crp).trim()) return falha(MOTIVO_CRP_EMISSAO_AUTOMATICA);
+  return { ok: true };
+}

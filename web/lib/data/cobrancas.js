@@ -172,7 +172,7 @@ export async function listarPacientesComPendencias(intervalo) {
   const supabase = await createClient();
   let query = supabase
     .from("Sessao")
-    .select(`${CAMPOS_SESSAO}, Paciente!inner(id, nome, apelido, documento, ativo)`)
+    .select(`${CAMPOS_SESSAO}, Paciente!inner(id, nome, apelido, documento, ativo, nota_por_sessao)`)
     .order("data")
     .order("horario");
   query = aplicarIntervalo(query, intervalo);

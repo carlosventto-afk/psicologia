@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { listarResponsaveisDoPaciente } from "@/lib/data/responsaveis-financeiros";
 import { escolherResponsavel, mensagemErroCobranca } from "@/lib/cobranca";
 import { emitirEEntregarCobranca } from "@/lib/nfse-emitir-entregar";
+import { resolverEmissaoPor } from "@/lib/nota-fiscal";
 
 const TIPOS = ["nenhum", "recibo", "nota_fiscal"];
 
@@ -19,10 +20,14 @@ function revalidarTudo(pacienteId) {
 
 // Cria a cobranca de um paciente. Devolve { id } ou { error }; so ids, tipo,
 // periodo e responsavel vao ao banco (o SQL recalcula o saldo).
-async function criarUma(supabase, { pacienteId, sessaoIds, tipoDocumento, periodo, responsavelEscolhido }) {
+async function criarUma(supabase, { pacienteId, sessaoIds, tipoDocumento, periodo, responsavelEscolhido, emissaoPor }) {
   if (!pacienteId) return { error: "Paciente não informado." };
   if (!TIPOS.includes(tipoDocumento)) return { error: "Tipo de documento inválido." };
   if (sessaoIds.length === 0) return { error: "Selecione ao menos uma sessão." };
+
+  // So nota_fiscal usa emissao_por; vazio deixa o SQL derivar da flag do paciente.
+  const emissao = resolverEmissaoPor(tipoDocumento, emissaoPor);
+  if (emissao.error) return { error: emissao.error };
 
   let responsaveis;
   try {
@@ -39,6 +44,7 @@ async function criarUma(supabase, { pacienteId, sessaoIds, tipoDocumento, period
     p_tipo_documento: tipoDocumento,
     p_periodo: periodo || null,
     p_responsavel: resp.id,
+    p_emissao_por: emissao.valor,
   });
   if (error) return { error: mensagemErroCobranca(error) };
   return { id: Number(data) };
@@ -56,6 +62,7 @@ export async function criarCobranca(prevState, formData) {
     tipoDocumento: formData.get("tipo_documento"),
     periodo: formData.get("periodo"),
     responsavelEscolhido: escolhido ? Number(escolhido) : null,
+    emissaoPor: formData.get("emissao_por"),
   });
   if (r.error) return { error: r.error };
 
@@ -65,7 +72,7 @@ export async function criarCobranca(prevState, formData) {
 
 // Campos: paciente_id (repetido, um por paciente marcado); por paciente:
 // tipo_documento_<id>, sessao_id_<id> (repetido), responsavel_financeiro_<id>
-// (so quando ha mais de um responsavel); periodo (primeiro dia do mes).
+// (so quando ha mais de um responsavel), emissao_por_<id> (so nota_fiscal); periodo (primeiro dia do mes).
 export async function criarCobrancasDoMes(prevState, formData) {
   const supabase = await createClient();
   const periodo = formData.get("periodo");
@@ -89,6 +96,7 @@ export async function criarCobrancasDoMes(prevState, formData) {
       tipoDocumento: formData.get(`tipo_documento_${pacienteId}`),
       periodo,
       responsavelEscolhido: escolhido ? Number(escolhido) : null,
+      emissaoPor: formData.get(`emissao_por_${pacienteId}`),
     });
     if (r.error) {
       falhas.push({ pacienteId, nome: nomes.get(pacienteId) ?? `Paciente ${pacienteId}`, error: r.error });

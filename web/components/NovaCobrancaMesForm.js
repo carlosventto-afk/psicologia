@@ -44,6 +44,11 @@ export default function NovaCobrancaMesForm({
       pacientes.map((g) => [g.paciente.id, g.tipoDocumentoPadrao]),
     ),
   );
+  const [emissoes, setEmissoes] = useState(() =>
+    Object.fromEntries(
+      pacientes.map((g) => [g.paciente.id, g.emissaoPorPadrao ?? "cobranca"]),
+    ),
+  );
   const [responsaveisEscolhidos, setResponsaveisEscolhidos] = useState({});
 
   // Apenas pacientes presentes na lista atual (ids antigos de pacientes ja
@@ -143,6 +148,29 @@ export default function NovaCobrancaMesForm({
                   {aberto ? "Ocultar sessões" : "Ver sessões"}
                 </button>
               </div>
+
+              {(tipos[id] ?? g.tipoDocumentoPadrao) === "nota_fiscal" && (
+                <div className="mt-3">
+                  <label
+                    htmlFor={`emissao_${id}`}
+                    className="block text-xs font-semibold text-navy"
+                  >
+                    Emissão da nota
+                  </label>
+                  <select
+                    id={`emissao_${id}`}
+                    name={incluido ? `emissao_por_${id}` : undefined}
+                    value={emissoes[id] ?? g.emissaoPorPadrao ?? "cobranca"}
+                    onChange={(e) =>
+                      setEmissoes((t) => ({ ...t, [id]: e.target.value }))
+                    }
+                    className="field sm:max-w-72"
+                  >
+                    <option value="cobranca">Uma nota por cobrança</option>
+                    <option value="sessao">Uma nota por sessão</option>
+                  </select>
+                </div>
+              )}
 
               {g.responsaveis?.length > 1 && (
                 <div className="mt-3">

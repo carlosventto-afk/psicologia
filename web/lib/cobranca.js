@@ -69,6 +69,7 @@ export function agruparPendenciasPorPaciente(sessoes) {
       qtdSessoes: lista.length,
       total: totalCobranca(lista),
       tipoDocumentoPadrao: tipoDocumentoDoPaciente(paciente.documento),
+      emissaoPorPadrao: paciente.nota_por_sessao === true ? "sessao" : "cobranca",
       sessaoIds: lista.map((s) => s.id),
       sessoes: lista.map((s) => ({
         id: s.id,

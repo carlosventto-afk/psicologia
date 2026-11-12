@@ -14,10 +14,11 @@ function dataBR(iso) {
 
 // sessoes: [{ id, data, horario, status, realizada, saldo }]; responsaveis: [{ id, nome, eh_proprio }].
 // A action redireciona para a cobranca criada.
-export default function AgruparSessoesForm({ pacienteId, sessoes, tipoDocumentoPadrao, responsaveis }) {
+export default function AgruparSessoesForm({ pacienteId, sessoes, tipoDocumentoPadrao, emissaoPorPadrao, responsaveis }) {
   const [state, formAction, pending] = useActionState(criarCobranca, estadoInicial);
   const [marcadas, setMarcadas] = useState(() => sessoesMarcadasPorPadrao(sessoes));
   const [tipo, setTipo] = useState(tipoDocumentoPadrao);
+  const [emissaoPor, setEmissaoPor] = useState(emissaoPorPadrao ?? "cobranca");
   const [responsavel, setResponsavel] = useState("");
 
   const marcadasAtuais = marcadas.filter((id) => sessoes.some((s) => s.id === id));
@@ -81,6 +82,24 @@ export default function AgruparSessoesForm({ pacienteId, sessoes, tipoDocumentoP
                 <option value="nota_fiscal">Nota Fiscal</option>
               </select>
             </div>
+
+            {tipo === "nota_fiscal" && (
+              <div>
+                <label htmlFor="agrupar_emissao" className="block text-xs font-semibold text-navy">
+                  Emissão da nota
+                </label>
+                <select
+                  id="agrupar_emissao"
+                  name="emissao_por"
+                  value={emissaoPor}
+                  onChange={(e) => setEmissaoPor(e.target.value)}
+                  className="field"
+                >
+                  <option value="cobranca">Uma nota por cobrança</option>
+                  <option value="sessao">Uma nota por sessão</option>
+                </select>
+              </div>
+            )}
 
             {variosResponsaveis && (
               <div>
