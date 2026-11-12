@@ -23,7 +23,9 @@ export function deveTentarEntrega(nota) {
   if (!nota || nota.status !== "autorizada") return false;
   if (nota.ambiente !== "producao") return false;
   if ((nota.tentativas_entrega ?? 0) >= LIMITE_TENTATIVAS_ENTREGA) return false;
-  return !nota.enviada_email_em || !nota.enviada_whatsapp_em;
+  const emailPendente = !nota.enviada_email_em && Boolean(nota.tomador_email);
+  const whatsappPendente = !nota.enviada_whatsapp_em && Boolean(nota.tomador_telefone);
+  return emailPendente || whatsappPendente;
 }
 
 export function deveAlertarPendenteIncerta(nota, agora = new Date()) {
@@ -44,6 +46,28 @@ export function deveAlertarRejeitada(nota) {
 export function entregaEsgotada(novaContagem, resultado) {
   if (novaContagem < LIMITE_TENTATIVAS_ENTREGA) return false;
   return resultado?.email === "falhou" || resultado?.whatsapp === "falhou";
+}
+
+// Decide o que fazer depois de entregarNota.
+// - Tentou algum canal (enviado/falhou): conta 1 tentativa; esgotada se chegou
+//   ao limite e algum canal ainda está "falhou".
+// - Pulou os dois canais (nada permitido/pendente): encerra em silêncio
+//   (contagem no limite, sem alerta, fora de "esgotadas").
+// Borda rara: se o claim foi perdido para um envio concorrente que depois
+// falha, o resultado aqui é "pulado" e a nota é encerrada sem nova tentativa.
+export function decidirPosEntrega(contagemAtual, resultado) {
+  const estados = [resultado?.email, resultado?.whatsapp];
+  const tentou = estados.some((e) => e === "enviado" || e === "falhou");
+  if (!tentou) {
+    return { tentou: false, novaContagem: LIMITE_TENTATIVAS_ENTREGA, encerradaEmSilencio: true, esgotada: false };
+  }
+  const novaContagem = (contagemAtual ?? 0) + 1;
+  return {
+    tentou: true,
+    novaContagem,
+    encerradaEmSilencio: false,
+    esgotada: entregaEsgotada(novaContagem, resultado),
+  };
 }
 
 export const ASSUNTOS = {

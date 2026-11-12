@@ -8,7 +8,7 @@ import {
   deveTentarEntrega,
   deveAlertarPendenteIncerta,
   deveAlertarRejeitada,
-  entregaEsgotada,
+  decidirPosEntrega,
   montarEmailAlerta,
 } from "@/lib/nfse-reprocessar";
 
@@ -37,7 +37,7 @@ export async function POST(request) {
     return profissionais.get(owner);
   }
 
-  // Envia o alerta e só então marca alertada_em. Devolve true se enviou.
+  // Envia o alerta e marca alertada_em após qualquer tentativa. Devolve true se tentou.
   async function alertar(nota, tipo) {
     const profissional = await buscarProfissional(nota.owner);
     if (!profissional?.email) return false;
@@ -48,10 +48,10 @@ export async function POST(request) {
     } catch (erro) {
       envio = { error: erro };
     }
-    if (envio?.error) {
-      console.error(`[nfse-reprocessar] falha ao alertar (nota ${nota.id}):`, envio.error);
-      return false;
-    }
+    // enviarEmailResend enfileira a falha em EmailFalhado (a fila é dona dos
+    // reenvios). Por isso alertada_em é gravado após QUALQUER tentativa:
+    // senão o job reenviaria a cada hora além da cópia da fila.
+    if (envio?.error) console.error(`[nfse-reprocessar] e-mail de alerta falhou (nota ${nota.id}); fila assume`);
     const { error } = await admin
       .from("NotaFiscal")
       .update({ alertada_em: new Date().toISOString() })
@@ -66,35 +66,36 @@ export async function POST(request) {
     const { data: candidatas, error } = await admin
       .from("NotaFiscal")
       .select(
-        "id, owner, status, ambiente, tomador_nome, ultimo_erro, created_at, alertada_em, tentativas_entrega, enviada_email_em, enviada_whatsapp_em",
+        "id, owner, status, ambiente, tomador_nome, ultimo_erro, created_at, alertada_em, tentativas_entrega, enviada_email_em, enviada_whatsapp_em, tomador_email, tomador_telefone",
       )
       .eq("status", "autorizada")
       .eq("ambiente", "producao")
       .lt("tentativas_entrega", LIMITE_TENTATIVAS_ENTREGA)
-      .or("enviada_email_em.is.null,enviada_whatsapp_em.is.null")
+      // Só notas com canal pendente E com dado do tomador para esse canal.
+      .or("and(enviada_email_em.is.null,tomador_email.not.is.null),and(enviada_whatsapp_em.is.null,tomador_telefone.not.is.null)")
       .order("created_at", { ascending: true })
       .limit(LIMITE_POR_CATEGORIA);
     if (error) throw new Error(error.message);
 
     for (const nota of (candidatas ?? []).filter(deveTentarEntrega)) {
       try {
-        const novaContagem = (nota.tentativas_entrega ?? 0) + 1;
-        // Consome a tentativa antes de entregar (otimista: perde se outro job já contou).
-        const { data: contada, error: erroConta } = await admin
-          .from("NotaFiscal")
-          .update({ tentativas_entrega: novaContagem })
-          .eq("id", nota.id)
-          .eq("tentativas_entrega", nota.tentativas_entrega ?? 0)
-          .select("id");
-        if (erroConta || !contada?.length) continue;
-
         const resultado = await entregarNota(admin, nota.id);
+        const decisao = decidirPosEntrega(nota.tentativas_entrega, resultado);
         if (resultado.email === "enviado" || resultado.whatsapp === "enviado") resumo.entregues++;
 
-        if (entregaEsgotada(novaContagem, resultado)) {
+        // Otimista: só conta se ninguém mexeu na contagem entre o select e agora.
+        await admin
+          .from("NotaFiscal")
+          .update({ tentativas_entrega: decisao.novaContagem })
+          .eq("id", nota.id)
+          .eq("tentativas_entrega", nota.tentativas_entrega ?? 0);
+
+        if (decisao.esgotada) {
           resumo.esgotadas++;
-          if (!nota.alertada_em) {
-            if (await alertar(nota, "entrega")) resumo.alertas++;
+          // Relê a nota: ultimo_erro fresco (gravado por entregarNota) e alertada_em.
+          const { data: fresca } = await admin.from("NotaFiscal").select(COLUNAS_ALERTA).eq("id", nota.id).maybeSingle();
+          if (fresca && !fresca.alertada_em) {
+            if (await alertar(fresca, "entrega")) resumo.alertas++;
           }
         }
       } catch (erro) {

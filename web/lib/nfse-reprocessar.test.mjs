@@ -6,6 +6,7 @@ import {
   deveAlertarPendenteIncerta,
   deveAlertarRejeitada,
   entregaEsgotada,
+  decidirPosEntrega,
   montarEmailAlerta,
   ASSUNTOS,
 } from "./nfse-reprocessar.js";
@@ -41,14 +42,16 @@ test("rejeitada: sem ultimo_erro não alerta, com alerta, já alertada não", ()
 });
 
 test("entrega: limite de tentativas, ambiente e canais", () => {
-  const base = { status: "autorizada", ambiente: "producao", tentativas_entrega: 0, enviada_email_em: null };
+  const base = { status: "autorizada", ambiente: "producao", tentativas_entrega: 0, enviada_email_em: null, tomador_email: "a@b.c" };
   assert.equal(deveTentarEntrega(base), true);
   assert.equal(deveTentarEntrega({ ...base, tentativas_entrega: 2 }), true);
   assert.equal(deveTentarEntrega({ ...base, tentativas_entrega: 3 }), false);
   assert.equal(deveTentarEntrega({ ...base, ambiente: "homologacao" }), false);
   assert.equal(deveTentarEntrega({ ...base, status: "pendente" }), false);
   assert.equal(deveTentarEntrega({ ...base, enviada_email_em: atras(1), enviada_whatsapp_em: atras(1) }), false);
-  assert.equal(deveTentarEntrega({ ...base, enviada_email_em: atras(1) }), true);
+  assert.equal(deveTentarEntrega({ ...base, enviada_email_em: atras(1) }), false);
+  assert.equal(deveTentarEntrega({ ...base, enviada_email_em: atras(1), tomador_telefone: "11999999999" }), true);
+  assert.equal(deveTentarEntrega({ ...base, tomador_email: null }), false);
 });
 
 test("entregaEsgotada só na 3a tentativa com falha", () => {
@@ -79,4 +82,27 @@ test("corpo escapa HTML e inclui o motivo", () => {
 
 test("tipo desconhecido lança", () => {
   assert.throws(() => montarEmailAlerta({ tipo: "zzz", nota: {} }));
+});
+
+test("decidirPosEntrega: só conta quando tentou algum canal", () => {
+  const d = decidirPosEntrega(1, { email: "enviado", whatsapp: "pulado" });
+  assert.deepEqual(d, { tentou: true, novaContagem: 2, encerradaEmSilencio: false, esgotada: false });
+  assert.equal(decidirPosEntrega(0, { email: "pulado", whatsapp: "falhou" }).novaContagem, 1);
+});
+
+test("decidirPosEntrega: pulado/pulado encerra em silêncio, sem esgotar", () => {
+  const d = decidirPosEntrega(0, { email: "pulado", whatsapp: "pulado" });
+  assert.deepEqual(d, { tentou: false, novaContagem: 3, encerradaEmSilencio: true, esgotada: false });
+});
+
+test("decidirPosEntrega: esgota só na 3a tentativa com falha", () => {
+  assert.equal(decidirPosEntrega(1, { email: "falhou", whatsapp: "pulado" }).esgotada, false);
+  assert.equal(decidirPosEntrega(2, { email: "falhou", whatsapp: "pulado" }).esgotada, true);
+  assert.equal(decidirPosEntrega(2, { email: "enviado", whatsapp: "pulado" }).esgotada, false);
+});
+
+test("alerta uma única vez: alertada_em preenchido bloqueia todas as categorias", () => {
+  const a = atras(1);
+  assert.equal(deveAlertarPendenteIncerta({ status: "pendente", created_at: atras(500), alertada_em: a }, agora), false);
+  assert.equal(deveAlertarRejeitada({ status: "rejeitada", ultimo_erro: "x", alertada_em: a }), false);
 });
