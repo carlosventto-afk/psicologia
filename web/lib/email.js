@@ -1,3 +1,5 @@
+import { escaparHtml } from "./nota-fiscal.js";
+
 // Primeira integracao de e-mail direta neste app (o item 9 usa um n8n
 // externo, que nem esta implantado -- ver correcao na spec deste item).
 const RESEND_API_URL = "https://api.resend.com/emails";
@@ -35,7 +37,7 @@ export async function enviarEmailNotaFiscal({ paraEmail, pacienteNome, xmlBase64
   return sendEmail({
     to: paraEmail,
     subject: "Sua Nota Fiscal de Servico (NFS-e)",
-    html: `<p>Ola, ${pacienteNome}.</p><p>Segue em anexo a Nota Fiscal de Servico referente ao seu atendimento.</p>`,
+    html: `<p>Ola, ${escaparHtml(pacienteNome)}.</p><p>Segue em anexo a Nota Fiscal de Servico referente ao seu atendimento.</p>`,
     attachments: anexos,
   });
 }

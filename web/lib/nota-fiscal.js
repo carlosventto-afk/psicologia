@@ -79,10 +79,20 @@ export function canaisDeEntrega({
     producao && Boolean(tomador?.email && String(tomador.email).trim()) && !jaEnviadoEmail;
   const whatsapp =
     producao &&
-    apenasDigitos(tomador?.telefone).length >= 10 &&
+    normalizarTelefoneWhatsapp(tomador?.telefone) !== null &&
     optInWhatsapp === true &&
     !jaEnviadoWhatsapp;
   return { email, whatsapp };
+}
+
+// Escape de HTML para texto controlado pelo usuário em corpo de e-mail.
+export function escaparHtml(texto) {
+  return String(texto ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // Legenda/mensagem do WhatsApp: abre identificando a psicóloga.

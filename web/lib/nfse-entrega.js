@@ -3,14 +3,17 @@
 // Contrato: entregarNota NUNCA lança. Cada canal é independente (falha de um não
 // impede o outro) e idempotente (enviada_*_em já preenchido nunca reenvia).
 // Só entrega em ambiente de produção; homologação fica "pulado".
+// Cada canal é reivindicado (claim) ANTES do envio por update condicional em
+// enviada_<canal>_em IS NULL: no máximo um envio por canal, mesmo com chamadas
+// concorrentes (gatilho automático, botão manual, reprocessador).
 
-import { enviarEmailNotaFiscal } from "@/lib/email";
-import { enviarWhatsapp, enviarDocumentoWhatsApp } from "@/lib/whatsapp";
+import { enviarEmailNotaFiscal } from "./email.js";
+import { enviarWhatsapp, enviarDocumentoWhatsApp } from "./whatsapp.js";
 import {
   canaisDeEntrega,
   montarMensagemWhatsappNota,
   normalizarTelefoneWhatsapp,
-} from "@/lib/nota-fiscal";
+} from "./nota-fiscal.js";
 
 const PULADO = { email: "pulado", whatsapp: "pulado" };
 
@@ -33,24 +36,55 @@ async function buscarPacienteId(supabase, nota) {
   return null;
 }
 
-// Update que não casa nenhuma linha (ex.: RLS) conta como falha.
-async function gravar(supabase, notaId, colunas) {
-  const { data, error } = await supabase.from("NotaFiscal").update(colunas).eq("id", notaId).select("id");
-  if (error) return error;
-  if (!Array.isArray(data) || data.length === 0) return new Error("nenhuma linha atualizada");
-  return null;
+const COLUNA = { email: "enviada_email_em", whatsapp: "enviada_whatsapp_em" };
+
+// Reivindica o canal. "ok" = este chamador é o dono; "perdeu" = outro já reivindicou
+// (ou enviou); "erro" = falha de escrita (fail closed: não envia).
+async function reivindicar(supabase, notaId, canal) {
+  const { data, error } = await supabase
+    .from("NotaFiscal")
+    .update({ [COLUNA[canal]]: new Date().toISOString() })
+    .eq("id", notaId)
+    .is(COLUNA[canal], null)
+    .select("id");
+  if (error) return { estado: "erro", erro: error };
+  return { estado: Array.isArray(data) && data.length > 0 ? "ok" : "perdeu" };
 }
 
-export async function entregarNota(supabase, notaId) {
+// Devolve a reivindicação após falha de envio, para permitir nova tentativa.
+async function liberar(supabase, notaId, canal) {
+  try {
+    const { data, error } = await supabase
+      .from("NotaFiscal")
+      .update({ [COLUNA[canal]]: null })
+      .eq("id", notaId)
+      .select("id");
+    if (error || !data?.length) {
+      console.error(`[nfse-entrega] não liberou a reivindicação de ${canal} (nota ${notaId})`);
+    }
+  } catch {
+    console.error(`[nfse-entrega] não liberou a reivindicação de ${canal} (nota ${notaId})`);
+  }
+}
+
+export async function entregarNota(supabase, notaId, injetados = {}) {
+  const enviarEmail = injetados.enviarEmail ?? enviarEmailNotaFiscal;
+  const enviarDocumento = injetados.enviarDocumento ?? enviarDocumentoWhatsApp;
+  const enviarTexto = injetados.enviarTexto ?? enviarWhatsapp;
+
   try {
     const { data: nota, error: erroNota } = await supabase
       .from("NotaFiscal")
       .select(
-        "id, owner, status, cobranca, recebimento_sessao, chave_acesso, xml_nfse, pdf_base64, tomador_nome, tomador_email, tomador_telefone, enviada_email_em, enviada_whatsapp_em, ultimo_erro",
+        "id, owner, status, cobranca, recebimento_sessao, chave_acesso, xml_nfse, pdf_base64, tomador_nome, tomador_email, tomador_telefone, enviada_email_em, enviada_whatsapp_em",
       )
       .eq("id", notaId)
       .maybeSingle();
-    if (erroNota || !nota || nota.status !== "autorizada") return { ...PULADO };
+    if (erroNota) {
+      console.error(`[nfse-entrega] não carregou a nota ${notaId}: ${erroNota.message}`);
+      return { ...PULADO };
+    }
+    if (!nota || nota.status !== "autorizada") return { ...PULADO };
 
     const pacienteId = await buscarPacienteId(supabase, nota);
     const [fiscalRes, usuarioRes, pacienteRes] = await Promise.all([
@@ -74,28 +108,41 @@ export async function entregarNota(supabase, notaId) {
 
     const resultado = { ...PULADO };
     const erros = [];
-    const colunas = {};
+
+    // Reivindica, envia e, se falhar, libera. Devolve o estado do canal.
+    const entregar = async (canal, rotulo, enviar) => {
+      const claim = await reivindicar(supabase, nota.id, canal);
+      if (claim.estado === "perdeu") return "pulado";
+      if (claim.estado === "erro") {
+        erros.push(`${rotulo}: não foi possível reservar o envio (${claim.erro?.message ?? claim.erro})`);
+        return "falhou";
+      }
+      try {
+        await enviar();
+        return "enviado";
+      } catch (erro) {
+        erros.push(`${rotulo}: ${erro?.message ?? erro}`);
+        await liberar(supabase, nota.id, canal);
+        return "falhou";
+      }
+    };
 
     if (canais.email) {
-      try {
+      resultado.email = await entregar("email", "e-mail", async () => {
+        if (!String(nota.xml_nfse ?? "").trim()) throw new Error("XML da nota ausente");
         // xml_nfse guarda o texto decodificado; o e-mail espera base64.
-        const xmlBase64 = Buffer.from(nota.xml_nfse ?? "", "utf8").toString("base64");
-        await enviarEmailNotaFiscal({
+        const xmlBase64 = Buffer.from(nota.xml_nfse, "utf8").toString("base64");
+        await enviarEmail({
           paraEmail: String(nota.tomador_email).trim(),
           pacienteNome: nota.tomador_nome ?? "",
           xmlBase64,
           pdfBase64: nota.pdf_base64 || undefined,
         });
-        resultado.email = "enviado";
-        colunas.enviada_email_em = new Date().toISOString();
-      } catch (erro) {
-        resultado.email = "falhou";
-        erros.push(`e-mail: ${erro?.message ?? erro}`);
-      }
+      });
     }
 
     if (canais.whatsapp) {
-      try {
+      resultado.whatsapp = await entregar("whatsapp", "WhatsApp", async () => {
         const numero = normalizarTelefoneWhatsapp(nota.tomador_telefone);
         if (!numero) throw new Error("telefone do tomador inválido");
         const mensagem = montarMensagemWhatsappNota({
@@ -103,32 +150,29 @@ export async function entregarNota(supabase, notaId) {
           chave: nota.chave_acesso,
         });
         const { error } = nota.pdf_base64
-          ? await enviarDocumentoWhatsApp({
+          ? await enviarDocumento({
               numero,
               base64: nota.pdf_base64,
               nomeArquivo: "nota-fiscal.pdf",
               legenda: mensagem,
             })
-          : await enviarWhatsapp({ numero, mensagem });
+          : await enviarTexto({ numero, mensagem });
         if (error) throw error;
-        resultado.whatsapp = "enviado";
-        colunas.enviada_whatsapp_em = new Date().toISOString();
-      } catch (erro) {
-        resultado.whatsapp = "falhou";
-        erros.push(`WhatsApp: ${erro?.message ?? erro}`);
-      }
+      });
     }
 
-    if (erros.length > 0) {
-      colunas.ultimo_erro = `Falha na entrega (${erros.join("; ")})`;
-    }
-    if (Object.keys(colunas).length > 0) {
-      const erroGravar = await gravar(supabase, nota.id, colunas);
-      if (erroGravar) {
-        // Enviou mas não registrou: reporta falha (pode haver reenvio numa próxima tentativa).
-        console.error(`[nfse-entrega] entrega não registrada (nota ${nota.id}): ${erroGravar.message}`);
-        if (colunas.enviada_email_em) resultado.email = "falhou";
-        if (colunas.enviada_whatsapp_em) resultado.whatsapp = "falhou";
+    // ultimo_erro: grava quando algum canal falhou; limpa quando tudo o que foi
+    // tentado teve sucesso.
+    const tentados = [resultado.email, resultado.whatsapp].filter((r) => r !== "pulado");
+    if (erros.length > 0 || (tentados.length > 0 && tentados.every((r) => r === "enviado"))) {
+      const ultimo_erro = erros.length > 0 ? `Falha na entrega (${erros.join("; ")})` : null;
+      const { data, error } = await supabase
+        .from("NotaFiscal")
+        .update({ ultimo_erro })
+        .eq("id", nota.id)
+        .select("id");
+      if (error || !data?.length) {
+        console.error(`[nfse-entrega] ultimo_erro não gravado (nota ${nota.id})`);
       }
     }
 

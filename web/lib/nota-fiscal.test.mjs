@@ -9,6 +9,7 @@ import {
   canaisDeEntrega,
   montarMensagemWhatsappNota,
   normalizarTelefoneWhatsapp,
+  escaparHtml,
   MOTIVOS,
   somarValores,
   notasAtivas,
@@ -422,4 +423,20 @@ test("normalizarTelefoneWhatsapp: só dígitos, 55 quando faltar, curto vira nul
   assert.equal(normalizarTelefoneWhatsapp("5591981910295"), "5591981910295");
   assert.equal(normalizarTelefoneWhatsapp("1234"), null);
   assert.equal(normalizarTelefoneWhatsapp(null), null);
+});
+
+test("escaparHtml escapa caracteres de marcação", () => {
+  assert.equal(escaparHtml(`<b>"A" & 'B'</b>`), "&lt;b&gt;&quot;A&quot; &amp; &#39;B&#39;&lt;/b&gt;");
+  assert.equal(escaparHtml(null), "");
+});
+
+test("canaisDeEntrega: telefone que não normaliza para WhatsApp é pulado", () => {
+  const r = canaisDeEntrega({
+    ambiente: "producao",
+    tomador: { email: "", telefone: "123456789012345" },
+    optInWhatsapp: true,
+    jaEnviadoEmail: false,
+    jaEnviadoWhatsapp: false,
+  });
+  assert.equal(r.whatsapp, false);
 });
