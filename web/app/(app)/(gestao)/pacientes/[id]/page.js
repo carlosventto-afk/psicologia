@@ -281,6 +281,11 @@ export default async function PaginaDetalhePaciente({ params, searchParams }) {
                     <span className="text-muted">{s.tipo_sessao}</span>
                     <span>{s.status ?? "Marcada"}</span>
                     <span className="text-muted">{formatarMoeda(s.valor)}</span>
+                    {s.documentada && (
+                      <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
+                        Documentada
+                      </span>
+                    )}
                     {s.saldo_devedor > 0 ? (
                       s.status !== "Cancelada" && (
                         <>

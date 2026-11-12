@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizarIds, normalizarIdsLista } from "@/lib/normalizar-ids";
 import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
+import { sessaoDocumentada } from "@/lib/nota-fiscal";
 
 export async function listarPacientes({ busca = "", status = "ativos" } = {}) {
   const supabase = await createClient();
@@ -164,7 +165,7 @@ export async function listarSessoesDoPaciente(pacienteId) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Sessao")
-    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(recebimento, valor_aplicado), CobrancaSessao(ativa, cobranca, Cobranca(id, situacao))")
+    .select("id, data, horario, status, tipo_sessao, valor, RecebimentoSessao(recebimento, valor_aplicado, NotaFiscal(status)), CobrancaSessao(ativa, cobranca, Cobranca(id, situacao, recebimento, NotaFiscal(status)))")
     .eq("paciente", pacienteId)
     .order("data", { ascending: false })
     .order("horario", { ascending: false });
@@ -179,6 +180,7 @@ export async function listarSessoesDoPaciente(pacienteId) {
       data: s.data,
       horario: s.horario,
       status: s.status,
+      documentada: sessaoDocumentada({ vinculos: s.CobrancaSessao, rateios: s.RecebimentoSessao }),
       cobranca_aberta_id: vinculoAberto ? Number(vinculoAberto.Cobranca.id) : null,
       tipo_sessao: s.tipo_sessao,
       valor: Number(s.valor),

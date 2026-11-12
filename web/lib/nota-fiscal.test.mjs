@@ -440,3 +440,45 @@ test("canaisDeEntrega: telefone que não normaliza para WhatsApp é pulado", () 
   });
   assert.equal(r.whatsapp, false);
 });
+
+import { rotuloBotaoNota, sessaoDocumentada } from "./nota-fiscal.js";
+
+test("rotuloBotaoNota: so cobranca recebida de nota fiscal", () => {
+  const base = { situacao: "recebida", tipoDocumento: "nota_fiscal", notas: [] };
+  assert.equal(rotuloBotaoNota(base), "Emitir nota");
+  assert.equal(rotuloBotaoNota({ ...base, situacao: "aberta" }), null);
+  assert.equal(rotuloBotaoNota({ ...base, situacao: "cancelada" }), null);
+  assert.equal(rotuloBotaoNota({ ...base, tipoDocumento: "recibo" }), null);
+});
+
+test("rotuloBotaoNota: nota ativa esconde o botao; rejeitada oferece tentar de novo", () => {
+  const base = { situacao: "recebida", tipoDocumento: "nota_fiscal" };
+  assert.equal(rotuloBotaoNota({ ...base, notas: [{ id: 1, status: "pendente" }] }), null);
+  assert.equal(rotuloBotaoNota({ ...base, notas: [{ id: 1, status: "autorizada" }] }), null);
+  assert.equal(rotuloBotaoNota({ ...base, notas: [{ id: 1, status: "rejeitada" }] }), "Tentar de novo");
+  assert.equal(
+    rotuloBotaoNota({ ...base, notas: [{ id: 2, status: "cancelada" }, { id: 1, status: "rejeitada" }] }),
+    "Emitir nota"
+  );
+});
+
+test("sessaoDocumentada: nota autorizada da cobranca do recebimento da sessao", () => {
+  const vinculos = [{ ativa: true, Cobranca: { recebimento: "7", NotaFiscal: [{ status: "autorizada" }] } }];
+  assert.equal(sessaoDocumentada({ vinculos, rateios: [{ recebimento: 7, NotaFiscal: [] }] }), true);
+  assert.equal(sessaoDocumentada({ vinculos, rateios: [{ recebimento: 8, NotaFiscal: [] }] }), false);
+  assert.equal(sessaoDocumentada({ vinculos, rateios: [] }), false);
+});
+
+test("sessaoDocumentada: ignora vinculo inativo, nota nao autorizada e cobranca sem recebimento", () => {
+  const rateios = [{ recebimento: 7, NotaFiscal: [] }];
+  const c = (extra) => [{ ativa: true, Cobranca: { recebimento: 7, NotaFiscal: [{ status: "autorizada" }], ...extra } }];
+  assert.equal(sessaoDocumentada({ vinculos: [{ ...c()[0], ativa: false }], rateios }), false);
+  assert.equal(sessaoDocumentada({ vinculos: c({ NotaFiscal: [{ status: "pendente" }] }), rateios }), false);
+  assert.equal(sessaoDocumentada({ vinculos: c({ recebimento: null }), rateios }), false);
+});
+
+test("sessaoDocumentada: nota por sessao autorizada", () => {
+  assert.equal(sessaoDocumentada({ vinculos: [], rateios: [{ recebimento: 1, NotaFiscal: [{ status: "autorizada" }] }] }), true);
+  assert.equal(sessaoDocumentada({ vinculos: [], rateios: [{ recebimento: 1, NotaFiscal: [{ status: "rejeitada" }] }] }), false);
+  assert.equal(sessaoDocumentada({}), false);
+});

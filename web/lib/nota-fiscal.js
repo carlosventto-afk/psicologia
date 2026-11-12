@@ -322,3 +322,36 @@ export function montarAtualizacaoFalha(mensagem, tentativas) {
     tentativas,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Botão manual e selo "Documentada" (detalhe da cobrança e aba Sessões)
+// ---------------------------------------------------------------------------
+
+// Rótulo do botão manual: "Emitir nota", "Tentar de novo" ou null (sem botão).
+// Só para cobrança recebida do tipo nota_fiscal sem nota ativa (pendente/autorizada);
+// uma nota pendente pode ser resultado incerto, então nunca se oferece nova emissão.
+export function rotuloBotaoNota({ situacao, tipoDocumento, notas }) {
+  if (situacao !== "recebida" || tipoDocumento !== "nota_fiscal") return null;
+  const lista = notas ?? [];
+  if (notasAtivas(lista).length > 0) return null;
+  if (lista.length === 0) return "Emitir nota";
+  const ultima = lista.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a));
+  return ultima.status === "rejeitada" ? "Tentar de novo" : "Emitir nota";
+}
+
+// Uma sessão está documentada quando uma nota autorizada a cobre:
+// - nota da cobrança: vínculo ativo cuja Cobranca tem recebimento definido e a
+//   sessão tem RecebimentoSessao desse mesmo recebimento; ou
+// - nota por sessão numa das RecebimentoSessao da sessão.
+// vinculos: [{ ativa, Cobranca: { recebimento, NotaFiscal: [{ status }] } }]
+// rateios: [{ recebimento, NotaFiscal: [{ status }] }]
+export function sessaoDocumentada({ vinculos, rateios }) {
+  const autorizada = (notas) => (notas ?? []).some((n) => n.status === "autorizada");
+  const lista = rateios ?? [];
+  if (lista.some((r) => autorizada(r.NotaFiscal))) return true;
+  return (vinculos ?? []).some((v) => {
+    const c = v.Cobranca;
+    if (!v.ativa || !c || c.recebimento == null) return false;
+    return lista.some((r) => String(r.recebimento) === String(c.recebimento)) && autorizada(c.NotaFiscal);
+  });
+}

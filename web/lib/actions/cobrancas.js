@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { listarResponsaveisDoPaciente } from "@/lib/data/responsaveis-financeiros";
 import { escolherResponsavel, mensagemErroCobranca } from "@/lib/cobranca";
+import { emitirEEntregarCobranca } from "@/lib/nfse-emitir-entregar";
 
 const TIPOS = ["nenhum", "recibo", "nota_fiscal"];
 
@@ -104,6 +105,30 @@ export async function criarCobrancasDoMes(prevState, formData) {
   return { criadas, falhas };
 }
 
+// Emissão automática depois do recebimento. Nunca altera o resultado do recebimento:
+// qualquer falha vira só log (a cobrança mostra o estado da nota e o botão manual).
+async function emitirNotaAposRecebimento(supabase, cobrancaId) {
+  try {
+    const { data: cob } = await supabase
+      .from("Cobranca")
+      .select("tipo_documento, owner")
+      .eq("id", cobrancaId)
+      .maybeSingle();
+    if (cob?.tipo_documento !== "nota_fiscal") return;
+
+    const { data: fiscal } = await supabase
+      .from("DadosFiscaisProfissional")
+      .select("emissao_automatica")
+      .eq("owner", cob.owner)
+      .maybeSingle();
+    if (fiscal?.emissao_automatica !== true) return;
+
+    await emitirEEntregarCobranca(supabase, cobrancaId);
+  } catch (e) {
+    console.error(`NFS-e: falha no gatilho de recebimento (cobranca ${cobrancaId}): ${e?.message ?? e}`);
+  }
+}
+
 export async function receberCobranca(cobrancaId, prevState, formData) {
   const supabase = await createClient();
 
@@ -117,8 +142,11 @@ export async function receberCobranca(cobrancaId, prevState, formData) {
   });
   if (error) return { error: mensagemErroCobranca(error) };
 
+  await emitirNotaAposRecebimento(supabase, cobrancaId);
+
   revalidarTudo(cob ? Number(cob.paciente) : null);
   revalidatePath(`/cobrancas/${cobrancaId}`);
+  revalidatePath("/notas-fiscais");
   redirect(`/cobrancas/${cobrancaId}`);
 }
 

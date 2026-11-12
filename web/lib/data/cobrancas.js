@@ -60,12 +60,41 @@ export async function listarCobrancas({ situacao, pacienteId, periodo } = {}) {
   }));
 }
 
+const CAMPOS_NOTA =
+  "id, status, cobranca, recebimento_sessao, chave_acesso, ultimo_erro, numero, enviada_email_em, enviada_whatsapp_em, tentativas";
+
+// Notas da cobranca: a nota da propria cobranca e, no modo por sessao, as notas
+// dos RecebimentoSessao do recebimento. Erro de leitura nao derruba a pagina.
+async function buscarNotasDaCobranca(supabase, { id, emissaoPor, recebimentoId }) {
+  const sessaoDoRateio = new Map();
+  const consultas = [supabase.from("NotaFiscal").select(CAMPOS_NOTA).eq("cobranca", id)];
+  if (emissaoPor === "sessao" && recebimentoId) {
+    const { data: rateios } = await supabase
+      .from("RecebimentoSessao")
+      .select("id, sessao")
+      .eq("recebimento", recebimentoId);
+    for (const r of rateios ?? []) sessaoDoRateio.set(Number(r.id), Number(r.sessao));
+    const ids = [...sessaoDoRateio.keys()];
+    if (ids.length > 0) {
+      consultas.push(supabase.from("NotaFiscal").select(CAMPOS_NOTA).in("recebimento_sessao", ids));
+    }
+  }
+  const resultados = await Promise.all(consultas);
+  return resultados
+    .flatMap((r) => (r.error ? [] : (r.data ?? [])))
+    .map((n) => {
+      const nota = normalizarIds(n, ["id", "numero", "tentativas", "cobranca", "recebimento_sessao"]);
+      return { ...nota, sessao: sessaoDoRateio.get(nota.recebimento_sessao) ?? null };
+    })
+    .sort((a, b) => a.id - b.id);
+}
+
 export async function buscarCobranca(id) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Cobranca")
     .select(
-      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, Paciente(id, nome, apelido, documento), ResponsavelFinanceiro:responsavel_financeiro(id, nome), Recebimento:recebimento(id, data_recebimento, valor_total, forma_pagamento, conta), CobrancaSessao(id, ativa, valor, Sessao(id, data, horario))"
+      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, emissao_por, Paciente(id, nome, apelido, documento), ResponsavelFinanceiro:responsavel_financeiro(id, nome), Recebimento:recebimento(id, data_recebimento, valor_total, forma_pagamento, conta), CobrancaSessao(id, ativa, valor, Sessao(id, data, horario))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -79,8 +108,15 @@ export async function buscarCobranca(id) {
   // Cobranca cancelada tem todos os vinculos inativos: mostra os historicos.
   const usar = base.situacao === "cancelada" ? (vinculos ?? []) : (vinculos ?? []).filter((v) => v.ativa);
 
+  const notas = await buscarNotasDaCobranca(supabase, {
+    id: base.id,
+    emissaoPor: base.emissao_por,
+    recebimentoId: recebimento ? Number(recebimento.id) : null,
+  });
+
   return {
     ...base,
+    notas,
     valor_total: Number(base.valor_total),
     paciente: normalizarIds(paciente, ["id"]),
     sessoes: usar
@@ -89,6 +125,10 @@ export async function buscarCobranca(id) {
         data: v.Sessao.data,
         horario: v.Sessao.horario,
         valor: Number(v.valor),
+        // Nota autorizada da cobranca cobre todas as sessoes; no modo por sessao, so a propria.
+        documentada: notas.some(
+          (n) => n.status === "autorizada" && (n.cobranca != null || n.sessao === Number(v.Sessao.id))
+        ),
       }))
       .sort((a, b) => ((a.data ?? "") + (a.horario ?? "") < (b.data ?? "") + (b.horario ?? "") ? -1 : 1)),
     recebimento: recebimento ? normalizarIds(recebimento, ["id", "conta"]) : null,
