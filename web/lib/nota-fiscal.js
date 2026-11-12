@@ -84,3 +84,132 @@ export function canaisDeEntrega({
     !jaEnviadoWhatsapp;
   return { email, whatsapp };
 }
+
+// ---------------------------------------------------------------------------
+// Planejamento e montagem da emissão (puro; a orquestração fica em nfse-emissao.js)
+// ---------------------------------------------------------------------------
+
+const paraCentavos = (v) => Math.round(Number(v ?? 0) * 100) || 0;
+
+// Soma em centavos inteiros (sem erro de ponto flutuante); devolve em reais.
+export function somarValores(valores) {
+  return (valores ?? []).reduce((soma, v) => soma + paraCentavos(v), 0) / 100;
+}
+
+const STATUS_ATIVOS = ["pendente", "autorizada"];
+
+export function notasAtivas(notas) {
+  return (notas ?? []).filter((n) => STATUS_ATIVOS.includes(n.status));
+}
+
+export function contarRejeitadas(notas) {
+  return (notas ?? []).filter((n) => n.status === "rejeitada").length;
+}
+
+// rateios: [{ id, valor_aplicado, data }] (uma linha de RecebimentoSessao com a
+// data da sessão). Devolve as notas a emitir: uma só (modo cobrança) ou uma por
+// rateio (modo sessão). Lança se faltar rateio, data ou valor positivo.
+export function planejarNotas({ emissaoPor, rateios }) {
+  if (!rateios || rateios.length === 0) {
+    throw new Error("Recebimento sem sessões aplicadas: não há o que faturar.");
+  }
+  for (const r of rateios) {
+    if (!r.data || !/^\d{4}-\d{2}-\d{2}/.test(r.data)) {
+      throw new Error("Sessão sem data válida: não é possível montar a nota.");
+    }
+    if (!(paraCentavos(r.valor_aplicado) > 0)) {
+      throw new Error("Valor aplicado inválido: não é possível montar a nota.");
+    }
+  }
+  const data = (r) => String(r.data).slice(0, 10);
+  if (emissaoPor === "sessao") {
+    return rateios.map((r) => ({
+      recebimentoSessao: r.id,
+      valor: paraCentavos(r.valor_aplicado) / 100,
+      datasISO: [data(r)],
+      competencia: competenciaDaNota([data(r)]),
+    }));
+  }
+  const datasISO = rateios.map(data);
+  return [
+    {
+      recebimentoSessao: null,
+      valor: somarValores(rateios.map((r) => r.valor_aplicado)),
+      datasISO,
+      competencia: competenciaDaNota(datasISO),
+    },
+  ];
+}
+
+export function montarPayloadEmissao({ reserva, fiscal, plano, tomador, nomeProfissional, crp }) {
+  return {
+    ambiente: reserva.ambiente,
+    certificado_pfx_cifrado: fiscal.certificado_pfx_cifrado,
+    certificado_senha_cifrada: fiscal.certificado_senha_cifrada,
+    serie: reserva.serie,
+    numero: reserva.numero,
+    competencia: plano.competencia,
+    prestador: {
+      documento: fiscal.documento,
+      inscricao_municipal: fiscal.inscricao_municipal,
+      municipio_ibge: fiscal.municipio_ibge,
+      optante_simples_nacional: fiscal.optante_simples_nacional,
+      regime_apuracao_sn: fiscal.regime_apuracao_sn,
+      codigo_tributacao_nacional: fiscal.codigo_tributacao_nacional,
+      codigo_tributacao_municipal: fiscal.codigo_tributacao_municipal,
+    },
+    tomador: {
+      documento: tomador.documento,
+      nome: tomador.nome,
+      email: tomador.email || null,
+    },
+    descricao_servico: montarDescricaoNota({
+      datasISO: plano.datasISO,
+      nomeProfissional: String(nomeProfissional ?? "").trim(),
+      crp: String(crp ?? "").trim(),
+    }),
+    valor: plano.valor,
+  };
+}
+
+const decodificar = (b64) => (b64 ? Buffer.from(b64, "base64").toString("utf-8") : null);
+
+// Colunas de NotaFiscal a gravar após a resposta do serviço (mesmo formato de
+// emitirNotaFiscal, mais pdf_base64, ultimo_erro e tentativas).
+export function montarAtualizacaoResultado(resultado, tentativas) {
+  const autorizada = resultado?.autorizada === true;
+  const erros = resultado?.erros?.length ? resultado.erros : null;
+  const primeiro = erros?.[0];
+  return {
+    dps_id: resultado?.dps_id ?? null,
+    xml_dps: decodificar(resultado?.xml_dps_base64),
+    status: autorizada ? "autorizada" : "rejeitada",
+    chave_acesso: resultado?.chave_acesso ?? null,
+    xml_nfse: decodificar(resultado?.xml_nfse_base64),
+    pdf_base64: resultado?.pdf_base64 ?? null,
+    erros,
+    ultimo_erro: autorizada
+      ? null
+      : primeiro
+        ? [primeiro.titulo, primeiro.explicacao].filter(Boolean).join(": ")
+        : "Nota rejeitada sem detalhe do erro.",
+    tentativas,
+  };
+}
+
+// Falha ao chamar o serviço (exceção): a nota reservada fica rejeitada.
+export function montarAtualizacaoFalha(mensagem, tentativas) {
+  return {
+    status: "rejeitada",
+    erros: [
+      {
+        codigo: "?",
+        titulo: "Falha ao chamar o serviço de emissão",
+        explicacao: mensagem,
+        acao_sugerida: "Tente novamente em instantes.",
+      },
+    ],
+    ultimo_erro: "Falha ao chamar o serviço de emissão: " + mensagem,
+    tentativas,
+  };
+}
