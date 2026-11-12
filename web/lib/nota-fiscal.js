@@ -85,6 +85,20 @@ export function canaisDeEntrega({
   return { email, whatsapp };
 }
 
+// Legenda/mensagem do WhatsApp: abre identificando a psicóloga.
+export function montarMensagemWhatsappNota({ nomeProfissional, chave }) {
+  return `Nota fiscal do atendimento com ${nomeProfissional}. Chave de acesso: ${chave}.`;
+}
+
+// Número no formato da Evolution API: só dígitos com DDI. 10/11 dígitos ganham 55;
+// 12/13 dígitos já com DDI ficam como estão; qualquer outro tamanho vira null.
+export function normalizarTelefoneWhatsapp(telefone) {
+  const digitos = apenasDigitos(telefone);
+  if (digitos.length === 10 || digitos.length === 11) return `55${digitos}`;
+  if (digitos.length === 12 || digitos.length === 13) return digitos;
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Planejamento e montagem da emissão (puro; a orquestração fica em nfse-emissao.js)
 // ---------------------------------------------------------------------------

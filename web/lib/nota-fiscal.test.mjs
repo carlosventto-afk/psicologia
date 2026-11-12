@@ -7,6 +7,8 @@ import {
   escolherTomador,
   validarPreCondicoes,
   canaisDeEntrega,
+  montarMensagemWhatsappNota,
+  normalizarTelefoneWhatsapp,
   MOTIVOS,
   somarValores,
   notasAtivas,
@@ -404,4 +406,20 @@ test("montarPayloadEmissao: descrição completa exata com várias datas", () =>
     payload.descricao_servico,
     "Atendimento(s) psicológico(s) em 13/05/2026, 20/05/2026 e 27/05/2026.\n\nServiço prestado por:\nAna Souza\nCRP: 06/12345",
   );
+});
+
+test("montarMensagemWhatsappNota identifica a psicóloga e traz a chave", () => {
+  assert.equal(
+    montarMensagemWhatsappNota({ nomeProfissional: "Ana Souza", chave: "ABC123" }),
+    "Nota fiscal do atendimento com Ana Souza. Chave de acesso: ABC123.",
+  );
+});
+
+test("normalizarTelefoneWhatsapp: só dígitos, 55 quando faltar, curto vira null", () => {
+  assert.equal(normalizarTelefoneWhatsapp("(91) 98191-0295"), "5591981910295");
+  assert.equal(normalizarTelefoneWhatsapp("9181910295"), "559181910295");
+  assert.equal(normalizarTelefoneWhatsapp("+55 91 98191-0295"), "5591981910295");
+  assert.equal(normalizarTelefoneWhatsapp("5591981910295"), "5591981910295");
+  assert.equal(normalizarTelefoneWhatsapp("1234"), null);
+  assert.equal(normalizarTelefoneWhatsapp(null), null);
 });
