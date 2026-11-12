@@ -115,6 +115,13 @@ export function textoBloqueioCobranca(erro) {
   return msg.startsWith(PREFIXO_ERRO) ? capitalizar(msg.slice(PREFIXO_ERRO.length)) : null;
 }
 
+// Texto do bloqueio sem o prefixo "NOTA: " quando o erro vem do gatilho de nota
+// fiscal; null quando e outro tipo de erro.
+export function textoBloqueioNota(erro) {
+  const msg = String(erro?.message ?? "");
+  return msg.startsWith("NOTA: ") ? capitalizar(msg.slice("NOTA: ".length)) : null;
+}
+
 // Mensagem de bloqueio de cobranca se houver; senao o texto generico informado.
 export function mensagemBloqueioOu(erro, generica) {
   return textoBloqueioCobranca(erro) ?? generica;

@@ -538,3 +538,47 @@ test("validarAtivacaoEmissaoAutomatica: exige dados fiscais, certificado e CRP",
   assert.equal(validarAtivacaoEmissaoAutomatica({ fiscal, usuario: null }).motivo, MOTIVO_CRP_EMISSAO_AUTOMATICA);
   assert.deepEqual(validarAtivacaoEmissaoAutomatica({ fiscal, usuario: { crp: "06/12345" } }), { ok: true });
 });
+
+import { pendenciaParaGravar, MOTIVO_CERTIFICADO_VENCIDO_ATIVACAO } from "./nota-fiscal.js";
+
+test("validarAtivacaoEmissaoAutomatica: rejeita certificado vencido (hoje em Sao Paulo)", () => {
+  const usuario = { crp: "06/12345" };
+  const venceu = { certificado_pfx_cifrado: "x", certificado_validade: "2026-11-11" };
+  assert.equal(
+    validarAtivacaoEmissaoAutomatica({ fiscal: venceu, usuario, hoje: "2026-11-12" }).motivo,
+    MOTIVO_CERTIFICADO_VENCIDO_ATIVACAO,
+  );
+  assert.equal(
+    MOTIVO_CERTIFICADO_VENCIDO_ATIVACAO,
+    "Certificado digital vencido. Envie um novo antes de ativar a emissão automática.",
+  );
+  // Vence hoje ainda vale; sem validade informada não bloqueia.
+  const venceHoje = { certificado_pfx_cifrado: "x", certificado_validade: "2026-11-12" };
+  assert.deepEqual(validarAtivacaoEmissaoAutomatica({ fiscal: venceHoje, usuario, hoje: "2026-11-12" }), { ok: true });
+  assert.deepEqual(
+    validarAtivacaoEmissaoAutomatica({ fiscal: { certificado_pfx_cifrado: "x" }, usuario, hoje: "2026-11-12" }),
+    { ok: true },
+  );
+});
+
+test("pendenciaParaGravar: texto sem nota, null com nota, undefined sem nada", () => {
+  assert.equal(pendenciaParaGravar({ notas: [], pendencia: "Falta o CRP." }), "Falta o CRP.");
+  assert.equal(pendenciaParaGravar({ notas: [{ id: 1, status: "rejeitada" }], pendencia: "x" }), null);
+  assert.equal(pendenciaParaGravar({ notas: [{ id: 1 }] }), null);
+  assert.equal(pendenciaParaGravar({ notas: [] }), undefined);
+  assert.equal(pendenciaParaGravar({ notas: [], pendencia: "  " }), undefined);
+});
+
+import { recebimentosComEmissaoPorCobranca } from "./nota-fiscal.js";
+
+test("recebimentosComEmissaoPorCobranca: só nota_fiscal emitida por cobrança", () => {
+  const r = recebimentosComEmissaoPorCobranca([
+    { recebimento: 1, tipo_documento: "nota_fiscal", emissao_por: "cobranca" },
+    { recebimento: "2", tipo_documento: "nota_fiscal", emissao_por: "cobranca" },
+    { recebimento: 3, tipo_documento: "nota_fiscal", emissao_por: "sessao" },
+    { recebimento: 4, tipo_documento: "recibo", emissao_por: null },
+    { recebimento: null, tipo_documento: "nota_fiscal", emissao_por: "cobranca" },
+  ]);
+  assert.deepEqual([...r].sort(), [1, 2]);
+  assert.equal(recebimentosComEmissaoPorCobranca(null).size, 0);
+});

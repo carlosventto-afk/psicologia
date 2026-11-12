@@ -96,7 +96,7 @@ export async function buscarCobranca(id) {
   const { data, error } = await supabase
     .from("Cobranca")
     .select(
-      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, emissao_por, Paciente(id, nome, apelido, documento), ResponsavelFinanceiro:responsavel_financeiro(id, nome), Recebimento:recebimento(id, data_recebimento, valor_total, forma_pagamento, conta), CobrancaSessao(id, ativa, valor, Sessao(id, data, horario))"
+      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, emissao_por, nota_pendencia, Paciente(id, nome, apelido, documento), ResponsavelFinanceiro:responsavel_financeiro(id, nome), Recebimento:recebimento(id, data_recebimento, valor_total, forma_pagamento, conta), CobrancaSessao(id, ativa, valor, Sessao(id, data, horario))"
     )
     .eq("id", id)
     .maybeSingle();

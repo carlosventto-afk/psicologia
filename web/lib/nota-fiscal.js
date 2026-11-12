@@ -391,10 +391,37 @@ export function resolverEmissaoPor(tipoDocumento, valor) {
 export const MOTIVO_CRP_EMISSAO_AUTOMATICA = "Cadastre seu CRP em Meus Dados para ativar a emissão automática.";
 
 // Pode ligar a emissão automática? Desligar nunca passa por aqui.
-export function validarAtivacaoEmissaoAutomatica({ fiscal, usuario }) {
+export function validarAtivacaoEmissaoAutomatica({ fiscal, usuario, hoje }) {
   const falha = (motivo) => ({ ok: false, motivo });
   if (!fiscal) return falha(MOTIVOS.semDadosFiscais);
   if (!fiscal.certificado_pfx_cifrado) return falha(MOTIVOS.certificadoAusente);
+  if (fiscal.certificado_validade && fiscal.certificado_validade < hoje) {
+    return falha(MOTIVO_CERTIFICADO_VENCIDO_ATIVACAO);
+  }
   if (!usuario?.crp || !String(usuario.crp).trim()) return falha(MOTIVO_CRP_EMISSAO_AUTOMATICA);
   return { ok: true };
+}
+
+// O que gravar em Cobranca.nota_pendencia depois de uma tentativa de emissão:
+// null (limpa) se alguma nota existe; o texto da pendência se não há nota;
+// undefined (não mexe) se não há nem nota nem pendência.
+export function pendenciaParaGravar({ notas, pendencia } = {}) {
+  if ((notas ?? []).length > 0) return null;
+  const texto = String(pendencia ?? "").trim();
+  return texto ? texto : undefined;
+}
+
+// Ativar a emissão automática também exige certificado não vencido
+// (`validade` "YYYY-MM-DD", `hoje` "YYYY-MM-DD" em America/Sao_Paulo).
+export const MOTIVO_CERTIFICADO_VENCIDO_ATIVACAO =
+  "Certificado digital vencido. Envie um novo antes de ativar a emissão automática.";
+
+// Ids de Recebimento cuja cobrança emite a nota sozinha por cobrança
+// (tipo nota_fiscal e emissao_por 'cobranca'): seus rateios não são emitidos um a um.
+export function recebimentosComEmissaoPorCobranca(cobrancas) {
+  return new Set(
+    (cobrancas ?? [])
+      .filter((c) => c.tipo_documento === "nota_fiscal" && c.emissao_por === "cobranca" && c.recebimento != null)
+      .map((c) => Number(c.recebimento)),
+  );
 }

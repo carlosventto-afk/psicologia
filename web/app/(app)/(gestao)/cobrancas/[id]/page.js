@@ -128,6 +128,9 @@ export default async function PaginaCobranca({ params }) {
       {cobranca.tipo_documento === "nota_fiscal" && (recebida || cobranca.notas.length > 0) && (
         <div className="space-y-3">
           <NotaCobrancaStatus notas={cobranca.notas} />
+          {recebida && !cobranca.notas.some((n) => n.status === "pendente" || n.status === "autorizada") && cobranca.nota_pendencia && (
+            <p className="text-sm text-yellow-700">Nota pendente: {cobranca.nota_pendencia}</p>
+          )}
           {rotuloNota && <EmitirNotaCobrancaBotao cobrancaId={cobranca.id} rotulo={rotuloNota} />}
         </div>
       )}

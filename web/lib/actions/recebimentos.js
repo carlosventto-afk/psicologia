@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { criarRecebimento, consumirCredito } from "@/lib/recebimento";
 import { calcularCreditoDisponivel } from "@/lib/data/recebimentos";
+import { textoBloqueioNota } from "@/lib/cobranca";
 
 export async function registrarRecebimentoIndividual(sessaoId, pacienteId, prevState, formData) {
   const supabase = await createClient();
@@ -134,6 +135,8 @@ export async function usarCreditoNaSessao(pacienteId, sessaoId, recebimentoId) {
   return { error: null };
 }
 
+const MENSAGEM_NOTA_ATIVA = "Cancele a nota fiscal da cobrança antes de excluir o recebimento.";
+
 export async function excluirRecebimento(pacienteId, recebimentoId) {
   const supabase = await createClient();
 
@@ -145,6 +148,20 @@ export async function excluirRecebimento(pacienteId, recebimentoId) {
 
   if (erroBusca) {
     throw new Error("Recebimento não encontrado.");
+  }
+
+  // Pre-checagem: o gatilho do banco tambem recusa, mas so ao excluir o
+  // Recebimento, depois das alocacoes; checar antes evita um estado pela metade.
+  const { data: cobrancas } = await supabase.from("Cobranca").select("id").eq("recebimento", recebimentoId);
+  const cobrancaIds = (cobrancas ?? []).map((c) => c.id);
+  if (cobrancaIds.length > 0) {
+    const { data: notas } = await supabase
+      .from("NotaFiscal")
+      .select("id")
+      .in("cobranca", cobrancaIds)
+      .in("status", ["pendente", "autorizada"])
+      .limit(1);
+    if (notas?.length) return { error: MENSAGEM_NOTA_ATIVA };
   }
 
   const { error: erroAlocacoes } = await supabase
@@ -159,6 +176,8 @@ export async function excluirRecebimento(pacienteId, recebimentoId) {
   const { error: erroRecebimento } = await supabase.from("Recebimento").delete().eq("id", recebimentoId);
 
   if (erroRecebimento) {
+    const bloqueio = textoBloqueioNota(erroRecebimento);
+    if (bloqueio) return { error: bloqueio };
     throw new Error("Não foi possível excluir o recebimento.");
   }
 
@@ -175,4 +194,5 @@ export async function excluirRecebimento(pacienteId, recebimentoId) {
   revalidatePath("/agenda");
   revalidatePath("/financeiro");
   revalidatePath("/financeiro/lancamentos");
+  return { error: null };
 }
