@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from lxml import etree
@@ -24,6 +24,26 @@ NFSE_NS = "http://www.sped.fazenda.gov.br/nfse"
 # 1.00 = versão dos integradores homologados hoje; 1.01 (IBS/CBS) entra quando
 # a produção restrita estabilizar o validador do leiaute novo
 DPS_VERSAO = "1.00"
+DPS_VERSAO_V101 = "1.01"
+# NT 009: produção aceita só o leiaute 1.00 até 2026-11-30 e só o 1.01 a partir
+# desta data. A produção restrita (tp_amb=2) já exige o 1.01.
+DPS_V101_CUTOVER = date(2026, 12, 1)
+_TZ_BR_FALLBACK = timezone(timedelta(hours=-3))  # Brasil sem horário de verão
+
+
+def _hoje_brasil() -> date:
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    except Exception:  # sem tzdata (ex.: Windows)
+        return datetime.now(_TZ_BR_FALLBACK).date()
+
+
+def resolve_layout(tp_amb: int, hoje: date | None = None) -> str:
+    """"1.01" na homologação ou a partir do corte; "1.00" na produção antes dele."""
+    if tp_amb == 2:
+        return DPS_VERSAO_V101
+    return DPS_VERSAO_V101 if (hoje or _hoje_brasil()) >= DPS_V101_CUTOVER else DPS_VERSAO
 
 
 def _digits(value: str | None) -> str:
@@ -88,6 +108,9 @@ class DpsData:
     v_serv: Decimal = Decimal("0")
     p_aliq: Decimal | None = None  # alíquota ISS % (omitir quando o município fixa)
 
+    # Leiaute: "1.00" | "1.01" | None (automático, ver resolve_layout)
+    layout: str | None = None
+
     @property
     def tp_inscricao(self) -> str:
         return "1" if len(_digits(self.toma_cpf_cnpj)) == 11 else "2"
@@ -125,7 +148,12 @@ def build_dps_xml(data: DpsData) -> bytes:
     if data.v_serv <= 0:
         raise ValueError("Valor do serviço deve ser positivo")
 
-    root = etree.Element(f"{{{NFSE_NS}}}DPS", versao=DPS_VERSAO, nsmap={None: NFSE_NS})
+    layout = data.layout or resolve_layout(data.tp_amb)
+    if layout not in (DPS_VERSAO, DPS_VERSAO_V101):
+        raise ValueError(f"Layout da DPS inválido: {layout}")
+    v101 = layout == DPS_VERSAO_V101
+
+    root = etree.Element(f"{{{NFSE_NS}}}DPS", versao=layout, nsmap={None: NFSE_NS})
     inf = etree.SubElement(root, f"{{{NFSE_NS}}}infDPS")
     inf.set("Id", data.dps_id)
 
@@ -137,6 +165,8 @@ def build_dps_xml(data: DpsData) -> bytes:
     _el(inf, "nDPS", str(data.numero))
     _el(inf, "dCompet", data.competencia.isoformat())
     _el(inf, "tpEmit", "1")                                    # 1 = emitida pelo prestador
+    if v101:
+        _el(inf, "finNFSe", "0")                               # 0 = NFS-e regular (único valor do XSD)
     _el(inf, "cLocEmi", _digits(data.c_loc_emi))
 
     prest = _el(inf, "prest")
@@ -166,9 +196,15 @@ def build_dps_xml(data: DpsData) -> bytes:
     _el(cserv, "cTribNac", _digits(data.c_trib_nac).zfill(6))
     if data.c_trib_mun:
         _el(cserv, "cTribMun", _digits(data.c_trib_mun))
-    _el(cserv, "xDescServ", _sanitize_text(data.x_desc_serv)[:2000] or "Servicos educacionais")
-    if data.c_nbs:
-        _el(cserv, "cNBS", _digits(data.c_nbs))
+    x_desc = _sanitize_text(data.x_desc_serv)[:2000] or "Servicos educacionais"
+    if v101:  # v1.01: xDescServ por último em cServ
+        if data.c_nbs:
+            _el(cserv, "cNBS", _digits(data.c_nbs))
+        _el(cserv, "xDescServ", x_desc)
+    else:
+        _el(cserv, "xDescServ", x_desc)
+        if data.c_nbs:
+            _el(cserv, "cNBS", _digits(data.c_nbs))
 
     valores = _el(inf, "valores")
     vsp = _el(valores, "vServPrest")
@@ -176,9 +212,11 @@ def build_dps_xml(data: DpsData) -> bytes:
     trib = _el(valores, "trib")
     trib_mun = _el(trib, "tribMun")
     _el(trib_mun, "tribISSQN", "1")                            # 1 = operação tributável
-    if data.p_aliq is not None:
+    if data.p_aliq is not None and not v101:
         _el(trib_mun, "pAliq", f"{data.p_aliq:.2f}")
     _el(trib_mun, "tpRetISSQN", "1")                           # 1 = não retido
+    if data.p_aliq is not None and v101:  # v1.01: pAliq depois de tpRetISSQN
+        _el(trib_mun, "pAliq", f"{data.p_aliq:.2f}")
     trib_fed = _el(trib, "tribFed")
     pis_cofins = _el(trib_fed, "piscofins")
     _el(pis_cofins, "CST", "00")                               # 00 = nenhum
