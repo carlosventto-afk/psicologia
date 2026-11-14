@@ -22,8 +22,6 @@ const DESCRICAO =
 export const metadata = {
   title: TITULO,
   description: DESCRICAO,
-  // reativar indexação e sitemap depois que um contador validar os números (spec)
-  robots: { index: false, follow: false },
   alternates: { canonical: "/comparativo" },
   openGraph: {
     title: TITULO,
