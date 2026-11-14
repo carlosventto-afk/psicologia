@@ -1,0 +1,8 @@
+{
+  "credenciais": {
+    "nfseReprocessCronSecret": "MelTDYeTxVS29KQL"
+  },
+  "workflows": {
+    "nfseReprocessar": "l1UgydmyPcTiXaJH"
+  }
+}
