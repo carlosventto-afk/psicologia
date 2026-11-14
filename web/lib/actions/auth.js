@@ -125,6 +125,7 @@ export async function cadastrar(prevState, formData) {
       <p><strong>Origem:</strong> ${origem || "direto"}</p>`,
   }).catch(() => {});
 
+  // "comparativo" (e qualquer outra origem) segue pro painel; só "busca" vai pro diretório.
   redirect(origem === "busca" ? "/diretorio" : "/painel");
 }
 

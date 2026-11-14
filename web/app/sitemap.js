@@ -20,6 +20,11 @@ export default async function sitemap() {
       priority: 1,
     },
     {
+      url: `${origemHome}/comparativo`,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
       url: origemBlog,
       changeFrequency: "weekly",
       priority: 0.8,
