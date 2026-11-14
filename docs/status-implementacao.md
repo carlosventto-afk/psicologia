@@ -1064,3 +1064,7 @@ A pedido do usuário, `permissions.defaultMode` setado como `"acceptEdits"` em `
 2. Construir o workflow n8n do agente de WhatsApp (nada disso foi começado — só a base de dados/RPCs existe).
 3. Logotipo: existe um placeholder simples (`web/public/logo.svg`) — avaliar se o usuário quer evoluir pra algo mais elaborado (designer ou ferramenta de imagem).
 4. Configurar SMTP próprio (Resend/Postmark etc.) antes de produção — mailer de teste do Supabase tem limite de 2 e-mails/hora.
+
+## Comparativo PF x PJ (item 36, 2026-11-14)
+
+Página pública `/comparativo` (Carnê-Leão x Simples Nacional, Anexo III) com captura de lead (`Lead.origem='comparativo'`, LeadNota com resumo, e-mail ao ADM). Migration `20261114000001` aplicada em produção; 33 testes do cálculo passam; fluxo principal verificado em produção com dados descartáveis (apagados). Não verificado: resultado em 375px real, estados PJ negativo/dividendos/empate, honeypot, `/cadastro?origem=comparativo`. Pendências: validação dos números por contador antes de divulgar, deploy no EasyPanel (token), conferir o limite de isenção de R$ 5.000 (bruto x base líquida), endurecer a ação pública, polimentos de a11y/UX. Detalhes no `docs/backlog.md` (item 36).
