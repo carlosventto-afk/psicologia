@@ -52,4 +52,8 @@ export const PARAMETROS = {
 
   // Honorario mensal padrao do contador (premissa editavel, em reais).
   contadorPadrao: 300,
+
+  // Retencao de IR sobre dividendos (Lei 15.270/2025): incide quando a distribuicao
+  // mensal por beneficiario excede este valor (em reais).
+  limiteDividendosMensal: 50000,
 };
