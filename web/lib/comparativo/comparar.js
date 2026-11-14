@@ -6,6 +6,13 @@ const arredonda = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
 const numeroValido = (v) => typeof v === "number" && Number.isFinite(v);
 const CATEGORIAS = ["aluguel", "supervisao", "contas", "material", "outros"];
 
+// Diferença menor que max(R$ 50, 1% do faturamento) conta como empate.
+export function classificarMelhor(diferenca, faturamento) {
+  const tolerancia = Math.max(50, faturamento * 0.01);
+  if (Math.abs(diferenca) < tolerancia) return "empate";
+  return diferenca > 0 ? "pj" : "pf";
+}
+
 export function compararCenarios({ faturamento, despesasPorCategoria, contador } = {}) {
   if (!numeroValido(faturamento) || faturamento <= 0) {
     return { ok: false, erro: "Informe um faturamento mensal maior que zero." };
@@ -38,7 +45,7 @@ export function compararCenarios({ faturamento, despesasPorCategoria, contador }
   }
 
   const diferenca = arredonda(pj.liquido - pf.liquido);
-  const melhor = diferenca > 0 ? "pj" : diferenca < 0 ? "pf" : "empate";
+  const melhor = classificarMelhor(diferenca, faturamento);
   const economiaMensal = Math.abs(diferenca);
   return { ok: true, pf, pj, melhor, economiaMensal, economiaAnual: arredonda(economiaMensal * 12) };
 }

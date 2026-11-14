@@ -33,3 +33,15 @@ test("entradas undefined sao rejeitadas sem lancar", () => {
   assert.equal(validarContato().ok, false);
   assert.equal(validarContato({}).ok, false);
 });
+
+test("nome com mais de 120 caracteres e email com mais de 254 sao rejeitados", () => {
+  assert.equal(validarContato({ ...base, nome: "a".repeat(121) }).ok, false);
+  assert.equal(validarContato({ ...base, nome: "a".repeat(120) }).ok, true);
+  const longo = `${"a".repeat(247)}@ex.com`; // 247 + 7 = 254
+  assert.equal(validarContato({ ...base, email: longo }).ok, true);
+  assert.equal(validarContato({ ...base, email: `a${longo}` }).ok, false);
+});
+
+test("CR/LF do nome viram espaco", () => {
+  assert.equal(validarContato({ ...base, nome: "Ana\r\nBcc: x@y.com" }).valor.nome, "Ana Bcc: x@y.com");
+});

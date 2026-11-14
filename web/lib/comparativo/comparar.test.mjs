@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compararCenarios } from "./comparar.js";
+import { compararCenarios, classificarMelhor } from "./comparar.js";
 import { calcularPessoaFisica } from "./pessoa-fisica.js";
 import { calcularPessoaJuridica } from "./pessoa-juridica.js";
 
@@ -45,7 +45,7 @@ test("contador informado e respeitado; categorias ausentes valem zero", () => {
 test("melhor e economia coerentes com os liquidos", () => {
   const r = compararCenarios({ faturamento: 10000, despesasPorCategoria: dp });
   const dif = Math.round((r.pj.liquido - r.pf.liquido) * 100) / 100;
-  assert.equal(r.melhor, dif > 0 ? "pj" : dif < 0 ? "pf" : "empate");
+  assert.equal(r.melhor, Math.abs(dif) < 100 ? "empate" : dif > 0 ? "pj" : "pf");
   assert.equal(r.economiaMensal, Math.abs(dif));
   assert.equal(r.economiaAnual, Math.round(r.economiaMensal * 12 * 100) / 100);
 });
@@ -63,4 +63,24 @@ test("faturamento fora do Simples retorna ok:false citando o Simples", () => {
   const r = compararCenarios({ faturamento: 500000, despesasPorCategoria: dp });
   assert.equal(r.ok, false);
   assert.match(r.erro, /Simples/);
+});
+
+test("classificarMelhor: tolerancia max(50, 1% do faturamento)", () => {
+  // faturamento 3000: 1% = 30 -> tolerancia 50
+  assert.equal(classificarMelhor(49.99, 3000), "empate");
+  assert.equal(classificarMelhor(-49.99, 3000), "empate");
+  assert.equal(classificarMelhor(50, 3000), "pj");
+  assert.equal(classificarMelhor(-50.01, 3000), "pf");
+  // faturamento 10000: 1% = 100 -> tolerancia 100
+  assert.equal(classificarMelhor(99.99, 10000), "empate");
+  assert.equal(classificarMelhor(100.01, 10000), "pj");
+  assert.equal(classificarMelhor(-100.01, 10000), "pf");
+  assert.equal(classificarMelhor(0, 10000), "empate");
+});
+
+test("compararCenarios: empate mantem a diferenca real em economia", () => {
+  const r = compararCenarios({ faturamento: 10000, despesasPorCategoria: dp });
+  const dif = Math.round((r.pj.liquido - r.pf.liquido) * 100) / 100;
+  assert.equal(r.melhor, Math.abs(dif) < 100 ? "empate" : dif > 0 ? "pj" : "pf");
+  assert.equal(r.economiaMensal, Math.abs(dif));
 });

@@ -367,3 +367,30 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+.cmp-lgpd {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--cinza-pedra);
+}
+
+.cmp-premissas {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  background: var(--marfim);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.cmp-premissas summary {
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 24px;
+}
+.cmp-premissas ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}

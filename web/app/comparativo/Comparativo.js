@@ -80,7 +80,7 @@ function Barras({ pf, pj }) {
   );
 }
 
-function Resultado({ r, numeroGestor }) {
+function Resultado({ r, numeroGestor, onRefazer }) {
   const titulo =
     r.melhor === "empate"
       ? "Os dois cenários ficaram praticamente iguais"
@@ -117,7 +117,15 @@ function Resultado({ r, numeroGestor }) {
           <p className="cmp-sub">Carnê-Leão</p>
           <dl>
             <div>
-              <dt>Imposto</dt>
+              <dt>INSS</dt>
+              <dd>{brl(r.pf.inss)}</dd>
+            </div>
+            <div>
+              <dt>Imposto de renda</dt>
+              <dd>{brl(r.pf.irpf)}</dd>
+            </div>
+            <div>
+              <dt>Total de impostos</dt>
               <dd>{brl(r.pf.imposto)}</dd>
             </div>
             <div className="total">
@@ -131,7 +139,19 @@ function Resultado({ r, numeroGestor }) {
           <p className="cmp-sub">Simples Nacional</p>
           <dl>
             <div>
-              <dt>Imposto</dt>
+              <dt>Simples Nacional</dt>
+              <dd>{brl(r.pj.simples)}</dd>
+            </div>
+            <div>
+              <dt>INSS do pró-labore</dt>
+              <dd>{brl(r.pj.inssProLabore)}</dd>
+            </div>
+            <div>
+              <dt>IRRF do pró-labore</dt>
+              <dd>{brl(r.pj.irrfProLabore)}</dd>
+            </div>
+            <div>
+              <dt>Total de impostos</dt>
               <dd>{brl(r.pj.imposto)}</dd>
             </div>
             <div>
@@ -157,6 +177,17 @@ function Resultado({ r, numeroGestor }) {
           Consulte um contador.
         </p>
       )}
+      <details className="cmp-premissas">
+        <summary>Premissas do cálculo</summary>
+        <ul>
+          <li>INSS da PF: 20% sobre o faturamento, limitado ao teto do INSS</li>
+          <li>Pró-labore da PJ: 28% do faturamento (Anexo III do Simples)</li>
+          <li>Contador: {brl(r.pj.contador)}</li>
+          <li>Distribuição de lucro considerada isenta</li>
+          <li>ISS fixo municipal da PF não incluído</li>
+          <li>Aposentadoria: o INSS da PF e o da PJ geram benefícios de valores diferentes</li>
+        </ul>
+      </details>
       <p className="cmp-aviso">Simulação estimada, não substitui orientação contábil.</p>
 
       <div className="cmp-acoes">
@@ -172,6 +203,9 @@ function Resultado({ r, numeroGestor }) {
           Cadastrar no PsiAgente
         </a>
       </div>
+      <button type="button" className="cmp-voltar" onClick={onRefazer}>
+        Refazer simulação
+      </button>
     </section>
   );
 }
@@ -209,7 +243,7 @@ export default function Comparativo({ numeroGestor }) {
     if (Number.isNaN(cont) || (cont !== null && cont < 0)) {
       return { erro: "Informe um valor válido para o contador." };
     }
-    return { faturamento: fat, despesasPorCategoria: porCategoria, contador: cont ?? 0 };
+    return { faturamento: fat, despesasPorCategoria: porCategoria, contador: cont };
   }
 
   function avancar(e) {
@@ -362,6 +396,9 @@ export default function Comparativo({ numeroGestor }) {
             <button type="submit" className="cmp-btn primario" disabled={pendente}>
               {pendente ? "Calculando..." : "Ver resultado"}
             </button>
+            <p className="cmp-lgpd">
+              Usaremos seu contato apenas para falar com você sobre este comparativo.
+            </p>
             <button
               type="button"
               className="cmp-voltar"
@@ -376,7 +413,15 @@ export default function Comparativo({ numeroGestor }) {
           </form>
         )}
 
-        {passo === 3 && resultado && <Resultado r={resultado} numeroGestor={numeroGestor} />}
+        {passo === 3 && resultado && <Resultado
+            r={resultado}
+            numeroGestor={numeroGestor}
+            onRefazer={() => {
+              setErro("");
+              setResultado(null);
+              setPasso(1);
+            }}
+          />}
       </main>
     </div>
   );
