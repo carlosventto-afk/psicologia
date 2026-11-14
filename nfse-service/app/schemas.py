@@ -94,3 +94,24 @@ class CancelarResponse(BaseModel):
 class ConsultarResponse(BaseModel):
     encontrada: bool
     bruta: dict
+
+
+class ConsultarDpsRequest(BaseModel):
+    ambiente: str
+    certificado_pfx_cifrado: str
+    certificado_senha_cifrada: str
+    serie: str
+    numero: int
+    prestador_documento: str
+    municipio_ibge: str
+
+
+class ConsultarDpsResponse(BaseModel):
+    # "encontrada" | "nao_encontrada" | "incerta"
+    situacao: str
+    dps_id: str
+    chave_acesso: str | None = None
+    numero_nfse: str | None = None
+    xml_nfse_base64: str | None = None
+    pdf_base64: str | None = None
+    detalhe: str | None = None

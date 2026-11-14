@@ -17,6 +17,8 @@ from app.schemas import (
     CancelarResponse,
     CertificadoRequest,
     CertificadoResponse,
+    ConsultarDpsRequest,
+    ConsultarDpsResponse,
     ConsultarResponse,
     EmitirRequest,
     EmitirResponse,
@@ -37,6 +39,8 @@ from nfse_core import (
     ler_resposta_evento,
     erros_de_falha,
 )
+from nfse_core.dps import montar_dps_id
+from nfse_core.resposta import interpretar_consulta_dps
 
 app = FastAPI(title="PsiAgente NFS-e Service")
 
@@ -242,3 +246,49 @@ async def consultar(
         await cliente.close()
 
     return ConsultarResponse(encontrada=True, bruta=bruta)
+
+
+@app.post("/consultar-dps", response_model=ConsultarDpsResponse, dependencies=[Depends(verificar_segredo)])
+async def consultar_dps(req: ConsultarDpsRequest) -> ConsultarDpsResponse:
+    """Pergunta a SEFIN se a DPS (derivada de prestador + serie + numero) virou
+    NFS-e. Usado para resolver notas pendentes de resultado incerto. So responde
+    "nao_encontrada" com um 404 JSON explicito da SEFIN; qualquer duvida e "incerta"."""
+    if req.ambiente not in AMBIENTE_TP:
+        raise HTTPException(status_code=400, detail="Ambiente invalido.")
+
+    dps_id = montar_dps_id(req.prestador_documento, req.municipio_ibge, req.serie, req.numero)
+    pfx = decifrar(req.certificado_pfx_cifrado)
+    senha = decifrar(req.certificado_senha_cifrada)
+
+    cliente = SefinClient(req.ambiente, pfx, senha)
+    try:
+        try:
+            bruta = await cliente.consultar_dps(dps_id)
+        except SefinError as exc:
+            return ConsultarDpsResponse(situacao="incerta", dps_id=dps_id, detalhe=str(exc))
+
+        situacao, chave = interpretar_consulta_dps(bruta)
+        if situacao != "encontrada":
+            return ConsultarDpsResponse(situacao=situacao, dps_id=dps_id)
+
+        # Documento e PDF sao best-effort: a chave ja prova que a nota existe.
+        numero_nfse = None
+        xml_b64 = None
+        try:
+            detalhe = ler_resposta_emissao(await cliente.consultar_nfse(chave))
+            numero_nfse = detalhe.numero_nfse
+            xml_b64 = _b64(detalhe.xml_nfse) if detalhe.xml_nfse else None
+        except SefinError:
+            pass
+    finally:
+        await cliente.close()
+
+    pdf_bytes = await SefinClient.fetch_danfse_pdf(req.ambiente, pfx, senha, chave)
+    return ConsultarDpsResponse(
+        situacao="encontrada",
+        dps_id=dps_id,
+        chave_acesso=chave,
+        numero_nfse=numero_nfse,
+        xml_nfse_base64=xml_b64,
+        pdf_base64=_b64(pdf_bytes) if pdf_bytes else None,
+    )

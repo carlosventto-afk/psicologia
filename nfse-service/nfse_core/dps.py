@@ -117,16 +117,21 @@ class DpsData:
 
     @property
     def dps_id(self) -> str:
-        doc = _digits(self.prest_cnpj)
-        tp = "1" if len(doc) == 11 else "2"
-        return (
-            "DPS"
-            + _digits(self.c_loc_emi).zfill(7)
-            + tp
-            + doc.zfill(14)
-            + _digits(self.serie).zfill(5)
-            + str(self.numero).zfill(15)
-        )
+        return montar_dps_id(self.prest_cnpj, self.c_loc_emi, self.serie, self.numero)
+
+
+def montar_dps_id(prest_doc: str, c_loc_emi: str, serie: str, numero: int | str) -> str:
+    """Id da DPS (45 chars): "DPS" + IBGE(7) + tipo(1) + doc(14) + serie(5) + numero(15)."""
+    doc = _digits(prest_doc)
+    tp = "1" if len(doc) == 11 else "2"
+    return (
+        "DPS"
+        + _digits(c_loc_emi).zfill(7)
+        + tp
+        + doc.zfill(14)
+        + _digits(serie).zfill(5)
+        + str(numero).zfill(15)
+    )
 
 
 def _el(parent: etree._Element, tag: str, text: str | None = None) -> etree._Element:

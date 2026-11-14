@@ -145,3 +145,21 @@ def erros_de_falha(excecao) -> list[dict]:
     except (ValueError, TypeError):
         return []
     return translate_erros(_primeiro(dados, "erros", "Erros", "erro") or [])
+
+
+def interpretar_consulta_dps(resposta: dict) -> tuple[str, str | None]:
+    """Interpreta o retorno de `SefinClient.consultar_dps` (GET /dps/{id}).
+
+    Devolve (situacao, chave_acesso):
+      "encontrada"      HTTP 2xx com chave de acesso: a DPS virou NFS-e.
+      "nao_encontrada"  HTTP 404 sem chave: a SEFIN nao conhece a DPS.
+      "incerta"         qualquer outra coisa (nunca presumir que nao existe).
+    Falha de transporte/5xx/nao-JSON levanta SefinError antes daqui: tambem incerta.
+    """
+    http_status = int(resposta.get("_http_status") or 0)
+    chave = _primeiro(resposta, "chaveAcesso", "chaveAcessoNfse", "chave_acesso", "idNfse")
+    if chave and 200 <= http_status < 300:
+        return "encontrada", str(chave)[:50]
+    if http_status == 404 and not chave:
+        return "nao_encontrada", None
+    return "incerta", None
