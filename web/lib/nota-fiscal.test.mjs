@@ -26,6 +26,11 @@ import {
   tentativasDoItem,
   MENSAGEM_INCERTA,
   MOTIVO_COMPETENCIA_FUTURA,
+  notaVerificavelNaSefin,
+  decidirVerificacaoSefin,
+  montarAtualizacaoVerificadaAutorizada,
+  montarAtualizacaoVerificadaNaoEmitida,
+  MENSAGEM_VERIFICADA_NAO_EMITIDA,
 } from "./nota-fiscal.js";
 
 test("somarValores: centavos sem erro de ponto flutuante", () => {
@@ -581,4 +586,52 @@ test("recebimentosComEmissaoPorCobranca: só nota_fiscal emitida por cobrança",
   ]);
   assert.deepEqual([...r].sort(), [1, 2]);
   assert.equal(recebimentosComEmissaoPorCobranca(null).size, 0);
+});
+
+test("notaVerificavelNaSefin: só pendente com erro incerto ou parada há mais de 10 min", () => {
+  const agora = Date.parse("2026-11-14T12:00:00Z");
+  assert.equal(notaVerificavelNaSefin({ status: "pendente", ultimo_erro: "Aguardando confirmação" }, agora), true);
+  assert.equal(notaVerificavelNaSefin({ status: "pendente", ultimo_erro: null, created_at: "2026-11-14T11:00:00Z" }, agora), true);
+  assert.equal(notaVerificavelNaSefin({ status: "pendente", ultimo_erro: null, created_at: "2026-11-14T11:55:00Z" }, agora), false);
+  assert.equal(notaVerificavelNaSefin({ status: "pendente" }, agora), false);
+  assert.equal(notaVerificavelNaSefin({ status: "autorizada", ultimo_erro: "x" }, agora), false);
+  assert.equal(notaVerificavelNaSefin({ status: "rejeitada", ultimo_erro: "x" }, agora), false);
+  assert.equal(notaVerificavelNaSefin(null, agora), false);
+});
+
+test("decidirVerificacaoSefin: encontrada autoriza, nao_encontrada libera, resto mantém", () => {
+  assert.equal(decidirVerificacaoSefin({ situacao: "encontrada", chave_acesso: "A".repeat(50) }), "autorizar");
+  assert.equal(decidirVerificacaoSefin({ situacao: "encontrada" }), "manter");
+  assert.equal(decidirVerificacaoSefin({ situacao: "nao_encontrada" }), "liberar");
+  assert.equal(decidirVerificacaoSefin({ situacao: "incerta" }), "manter");
+  assert.equal(decidirVerificacaoSefin({}), "manter");
+  assert.equal(decidirVerificacaoSefin(null), "manter");
+});
+
+test("montarAtualizacaoVerificadaAutorizada: grava chave, xml, pdf e limpa o erro", () => {
+  const xml = "<NFSe/>";
+  const col = montarAtualizacaoVerificadaAutorizada({
+    dps_id: "DPS1",
+    chave_acesso: "K".repeat(50),
+    xml_nfse_base64: Buffer.from(xml).toString("base64"),
+    pdf_base64: "PDF",
+  });
+  assert.equal(col.status, "autorizada");
+  assert.equal(col.chave_acesso, "K".repeat(50));
+  assert.equal(col.xml_nfse, xml);
+  assert.equal(col.pdf_base64, "PDF");
+  assert.equal(col.ultimo_erro, null);
+  assert.equal(col.erros, null);
+  const sem = montarAtualizacaoVerificadaAutorizada({ chave_acesso: "K" });
+  assert.equal(sem.xml_nfse, null);
+  assert.equal(sem.pdf_base64, null);
+});
+
+test("montarAtualizacaoVerificadaNaoEmitida: rejeitada com mensagem clara", () => {
+  assert.deepEqual(montarAtualizacaoVerificadaNaoEmitida({ dps_id: "DPS1" }), {
+    status: "rejeitada",
+    dps_id: "DPS1",
+    ultimo_erro: MENSAGEM_VERIFICADA_NAO_EMITIDA,
+  });
+  assert.equal(montarAtualizacaoVerificadaNaoEmitida({}).dps_id, undefined);
 });

@@ -2,6 +2,8 @@ import { listarPagamentosElegiveisParaNotaFiscal, listarNotasFiscaisEmitidas } f
 import EmitirNotaFiscalBotao from "@/components/EmitirNotaFiscalBotao";
 import CancelarNotaFiscalBotao from "@/components/CancelarNotaFiscalBotao";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import VerificarNotaSefinBotao from "@/components/VerificarNotaSefinBotao";
+import { notaVerificavelNaSefin } from "@/lib/nota-fiscal";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
 import AvisoRecursoPago from "@/components/AvisoRecursoPago";
@@ -78,6 +80,9 @@ export default async function PaginaNotasFiscais() {
                   )}
                 </div>
                 {n.status === "autorizada" && <CancelarNotaFiscalBotao notaId={n.id} />}
+                {notaVerificavelNaSefin({ status: n.status, ultimo_erro: n.ultimoErro, created_at: n.criadoEm }) && (
+                  <VerificarNotaSefinBotao notaId={n.id} />
+                )}
               </div>
             ))}
           </div>

@@ -271,6 +271,56 @@ export function montarAtualizacaoIncerta({ resposta, erro }, tentativas) {
   return colunas;
 }
 
+// ---------------------------------------------------------------------------
+// "Verificar na SEFIN": resolve uma nota pendente de resultado incerto
+// consultando a DPS no governo (resposta de /consultar-dps do nfse-service).
+// ---------------------------------------------------------------------------
+
+export const MENSAGEM_VERIFICADA_NAO_EMITIDA = "Verificado na SEFIN: a nota não foi emitida.";
+
+// Notas pendentes recém-criadas (sem erro registrado) podem estar no meio de uma
+// emissão em andamento: só vira verificável depois desta janela.
+export const JANELA_EMISSAO_EM_ANDAMENTO_MS = 10 * 60 * 1000;
+
+// Pendente com resultado incerto (ultimo_erro gravado) ou parada há mais que a janela.
+export function notaVerificavelNaSefin(nota, agora = Date.now()) {
+  if (!nota || nota.status !== "pendente") return false;
+  if (String(nota.ultimo_erro ?? "").trim()) return true;
+  const criada = Date.parse(nota.created_at ?? "");
+  return Number.isFinite(criada) && agora - criada > JANELA_EMISSAO_EM_ANDAMENTO_MS;
+}
+
+// Decide a transição a partir da resposta da consulta. Só a SEFIN afirmando que
+// a DPS existe ('encontrada' com chave) autoriza; só 'nao_encontrada' explícito
+// libera nova emissão. Qualquer outra coisa mantém a nota como está.
+// -> 'autorizar' | 'liberar' | 'manter'
+export function decidirVerificacaoSefin(resposta) {
+  if (!resposta || typeof resposta !== "object") return "manter";
+  if (resposta.situacao === "encontrada" && String(resposta.chave_acesso ?? "").trim()) return "autorizar";
+  if (resposta.situacao === "nao_encontrada") return "liberar";
+  return "manter";
+}
+
+export function montarAtualizacaoVerificadaAutorizada(resposta) {
+  return {
+    status: "autorizada",
+    dps_id: resposta?.dps_id ?? null,
+    chave_acesso: resposta.chave_acesso,
+    xml_nfse: decodificar(resposta?.xml_nfse_base64),
+    pdf_base64: resposta?.pdf_base64 ?? null,
+    erros: null,
+    ultimo_erro: null,
+  };
+}
+
+export function montarAtualizacaoVerificadaNaoEmitida(resposta) {
+  return {
+    status: "rejeitada",
+    ...(resposta?.dps_id ? { dps_id: resposta.dps_id } : {}),
+    ultimo_erro: MENSAGEM_VERIFICADA_NAO_EMITIDA,
+  };
+}
+
 // Toda nota planejada precisa ter competência <= hoje (ambos "YYYY-MM-DD").
 export function validarCompetencias({ planos, hoje }) {
   const futura = (planos ?? []).some((p) => p.competencia > hoje);

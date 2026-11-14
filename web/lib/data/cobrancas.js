@@ -62,7 +62,7 @@ export async function listarCobrancas({ situacao, pacienteId, periodo } = {}) {
 }
 
 const CAMPOS_NOTA =
-  "id, status, cobranca, recebimento_sessao, chave_acesso, ultimo_erro, numero, enviada_email_em, enviada_whatsapp_em, tentativas";
+  "id, status, cobranca, recebimento_sessao, chave_acesso, ultimo_erro, numero, enviada_email_em, enviada_whatsapp_em, tentativas, created_at";
 
 // Notas da cobranca: a nota da propria cobranca e, no modo por sessao, as notas
 // dos RecebimentoSessao do recebimento. Erro de leitura nao derruba a pagina.

@@ -1,4 +1,5 @@
-import { formatarDataHoraSaoPaulo } from "@/lib/nota-fiscal";
+import { formatarDataHoraSaoPaulo, notaVerificavelNaSefin } from "@/lib/nota-fiscal";
+import VerificarNotaSefinBotao from "@/components/VerificarNotaSefinBotao";
 
 const ROTULOS = { pendente: "Pendente", autorizada: "Autorizada", rejeitada: "Rejeitada", cancelada: "Cancelada" };
 const CORES = {
@@ -50,9 +51,10 @@ export default function NotaCobrancaStatus({ notas, pendencia }) {
             ))}
           {n.status === "pendente" && (
             <p className="text-yellow-700">
-              Aguardando confirmação da prefeitura — não emita de novo; confira no portal da NFS-e
+              Aguardando confirmação da prefeitura — não emita de novo; use o botão Verificar na SEFIN ou confira no portal da NFS-e
             </p>
           )}
+          {notaVerificavelNaSefin(n) && <VerificarNotaSefinBotao notaId={n.id} />}
           {n.status === "rejeitada" && n.ultimo_erro && <p className="text-red-600">{n.ultimo_erro}</p>}
         </div>
       ))}
