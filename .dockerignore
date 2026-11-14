@@ -11,3 +11,8 @@ supabase
 docs
 Telas de modelo
 Arquivos e modelos
+Certificado
+.claude
+nfse-service/nfse_core/xsd_v101
+**/__pycache__
+**/node_modules
