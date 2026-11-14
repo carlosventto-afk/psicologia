@@ -10,7 +10,7 @@ const BLOG_HOST = "blog.psiagente.com.br";
 // subdomínios públicos (ver deveRastrear). Igualdade exata, não prefixo:
 // mesmo cuidado já usado pra "/" no middleware de sessão, senão qualquer
 // path prefixado indevidamente entraria no funil.
-const PATHS_FUNIL = ["/", "/login", "/cadastro", "/completar-cadastro", "/esqueci-senha"];
+const PATHS_FUNIL = ["/", "/login", "/cadastro", "/completar-cadastro", "/esqueci-senha", "/comparativo"];
 
 function deveRastrear(host, pathname) {
   if (host.startsWith("comece.") || host.startsWith("busca.") || host.startsWith("blog.")) {

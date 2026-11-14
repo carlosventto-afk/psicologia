@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
   "/robots.txt",
   "/termos",
   "/carne-leao-automatico",
+  "/comparativo",
   "/api/agent/call-tool",
   "/api/agent/onboarding",
   "/api/blog/artigos",
