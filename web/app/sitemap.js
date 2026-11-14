@@ -19,8 +19,11 @@ export default async function sitemap() {
       changeFrequency: "monthly",
       priority: 1,
     },
-    // reativar indexação e sitemap depois que um contador validar os números (spec)
-    // ({ url: `${origemHome}/comparativo`, changeFrequency: "monthly", priority: 0.7 })
+    {
+      url: `${origemHome}/comparativo`,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
     {
       url: origemBlog,
       changeFrequency: "weekly",
