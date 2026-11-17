@@ -20,6 +20,8 @@ from app.schemas import (
     ConsultarDpsRequest,
     ConsultarDpsResponse,
     ConsultarResponse,
+    DocumentosRequest,
+    DocumentosResponse,
     EmitirRequest,
     EmitirResponse,
 )
@@ -246,6 +248,37 @@ async def consultar(
         await cliente.close()
 
     return ConsultarResponse(encontrada=True, bruta=bruta)
+
+
+@app.post("/documentos-nfse", response_model=DocumentosResponse, dependencies=[Depends(verificar_segredo)])
+async def documentos_nfse(req: DocumentosRequest) -> DocumentosResponse:
+    """Busca de novo o XML e/ou o DANFSe (PDF oficial) de uma NFS-e ja autorizada,
+    pela chave de acesso. Usado quando a emissao autorizou sem o PDF (ADN instavel).
+    Best-effort: o que nao vier fica None, nunca levanta por indisponibilidade."""
+    if req.ambiente not in AMBIENTE_TP:
+        raise HTTPException(status_code=400, detail="Ambiente invalido.")
+
+    pfx = decifrar(req.certificado_pfx_cifrado)
+    senha = decifrar(req.certificado_senha_cifrada)
+
+    xml_b64 = None
+    if req.buscar_xml:
+        cliente = SefinClient(req.ambiente, pfx, senha)
+        try:
+            try:
+                detalhe = ler_resposta_emissao(await cliente.consultar_nfse(req.chave_acesso))
+                xml_b64 = _b64(detalhe.xml_nfse) if detalhe.xml_nfse else None
+            except SefinError:
+                pass
+        finally:
+            await cliente.close()
+
+    pdf_b64 = None
+    if req.buscar_pdf:
+        pdf_bytes = await SefinClient.fetch_danfse_pdf(req.ambiente, pfx, senha, req.chave_acesso)
+        pdf_b64 = _b64(pdf_bytes) if pdf_bytes else None
+
+    return DocumentosResponse(xml_nfse_base64=xml_b64, pdf_base64=pdf_b64)
 
 
 @app.post("/consultar-dps", response_model=ConsultarDpsResponse, dependencies=[Depends(verificar_segredo)])

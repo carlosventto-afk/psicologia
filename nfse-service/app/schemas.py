@@ -96,6 +96,22 @@ class ConsultarResponse(BaseModel):
     bruta: dict
 
 
+class DocumentosRequest(BaseModel):
+    ambiente: str
+    certificado_pfx_cifrado: str
+    certificado_senha_cifrada: str
+    chave_acesso: str
+    # So busca o que o chamador ainda nao tem (evita as retentativas do ADN a toa).
+    buscar_xml: bool = True
+    buscar_pdf: bool = True
+
+
+class DocumentosResponse(BaseModel):
+    # None = a SEFIN/ADN nao respondeu; o chamador mantem o que ja tinha.
+    xml_nfse_base64: str | None = None
+    pdf_base64: str | None = None
+
+
 class ConsultarDpsRequest(BaseModel):
     ambiente: str
     certificado_pfx_cifrado: str
