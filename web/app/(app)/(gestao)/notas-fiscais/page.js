@@ -7,6 +7,10 @@ import { notaVerificavelNaSefin } from "@/lib/nota-fiscal";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
 import AvisoRecursoPago from "@/components/AvisoRecursoPago";
+import BaixarNotasEmBloco from "@/components/BaixarNotasEmBloco";
+import { notaTemDocumento } from "@/lib/nfse-documentos";
+
+const comDocumento = (n) => notaTemDocumento({ status: n.status, chave_acesso: n.chaveAcesso });
 
 export default async function PaginaNotasFiscais() {
   const usuario = await buscarUsuarioAtual();
@@ -56,12 +60,23 @@ export default async function PaginaNotasFiscais() {
           <p className="empty-state">Nenhuma nota emitida ainda.</p>
         ) : (
           <div className="space-y-3">
+            {emitidas.some(comDocumento) && <BaixarNotasEmBloco />}
             {emitidas.map((n) => (
               <div
                 key={n.id}
                 className="card flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="min-w-0">
+                {comDocumento(n) && (
+                  <input
+                    type="checkbox"
+                    name="id"
+                    value={n.id}
+                    form="form-download-notas"
+                    aria-label={`Selecionar nota ${n.numero}/${n.serie}`}
+                    className="shrink-0"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-navy">
                     {n.pacienteNome} — Nº {n.numero}/{n.serie}
                     {n.valor != null && ` — ${formatarMoeda(n.valor)}`}
@@ -79,6 +94,16 @@ export default async function PaginaNotasFiscais() {
                     <p className="text-xs text-muted">Chave de acesso: {n.chaveAcesso}</p>
                   )}
                 </div>
+                {comDocumento(n) && (
+                  <div className="flex shrink-0 gap-3">
+                    <a href={`/api/notas-fiscais/download?id=${n.id}&formato=pdf`} className="link">
+                      PDF
+                    </a>
+                    <a href={`/api/notas-fiscais/download?id=${n.id}&formato=xml`} className="link">
+                      XML
+                    </a>
+                  </div>
+                )}
                 {n.status === "autorizada" && <CancelarNotaFiscalBotao notaId={n.id} />}
                 {notaVerificavelNaSefin({ status: n.status, ultimo_erro: n.ultimoErro, created_at: n.criadoEm }) && (
                   <VerificarNotaSefinBotao notaId={n.id} />
