@@ -39,6 +39,16 @@ export default function NotaCobrancaStatus({ notas, pendencia }) {
               <span className="font-semibold text-navy">Chave de acesso:</span> {n.chave_acesso}
             </p>
           )}
+          {n.status === "autorizada" && n.chave_acesso && (
+            <p className="flex gap-3">
+              <a href={`/api/notas-fiscais/download?id=${n.id}&formato=pdf`} className="link">
+                Baixar PDF
+              </a>
+              <a href={`/api/notas-fiscais/download?id=${n.id}&formato=xml`} className="link">
+                Baixar XML
+              </a>
+            </p>
+          )}
           {n.status === "autorizada" &&
             (entrega(n).length > 0 ? (
               entrega(n).map((t) => (
