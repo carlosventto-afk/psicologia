@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizarIdsLista } from "@/lib/normalizar-ids";
 import { recebimentosComEmissaoPorCobranca } from "@/lib/nota-fiscal";
 import { formatarNomePaciente } from "@/lib/formatar-nome-paciente";
+import { competenciaDoXmlDps } from "@/lib/nfse-documentos";
 
 const SELECT_RECEBIMENTO_SESSAO =
   "id, valor_aplicado, Recebimento!inner(id, data_recebimento), Sessao!inner(id, data, Paciente!inner(id, nome, apelido, email, cpf, documento)), NotaFiscal(id, status)";
@@ -53,7 +54,7 @@ export async function listarNotasFiscaisEmitidas() {
   const { data, error } = await supabase
     .from("NotaFiscal")
     .select(
-      "id, status, numero, serie, chave_acesso, ambiente, erros, ultimo_erro, created_at, cobranca, Cobranca(valor_total, Paciente(nome, apelido)), PagamentoSessao(valor, Sessao(Paciente(nome, apelido))), RecebimentoSessao(valor_aplicado, Sessao(Paciente(nome, apelido)))"
+      "id, status, numero, serie, chave_acesso, ambiente, erros, ultimo_erro, created_at, cobranca, xml_dps, Cobranca(valor_total, Paciente(nome, apelido)), PagamentoSessao(valor, Sessao(Paciente(nome, apelido))), RecebimentoSessao(valor_aplicado, Sessao(Paciente(nome, apelido)))"
     )
     .order("created_at", { ascending: false });
 
@@ -72,6 +73,7 @@ export async function listarNotasFiscaisEmitidas() {
       numero: n.numero,
       serie: n.serie,
       chaveAcesso: n.chave_acesso,
+      competencia: competenciaDoXmlDps(n.xml_dps),
       ambiente: n.ambiente,
       erros: n.erros,
       ultimoErro: n.ultimo_erro,

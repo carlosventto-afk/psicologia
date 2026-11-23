@@ -10,6 +10,8 @@ import {
   bytesDoDocumento,
   crc32,
   montarZip,
+  competenciaDoXmlDps,
+  filtrarPorCompetencia,
 } from "./nfse-documentos.js";
 
 test("extensoesDoFormato", () => {
@@ -83,4 +85,25 @@ test("montarZip sem arquivos ainda é um zip vazio válido", () => {
   const zip = montarZip([]);
   assert.equal(zip.length, 22);
   assert.equal(zip.readUInt32LE(0), 0x06054b50);
+});
+
+test("competenciaDoXmlDps lê dCompet da DPS", () => {
+  assert.equal(competenciaDoXmlDps("<infDPS><dCompet>2026-11-05</dCompet></infDPS>"), "2026-11-05");
+  assert.equal(competenciaDoXmlDps("<x/>"), null);
+  assert.equal(competenciaDoXmlDps(null), null);
+});
+
+test("filtrarPorCompetencia: intervalo inclusivo, abertos e inválidos", () => {
+  const notas = [
+    { id: 1, competencia: "2026-10-31" },
+    { id: 2, competencia: "2026-11-01" },
+    { id: 3, competencia: "2026-11-30" },
+    { id: 4, competencia: "2026-12-01" },
+    { id: 5, competencia: null },
+  ];
+  const ids = (l) => l.map((n) => n.id);
+  assert.deepEqual(ids(filtrarPorCompetencia(notas, "2026-11-01", "2026-11-30")), [2, 3]);
+  assert.deepEqual(ids(filtrarPorCompetencia(notas, "2026-11-30", "")), [3, 4]);
+  assert.deepEqual(ids(filtrarPorCompetencia(notas, "", "2026-10-31")), [1]);
+  assert.deepEqual(ids(filtrarPorCompetencia(notas, "lixo", undefined)), [1, 2, 3, 4, 5]);
 });

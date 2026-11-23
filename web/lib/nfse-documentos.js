@@ -27,6 +27,27 @@ export function normalizarIdsNotas(entrada) {
 
 const seguro = (v) => String(v ?? "").replace(/[^A-Za-z0-9._-]/g, "");
 
+// Competência do serviço ("YYYY-MM-DD") gravada na DPS enviada (tag dCompet);
+// null se o XML não existir. NotaFiscal não tem coluna própria para isso.
+export function competenciaDoXmlDps(xmlDps) {
+  const m = /<dCompet>\s*(\d{4}-\d{2}-\d{2})\s*<\/dCompet>/.exec(String(xmlDps ?? ""));
+  return m ? m[1] : null;
+}
+
+export const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+// Filtro por intervalo de competência (inclusivo; "de"/"ate" ISO, qualquer um opcional).
+// Valor inválido é ignorado. Nota sem competência conhecida só passa sem filtro.
+export function filtrarPorCompetencia(notas, de, ate) {
+  const ini = DATA_ISO.test(de ?? "") ? de : null;
+  const fim = DATA_ISO.test(ate ?? "") ? ate : null;
+  if (!ini && !fim) return notas;
+  return notas.filter((n) => {
+    if (!n.competencia) return false;
+    return (!ini || n.competencia >= ini) && (!fim || n.competencia <= fim);
+  });
+}
+
 // Só notas autorizadas (ou canceladas, que continuam tendo documento) têm arquivo.
 export function notaTemDocumento(nota) {
   return Boolean(nota) && (nota.status === "autorizada" || nota.status === "cancelada") && Boolean(nota.chave_acesso);

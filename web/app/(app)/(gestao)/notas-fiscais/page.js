@@ -8,20 +8,28 @@ import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
 import AvisoRecursoPago from "@/components/AvisoRecursoPago";
 import BaixarNotasEmBloco from "@/components/BaixarNotasEmBloco";
-import { notaTemDocumento } from "@/lib/nfse-documentos";
+import { notaTemDocumento, filtrarPorCompetencia, DATA_ISO, LIMITE_NOTAS_EM_BLOCO } from "@/lib/nfse-documentos";
 
 const comDocumento = (n) => notaTemDocumento({ status: n.status, chave_acesso: n.chaveAcesso });
 
-export default async function PaginaNotasFiscais() {
+const dataBR = (iso) => iso.split("-").reverse().join("/");
+
+export default async function PaginaNotasFiscais({ searchParams }) {
+  const filtros = await searchParams;
+  const de = DATA_ISO.test(filtros?.de ?? "") ? filtros.de : "";
+  const ate = DATA_ISO.test(filtros?.ate ?? "") ? filtros.ate : "";
   const usuario = await buscarUsuarioAtual();
   if (!PLANOS[usuario.plano].temDocumentos) {
     return <AvisoRecursoPago recurso="A emissão de notas fiscais" />;
   }
 
-  const [elegiveis, emitidas] = await Promise.all([
+  const [elegiveis, todasEmitidas] = await Promise.all([
     listarPagamentosElegiveisParaNotaFiscal(),
     listarNotasFiscaisEmitidas(),
   ]);
+  const emitidas = filtrarPorCompetencia(todasEmitidas, de, ate);
+  const filtrando = Boolean(de || ate);
+  const baixaveis = emitidas.filter(comDocumento).length;
 
   return (
     <div className="space-y-6">
@@ -56,8 +64,31 @@ export default async function PaginaNotasFiscais() {
 
       <div>
         <h2 className="text-lg font-bold text-navy mb-2">Notas emitidas</h2>
+        <form method="get" className="card mb-3 flex flex-wrap items-end gap-3 px-4 py-3 text-sm">
+          <label className="flex flex-col gap-1 text-navy">
+            Competência de
+            <input type="date" name="de" defaultValue={de} className="field mt-0" />
+          </label>
+          <label className="flex flex-col gap-1 text-navy">
+            até
+            <input type="date" name="ate" defaultValue={ate} className="field mt-0" />
+          </label>
+          <button type="submit" className="btn-dark">
+            Filtrar
+          </button>
+          {filtrando && (
+            <a href="/notas-fiscais" className="link">
+              Limpar filtro
+            </a>
+          )}
+        </form>
+        {baixaveis > LIMITE_NOTAS_EM_BLOCO && (
+          <p className="mb-3 text-sm text-yellow-700">
+            Há {baixaveis} notas neste filtro; o download em bloco aceita até {LIMITE_NOTAS_EM_BLOCO} por vez. Use um período menor.
+          </p>
+        )}
         {emitidas.length === 0 ? (
-          <p className="empty-state">Nenhuma nota emitida ainda.</p>
+          <p className="empty-state">{filtrando ? "Nenhuma nota nesse período de competência." : "Nenhuma nota emitida ainda."}</p>
         ) : (
           <div className="space-y-3">
             {emitidas.some(comDocumento) && <BaixarNotasEmBloco />}
@@ -81,6 +112,7 @@ export default async function PaginaNotasFiscais() {
                     {n.pacienteNome} — Nº {n.numero}/{n.serie}
                     {n.valor != null && ` — ${formatarMoeda(n.valor)}`}
                   </p>
+                  {n.competencia && <p className="text-xs text-muted">Competência: {dataBR(n.competencia)}</p>}
                   <p className="text-muted">
                     {n.status === "autorizada" && `Autorizada (${n.ambiente})`}
                     {n.status === "rejeitada" && `Rejeitada: ${n.erros?.[0]?.titulo ?? n.ultimoErro ?? "erro"}`}
