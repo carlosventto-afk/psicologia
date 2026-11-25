@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarEmailResend } from "@/lib/email/resend";
 import { entregarNota } from "@/lib/nfse-entrega";
+import { rebuscarDocumentos } from "@/lib/nfse-rebusca";
 import {
   LIMITE_POR_CATEGORIA,
   LIMITE_TENTATIVAS_ENTREGA,
@@ -15,6 +16,7 @@ import {
 // Job horário (n8n). NUNCA reemite notas: só reentrega NFS-e autorizadas e
 // alerta o profissional por e-mail (uma vez por nota, ver alertada_em).
 
+const LIMITE_PDFS_POR_EXECUCAO = 5;
 const COLUNAS_ALERTA = "id, owner, status, tomador_nome, ultimo_erro, created_at, alertada_em";
 
 export async function POST(request) {
@@ -25,7 +27,7 @@ export async function POST(request) {
 
   const admin = createAdminClient();
   const agora = new Date();
-  const resumo = { entregues: 0, alertas: 0, esgotadas: 0 };
+  const resumo = { pdfs: 0, entregues: 0, alertas: 0, esgotadas: 0 };
   const profissionais = new Map();
 
   async function buscarProfissional(owner) {
@@ -70,6 +72,38 @@ export async function POST(request) {
       .is("alertada_em", null);
     if (error) console.error(`[nfse-reprocessar] alertada_em não gravado (nota ${nota.id}): ${error.message}`);
     return true;
+  }
+
+  // (0) PDF ausente (ADN do governo fora na emissão): re-busca e guarda, antes da
+  // entrega para o PDF seguir junto. Notas dos últimos 30 dias; para após 3 falhas
+  // seguidas (ADN provavelmente fora) para não gastar o job.
+  try {
+    const desde = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: semPdf, error } = await admin
+      .from("NotaFiscal")
+      .select("id, owner, ambiente, chave_acesso")
+      .eq("status", "autorizada")
+      .eq("ambiente", "producao")
+      .is("pdf_base64", null)
+      .not("chave_acesso", "is", null)
+      .gte("created_at", desde)
+      .order("created_at", { ascending: false })
+      .limit(LIMITE_PDFS_POR_EXECUCAO);
+    if (error) throw new Error(error.message);
+
+    let falhasSeguidas = 0;
+    for (const nota of semPdf ?? []) {
+      if (falhasSeguidas >= 3) break;
+      const atualizada = await rebuscarDocumentos(admin, nota, { xml: false, pdf: true });
+      if (atualizada.pdf_base64) {
+        resumo.pdfs++;
+        falhasSeguidas = 0;
+      } else {
+        falhasSeguidas++;
+      }
+    }
+  } catch (erro) {
+    console.error(`[nfse-reprocessar] falha ao re-buscar PDFs: ${erro?.message ?? erro}`);
   }
 
   // (a) Reentrega de notas autorizadas

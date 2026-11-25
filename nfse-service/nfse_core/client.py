@@ -14,12 +14,15 @@ import asyncio
 import base64
 import gzip
 import json
+import logging
 import os
 import tempfile
 
 import httpx
 
 from nfse_core.signer import load_pfx_pem
+
+logger = logging.getLogger(__name__)
 
 BASE_URLS = {
     # SEM o prefixo /API: é o caminho dos integradores em produção (o /API/ da
@@ -155,8 +158,12 @@ class SefinClient:
                         resp = await client.get(url)
                     if resp.status_code == 200 and resp.headers.get("content-type", "").startswith("application/pdf"):
                         return resp.content
-                except httpx.HTTPError:
-                    pass
+                    logger.warning(
+                        "DANFSe ADN tentativa %d/4: HTTP %s (%s)",
+                        attempt + 1, resp.status_code, resp.headers.get("content-type", "?"),
+                    )
+                except httpx.HTTPError as exc:
+                    logger.warning("DANFSe ADN tentativa %d/4: falha de rede (%s)", attempt + 1, type(exc).__name__)
                 if attempt < 3:
                     await asyncio.sleep(1.5 * (attempt + 1))
             return None
