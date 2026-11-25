@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CertificadoRequest(BaseModel):
@@ -112,6 +112,30 @@ class DocumentosResponse(BaseModel):
     # None = a SEFIN/ADN nao respondeu; o chamador mantem o que ja tinha.
     xml_nfse_base64: str | None = None
     pdf_base64: str | None = None
+
+
+LIMITE_NOTAS_DANFSE = 100
+
+
+class DanfseItem(BaseModel):
+    # Identificador do chamador (id da nota), devolvido junto do PDF.
+    id: str
+    ambiente: str
+    xml_nfse_base64: str
+
+
+class DanfseRequest(BaseModel):
+    notas: list[DanfseItem] = Field(max_length=LIMITE_NOTAS_DANFSE)
+
+
+class DanfseResultado(BaseModel):
+    id: str
+    # None = nao foi possivel desenhar (XML invalido); o chamador usa o PDF que ja tem.
+    pdf_base64: str | None = None
+
+
+class DanfseResponse(BaseModel):
+    resultados: list[DanfseResultado]
 
 
 class ConsultarDpsRequest(BaseModel):
