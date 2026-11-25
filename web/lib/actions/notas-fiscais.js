@@ -6,7 +6,14 @@ import { chamarServicoNfse } from "@/lib/nfse-client";
 import { enviarEmailNotaFiscal } from "@/lib/email";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
-import { classificarResultadoEmissao, montarAtualizacaoIncerta } from "@/lib/nota-fiscal";
+import { hojeSaoPaulo } from "@/lib/cobranca";
+import {
+  classificarResultadoEmissao,
+  competenciaPeloPagamento,
+  montarAtualizacaoIncerta,
+  origemDaCompetencia,
+  validarCompetencias,
+} from "@/lib/nota-fiscal";
 
 const ERRO_INCERTO = "Aguardando confirmação da prefeitura; não emita de novo — verifique no portal da NFS-e";
 
@@ -34,7 +41,7 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
 
   const { data: recebimentoSessao, error: erroRecebimento } = await supabase
     .from("RecebimentoSessao")
-    .select("id, valor_aplicado, Sessao!inner(id, data, Paciente!inner(id, nome, email, cpf, documento))")
+    .select("id, valor_aplicado, Recebimento!inner(data_recebimento), Sessao!inner(id, data, Paciente!inner(id, nome, email, cpf, documento))")
     .eq("id", pagamentoId)
     .single();
 
@@ -62,6 +69,20 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
     return { error: "Certificado digital vencido. Envie um novo antes de emitir." };
   }
 
+  // Competência: data da sessão (padrão) ou data do pagamento, conforme Configurações → NFS-e.
+  // Decidida antes de reservar o número da nota.
+  const origem = origemDaCompetencia(fiscal);
+  let competencia = recebimentoSessao.Sessao.data;
+  if (origem === "pagamento") {
+    try {
+      competencia = competenciaPeloPagamento(recebimentoSessao.Recebimento?.data_recebimento);
+    } catch (erro) {
+      return { error: erro.message };
+    }
+    const comp = validarCompetencias({ planos: [{ competencia }], hoje: hojeSaoPaulo(), origem });
+    if (!comp.ok) return { error: comp.motivo };
+  }
+
   const { data: registro, error: erroRegistro } = await supabase.rpc("registrar_nota_fiscal_pendente", {
     p_recebimento_sessao: recebimentoSessao.id,
   });
@@ -80,7 +101,7 @@ export async function emitirNotaFiscal(pagamentoId, prevState, formData) {
       certificado_senha_cifrada: fiscal.certificado_senha_cifrada,
       serie,
       numero,
-      competencia: recebimentoSessao.Sessao.data,
+      competencia,
       prestador: {
         documento: fiscal.documento,
         inscricao_municipal: fiscal.inscricao_municipal,
