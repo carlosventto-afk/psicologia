@@ -258,14 +258,24 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
         .maybeSingle(),
       supabase.from("Paciente").select("nome, cpf, email, telefone").eq("id", cobranca.paciente).maybeSingle(),
     ]);
-    for (const r of [fiscalRes, usuarioRes, respRes, pacRes]) {
+    // Responsavel que e paciente de outro cadastro: completa CPF/e-mail/telefone por ele.
+    const vinculadoId = respRes.data?.paciente_vinculado;
+    const vinculadoRes =
+      vinculadoId != null && Number(vinculadoId) !== Number(cobranca.paciente)
+        ? await supabase.from("Paciente").select("nome, cpf, email, telefone").eq("id", vinculadoId).maybeSingle()
+        : { data: null, error: null };
+    for (const r of [fiscalRes, usuarioRes, respRes, pacRes, vinculadoRes]) {
       if (r.error) return { notas: ativas.map(resumo), pendencia: "Não foi possível carregar os dados da nota: " + r.error.message };
     }
 
     const fiscal = fiscalRes.data;
     const usuario = usuarioRes.data;
     const tomador = escolherTomador({
-      responsavel: responsavelParaTomador({ responsavel: respRes.data, pacienteId: cobranca.paciente }),
+      responsavel: responsavelParaTomador({
+        responsavel: respRes.data,
+        pacienteId: cobranca.paciente,
+        pacienteVinculado: vinculadoRes.data,
+      }),
       paciente: pacRes.data,
     });
 

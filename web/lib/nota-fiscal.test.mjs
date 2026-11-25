@@ -376,6 +376,21 @@ test("responsavelParaTomador: próprio vira paciente; terceiro permanece", () =>
   assert.equal(t.documento, "11122233344");
 });
 
+test("responsavelParaTomador: responsável vinculado a outro paciente completa CPF pelo cadastro do paciente", () => {
+  const resp = { nome: "Ana", cpf_cnpj: null, email: "", telefone: null, paciente_vinculado: 11 };
+  const vinculado = { nome: "Ana Paciente", cpf: "111.222.333-44", email: "ana@x.com", telefone: "11999990000" };
+  const t = escolherTomador({ responsavel: responsavelParaTomador({ responsavel: resp, pacienteId: 10, pacienteVinculado: vinculado }), paciente: { nome: "Filho", cpf: null } });
+  assert.equal(t.origem, "responsavel");
+  assert.equal(t.documento, "11122233344");
+  assert.equal(t.nome, "Ana");
+  assert.equal(t.email, "ana@x.com");
+  // o que o responsável tem prevalece
+  const completo = responsavelParaTomador({ responsavel: { ...resp, cpf_cnpj: "99988877766" }, pacienteId: 10, pacienteVinculado: vinculado });
+  assert.equal(completo.cpf_cnpj, "99988877766");
+  // sem paciente vinculado informado, nada muda
+  assert.equal(responsavelParaTomador({ responsavel: resp, pacienteId: 10 }), resp);
+});
+
 test("itensSemNotaAtiva: modo cobrança e modo sessão", () => {
   const plano = [{ recebimentoSessao: 1 }, { recebimentoSessao: 2 }];
   assert.equal(itensSemNotaAtiva({ emissaoPor: "cobranca", plano: [{ recebimentoSessao: null }], ativas: [] }).length, 1);
