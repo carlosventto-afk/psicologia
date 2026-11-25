@@ -13,7 +13,7 @@ export async function buscarDadosFiscais() {
       "id, owner, tipo_documento, documento, inscricao_municipal, nome_empresarial, email_nfse, telefone_nfse, " +
         "logradouro, numero, complemento, bairro, municipio_ibge, uf, cep, optante_simples_nacional, " +
         "regime_apuracao_sn, codigo_tributacao_nacional, codigo_tributacao_municipal, certificado_titular, certificado_validade, ambiente, " +
-        "serie, proximo_numero, emissao_automatica, created_at"
+        "serie, proximo_numero, emissao_automatica, competencia_origem, created_at"
     )
     .eq("owner", user.id)
     .maybeSingle();

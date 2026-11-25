@@ -26,6 +26,10 @@ import {
   tentativasDoItem,
   MENSAGEM_INCERTA,
   MOTIVO_COMPETENCIA_FUTURA,
+  MOTIVO_COMPETENCIA_FUTURA_PAGAMENTO,
+  origemDaCompetencia,
+  validarOrigemCompetencia,
+  competenciaPeloPagamento,
   notaVerificavelNaSefin,
   decidirVerificacaoSefin,
   montarAtualizacaoVerificadaAutorizada,
@@ -358,6 +362,95 @@ test("validarCompetencias: hoje e passado ok, futuro bloqueia", () => {
     ok: false,
     motivo: MOTIVO_COMPETENCIA_FUTURA,
   });
+});
+
+test("origemDaCompetencia: só 'pagamento' muda o padrão (atendimentos)", () => {
+  assert.equal(origemDaCompetencia({ competencia_origem: "pagamento" }), "pagamento");
+  assert.equal(origemDaCompetencia({ competencia_origem: "atendimentos" }), "atendimentos");
+  for (const fiscal of [null, undefined, {}, { competencia_origem: null }, { competencia_origem: "lixo" }]) {
+    assert.equal(origemDaCompetencia(fiscal), "atendimentos");
+  }
+});
+
+test("validarOrigemCompetencia: aceita as duas origens e recusa o resto", () => {
+  assert.deepEqual(validarOrigemCompetencia("atendimentos"), { ok: true, origem: "atendimentos" });
+  assert.deepEqual(validarOrigemCompetencia("pagamento"), { ok: true, origem: "pagamento" });
+  for (const v of [null, undefined, "", "Pagamento", "hoje", 1]) {
+    const r = validarOrigemCompetencia(v);
+    assert.equal(r.ok, false);
+    assert.match(r.motivo, /competência/i);
+  }
+});
+
+test("competenciaPeloPagamento: normaliza para YYYY-MM-DD e recusa data inválida", () => {
+  assert.equal(competenciaPeloPagamento("2026-11-20"), "2026-11-20");
+  assert.equal(competenciaPeloPagamento("2026-11-20T03:00:00+00:00"), "2026-11-20");
+  for (const v of [null, undefined, "", "20/11/2026", "lixo"]) {
+    assert.throws(() => competenciaPeloPagamento(v), /data de pagamento/i);
+  }
+});
+
+test("planejarNotas com origem 'pagamento': modo cobrança usa a data do pagamento e mantém as datas dos atendimentos", () => {
+  const p = planejarNotas({
+    emissaoPor: "cobranca",
+    competenciaOrigem: "pagamento",
+    dataPagamento: "2026-06-03",
+    rateios: [
+      { id: 1, valor_aplicado: 100, data: "2026-05-20" },
+      { id: 2, valor_aplicado: 80, data: "2026-05-13" },
+    ],
+  });
+  assert.equal(p.length, 1);
+  assert.equal(p[0].competencia, "2026-06-03");
+  assert.deepEqual(p[0].datasISO, ["2026-05-20", "2026-05-13"]); // a descrição continua com os atendimentos
+  assert.equal(p[0].valor, 180);
+});
+
+test("planejarNotas com origem 'pagamento': modo sessão dá a mesma competência (data do pagamento) a todas as notas", () => {
+  const p = planejarNotas({
+    emissaoPor: "sessao",
+    competenciaOrigem: "pagamento",
+    dataPagamento: "2026-06-03T00:00:00",
+    rateios: [
+      { id: 7, valor_aplicado: 100, data: "2026-05-20" },
+      { id: 8, valor_aplicado: 80.5, data: "2026-05-13" },
+    ],
+  });
+  assert.deepEqual(
+    p.map((n) => [n.recebimentoSessao, n.competencia, n.datasISO]),
+    [[7, "2026-06-03", ["2026-05-20"]], [8, "2026-06-03", ["2026-05-13"]]],
+  );
+});
+
+test("planejarNotas com origem 'pagamento' e sem data de pagamento válida: lança", () => {
+  const rateios = [{ id: 1, valor_aplicado: 10, data: "2026-05-13" }];
+  assert.throws(() => planejarNotas({ emissaoPor: "cobranca", competenciaOrigem: "pagamento", rateios }), /data de pagamento/i);
+  assert.throws(() => planejarNotas({ emissaoPor: "sessao", competenciaOrigem: "pagamento", dataPagamento: "x", rateios }), /data de pagamento/i);
+});
+
+test("planejarNotas: origem 'atendimentos' (ou omitida) ignora a data do pagamento", () => {
+  const rateios = [{ id: 1, valor_aplicado: 10, data: "2026-05-13" }];
+  assert.equal(planejarNotas({ emissaoPor: "cobranca", rateios, dataPagamento: "2026-06-03" })[0].competencia, "2026-05-13");
+  assert.equal(
+    planejarNotas({ emissaoPor: "cobranca", competenciaOrigem: "atendimentos", rateios, dataPagamento: "2026-06-03" })[0].competencia,
+    "2026-05-13",
+  );
+  // sem data de pagamento não há erro quando a origem é 'atendimentos'
+  assert.equal(planejarNotas({ emissaoPor: "sessao", competenciaOrigem: "atendimentos", rateios })[0].competencia, "2026-05-13");
+});
+
+test("validarCompetencias com origem 'pagamento': data de pagamento futura bloqueia com motivo próprio", () => {
+  const futura = { planos: [{ competencia: "2026-11-13" }], hoje: "2026-11-12" };
+  assert.deepEqual(validarCompetencias({ ...futura, origem: "pagamento" }), {
+    ok: false,
+    motivo: MOTIVO_COMPETENCIA_FUTURA_PAGAMENTO,
+  });
+  assert.match(MOTIVO_COMPETENCIA_FUTURA_PAGAMENTO, /pagamento/i);
+  // sem origem (ou 'atendimentos') mantém a mensagem de sessão futura
+  assert.equal(validarCompetencias(futura).motivo, MOTIVO_COMPETENCIA_FUTURA);
+  assert.equal(validarCompetencias({ ...futura, origem: "atendimentos" }).motivo, MOTIVO_COMPETENCIA_FUTURA);
+  // hoje e passado seguem liberados
+  assert.deepEqual(validarCompetencias({ planos: [{ competencia: "2026-11-12" }], hoje: "2026-11-12", origem: "pagamento" }), { ok: true });
 });
 
 test("responsavelParaTomador: próprio vira paciente; terceiro permanece", () => {

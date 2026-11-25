@@ -17,6 +17,7 @@ import {
   escolherTomador,
   validarPreCondicoes,
   validarCompetencias,
+  origemDaCompetencia,
   responsavelParaTomador,
   planejarNotas,
   notasAtivas,
@@ -200,10 +201,10 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
 
     const emissaoPor = cobranca.emissao_por === "sessao" ? "sessao" : "cobranca";
 
-    // Rateio do recebimento, com a data de cada sessão.
+    // Rateio do recebimento, com a data de cada sessão e a data do pagamento (a mesma em todas as linhas).
     const { data: linhas, error: erroRateio } = await supabase
       .from("RecebimentoSessao")
-      .select("id, valor_aplicado, Sessao(data)")
+      .select("id, valor_aplicado, Sessao(data), Recebimento(data_recebimento)")
       .eq("recebimento", cobranca.recebimento)
       .order("id");
     if (erroRateio) return { notas: [], pendencia: "Não foi possível carregar o recebimento: " + erroRateio.message };
@@ -212,6 +213,7 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
       id: l.id,
       valor_aplicado: l.valor_aplicado,
       data: l.Sessao?.data ?? null,
+      dataPagamento: l.Recebimento?.data_recebimento ?? null,
     }));
     if (rateios.length === 0) return { notas: [], pendencia: "Recebimento sem sessões aplicadas." };
     const rateioIds = rateios.map((r) => r.id);
@@ -227,9 +229,18 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
     // Pendente (inclusive resultado incerto) conta como ativa: nunca reserva número novo.
     const ativas = notasAtivas(existentes);
 
+    // Perfil fiscal: dele vem de onde sai a competência da nota (data dos atendimentos, padrão,
+    // ou data do pagamento) e, mais adiante, as pré-condições da emissão.
+    const fiscalRes = await supabase.from("DadosFiscaisProfissional").select("*").eq("owner", cobranca.owner).maybeSingle();
+    if (fiscalRes.error) {
+      return { notas: ativas.map(resumo), pendencia: "Não foi possível carregar os dados da nota: " + fiscalRes.error.message };
+    }
+    const fiscal = fiscalRes.data;
+    const competenciaOrigem = origemDaCompetencia(fiscal);
+
     let plano;
     try {
-      plano = planejarNotas({ emissaoPor, rateios });
+      plano = planejarNotas({ emissaoPor, rateios, competenciaOrigem, dataPagamento: rateios[0]?.dataPagamento });
     } catch (erro) {
       if (ativas.length > 0) return { notas: ativas.map(resumo) };
       return { notas: [], pendencia: erro.message };
@@ -244,12 +255,11 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
     }
 
     // Pré-condições ANTES de reservar qualquer número.
-    const comp = validarCompetencias({ planos: pendentesDeEmissao, hoje: hojeSaoPaulo() });
+    const comp = validarCompetencias({ planos: pendentesDeEmissao, hoje: hojeSaoPaulo(), origem: competenciaOrigem });
     if (!comp.ok) return { notas: ativas.map(resumo), pendencia: comp.motivo };
 
     const donoId = cobranca.owner;
-    const [fiscalRes, usuarioRes, respRes, pacRes] = await Promise.all([
-      supabase.from("DadosFiscaisProfissional").select("*").eq("owner", donoId).maybeSingle(),
+    const [usuarioRes, respRes, pacRes] = await Promise.all([
       supabase.from("Usuarios").select("nome, crp").eq("id_user", donoId).maybeSingle(),
       supabase
         .from("ResponsavelFinanceiro")
@@ -264,11 +274,10 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
       vinculadoId != null && Number(vinculadoId) !== Number(cobranca.paciente)
         ? await supabase.from("Paciente").select("nome, cpf, email, telefone").eq("id", vinculadoId).maybeSingle()
         : { data: null, error: null };
-    for (const r of [fiscalRes, usuarioRes, respRes, pacRes, vinculadoRes]) {
+    for (const r of [usuarioRes, respRes, pacRes, vinculadoRes]) {
       if (r.error) return { notas: ativas.map(resumo), pendencia: "Não foi possível carregar os dados da nota: " + r.error.message };
     }
 
-    const fiscal = fiscalRes.data;
     const usuario = usuarioRes.data;
     const tomador = escolherTomador({
       responsavel: responsavelParaTomador({

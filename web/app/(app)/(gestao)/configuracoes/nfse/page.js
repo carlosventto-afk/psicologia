@@ -2,7 +2,14 @@ import DadosFiscaisForm from "@/components/DadosFiscaisForm";
 import CertificadoForm from "@/components/CertificadoForm";
 import AmbienteNfseForm from "@/components/AmbienteNfseForm";
 import EmissaoAutomaticaForm from "@/components/EmissaoAutomaticaForm";
-import { salvarDadosFiscais, enviarCertificado, trocarParaProducao, alterarEmissaoAutomatica } from "@/lib/actions/dados-fiscais";
+import CompetenciaNotaForm from "@/components/CompetenciaNotaForm";
+import {
+  salvarDadosFiscais,
+  enviarCertificado,
+  trocarParaProducao,
+  alterarEmissaoAutomatica,
+  alterarCompetenciaNota,
+} from "@/lib/actions/dados-fiscais";
 import { buscarDadosFiscais } from "@/lib/data/dados-fiscais";
 import { buscarUsuarioAtual } from "@/lib/data/usuario";
 import { PLANOS } from "@/lib/planos";
@@ -37,6 +44,7 @@ export default async function PaginaNfseConfig() {
           ambiente={dadosFiscais.ambiente}
         />
       )}
+      {dadosFiscais && <CompetenciaNotaForm action={alterarCompetenciaNota} origem={dadosFiscais.competencia_origem} />}
     </div>
   );
 }

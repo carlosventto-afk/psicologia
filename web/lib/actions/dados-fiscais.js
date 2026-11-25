@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { chamarServicoNfse } from "@/lib/nfse-client";
-import { validarAtivacaoEmissaoAutomatica } from "@/lib/nota-fiscal";
+import { validarAtivacaoEmissaoAutomatica, validarOrigemCompetencia } from "@/lib/nota-fiscal";
 import { hojeSaoPaulo } from "@/lib/cobranca";
 
 function dadosDoFormulario(formData) {
@@ -151,6 +151,31 @@ export async function alterarEmissaoAutomatica(prevState, formData) {
     .eq("owner", user.id);
 
   if (error) return { error: "Não foi possível salvar a configuração: " + error.message };
+
+  revalidatePath("/configuracoes/nfse");
+  return { sucesso: true };
+}
+
+// Define de onde sai a competência das próximas notas: data dos atendimentos (padrão) ou data
+// do pagamento informada na cobrança. Não altera notas já emitidas.
+export async function alterarCompetenciaNota(prevState, formData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const escolha = validarOrigemCompetencia(formData.get("competencia_origem"));
+  if (!escolha.ok) return { error: escolha.motivo };
+
+  const { data, error } = await supabase
+    .from("DadosFiscaisProfissional")
+    .update({ competencia_origem: escolha.origem })
+    .eq("owner", user.id)
+    .select("owner");
+
+  if (error) return { error: "Não foi possível salvar a configuração: " + error.message };
+  if (!data?.length) return { error: "Salve os dados fiscais antes de escolher a competência da nota." };
 
   revalidatePath("/configuracoes/nfse");
   return { sucesso: true };
