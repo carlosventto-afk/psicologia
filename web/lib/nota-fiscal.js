@@ -38,6 +38,28 @@ export function competenciaDaNota(datasISO) {
   return datasUnicasOrdenadas(datasISO).at(-1);
 }
 
+// De onde vem a competência (dCompet) da nota: a data do último atendimento (padrão) ou a data
+// do pagamento informada ao receber a cobrança. Configuração em DadosFiscaisProfissional.
+export const ORIGENS_COMPETENCIA = ["atendimentos", "pagamento"];
+
+// Valor ausente ou desconhecido cai no padrão: nenhuma nota muda de competência sem opção expressa.
+export function origemDaCompetencia(fiscal) {
+  return fiscal?.competencia_origem === "pagamento" ? "pagamento" : "atendimentos";
+}
+
+export function validarOrigemCompetencia(valor) {
+  if (ORIGENS_COMPETENCIA.includes(valor)) return { ok: true, origem: valor };
+  return { ok: false, motivo: "Escolha de onde vem a competência da nota: data dos atendimentos ou data do pagamento." };
+}
+
+// "YYYY-MM-DD..." -> "YYYY-MM-DD". Lança se não houver data de pagamento válida.
+export function competenciaPeloPagamento(dataPagamento) {
+  if (!dataPagamento || !/^\d{4}-\d{2}-\d{2}/.test(String(dataPagamento))) {
+    throw new Error("Recebimento sem data de pagamento válida: não é possível definir a competência da nota.");
+  }
+  return String(dataPagamento).slice(0, 10);
+}
+
 export function escolherTomador({ responsavel, paciente }) {
   const usaResp = Boolean(responsavel);
   const origem = usaResp ? "responsavel" : "paciente";
@@ -133,7 +155,10 @@ export function contarRejeitadas(notas) {
 // rateios: [{ id, valor_aplicado, data }] (uma linha de RecebimentoSessao com a
 // data da sessão). Devolve as notas a emitir: uma só (modo cobrança) ou uma por
 // rateio (modo sessão). Lança se faltar rateio, data ou valor positivo.
-export function planejarNotas({ emissaoPor, rateios }) {
+// competenciaOrigem 'pagamento': a competência de cada nota é dataPagamento (data do
+// recebimento da cobrança) em vez da data dos atendimentos; datasISO continua com os
+// atendimentos, que é o que a descrição da nota lista.
+export function planejarNotas({ emissaoPor, rateios, competenciaOrigem = "atendimentos", dataPagamento = null }) {
   if (!rateios || rateios.length === 0) {
     throw new Error("Recebimento sem sessões aplicadas: não há o que faturar.");
   }
@@ -146,12 +171,13 @@ export function planejarNotas({ emissaoPor, rateios }) {
     }
   }
   const data = (r) => String(r.data).slice(0, 10);
+  const pelaDataDoPagamento = competenciaOrigem === "pagamento" ? competenciaPeloPagamento(dataPagamento) : null;
   if (emissaoPor === "sessao") {
     return rateios.map((r) => ({
       recebimentoSessao: r.id,
       valor: paraCentavos(r.valor_aplicado) / 100,
       datasISO: [data(r)],
-      competencia: competenciaDaNota([data(r)]),
+      competencia: pelaDataDoPagamento ?? competenciaDaNota([data(r)]),
     }));
   }
   const datasISO = rateios.map(data);
@@ -160,7 +186,7 @@ export function planejarNotas({ emissaoPor, rateios }) {
       recebimentoSessao: null,
       valor: somarValores(rateios.map((r) => r.valor_aplicado)),
       datasISO,
-      competencia: competenciaDaNota(datasISO),
+      competencia: pelaDataDoPagamento ?? competenciaDaNota(datasISO),
     },
   ];
 }
@@ -233,6 +259,9 @@ export const MENSAGEM_INCERTA =
 
 export const MOTIVO_COMPETENCIA_FUTURA =
   "Há sessões com data futura na cobrança; aguarde a data para emitir a nota.";
+
+export const MOTIVO_COMPETENCIA_FUTURA_PAGAMENTO =
+  "A data do pagamento é futura e está configurada como competência da nota; aguarde essa data para emitir a nota.";
 
 const STATUS_RECUSA_DEFINITIVA = [400, 401, 403, 404, 422];
 
@@ -321,10 +350,12 @@ export function montarAtualizacaoVerificadaNaoEmitida(resposta) {
   };
 }
 
-// Toda nota planejada precisa ter competência <= hoje (ambos "YYYY-MM-DD").
-export function validarCompetencias({ planos, hoje }) {
+// Toda nota planejada precisa ter competência <= hoje (ambos "YYYY-MM-DD"). A origem 'pagamento'
+// só muda a mensagem: a competência futura passa a ser a data do pagamento, não uma sessão.
+export function validarCompetencias({ planos, hoje, origem = "atendimentos" }) {
   const futura = (planos ?? []).some((p) => p.competencia > hoje);
-  return futura ? { ok: false, motivo: MOTIVO_COMPETENCIA_FUTURA } : { ok: true };
+  if (!futura) return { ok: true };
+  return { ok: false, motivo: origem === "pagamento" ? MOTIVO_COMPETENCIA_FUTURA_PAGAMENTO : MOTIVO_COMPETENCIA_FUTURA };
 }
 
 // ResponsavelFinanceiro "próprio" (aponta para o próprio paciente) não tem
