@@ -1,6 +1,6 @@
 import { chamarServicoNfse } from "./nfse-client.js";
 
-// Re-busca XML/PDF de uma nota autorizada no portal nacional (via nfse-service) e grava
+// Re-busca XML e gera o PDF (DANFSe) de uma nota autorizada no portal nacional (via nfse-service) e grava
 // o que veio. Usada pelo download (cliente do usuário) e pelo job de reprocessamento
 // (cliente admin). Nunca lança: devolve a nota (atualizada se algo veio).
 // faltantes = { xml: boolean, pdf: boolean }
@@ -21,6 +21,8 @@ export async function rebuscarDocumentos(supabase, nota, faltantes) {
       chave_acesso: nota.chave_acesso,
       buscar_xml: faltantes.xml,
       buscar_pdf: faltantes.pdf,
+      // O PDF e desenhado pelo servico a partir do XML (o governo desativou o PDF da API).
+      xml_nfse_base64: nota.xml_nfse ? Buffer.from(nota.xml_nfse, "utf-8").toString("base64") : null,
     });
   } catch (e) {
     console.error(`NFS-e: re-busca de documentos falhou (nota ${nota.id}): ${e?.message ?? e}`);

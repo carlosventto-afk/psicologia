@@ -74,7 +74,7 @@ export async function GET(request) {
   if (arquivos.length === 0) {
     return resposta(
       503,
-      "O documento ainda não está disponível no portal nacional da NFS-e (o serviço do governo oscila). Tente novamente em alguns minutos."
+      "Não foi possível gerar o documento agora. Tente novamente em alguns minutos."
     );
   }
 

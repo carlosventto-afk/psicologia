@@ -40,9 +40,9 @@ class DocumentosNfseTest(unittest.TestCase):
         cliente = cliente or FakeCliente()
         with patch.object(main, "decifrar", lambda v: v), \
              patch.object(main, "SefinClient") as sefin, \
-             patch.object(main, "ler_resposta_emissao", return_value=SimpleNamespace(xml_nfse=xml)):
+             patch.object(main, "ler_resposta_emissao", return_value=SimpleNamespace(xml_nfse=xml)),              patch.object(main, "gerar_danfse", return_value=pdf) as gerar:
             sefin.return_value = cliente
-            sefin.fetch_danfse_pdf = AsyncMock(return_value=pdf)
+            sefin.gerar = gerar
             resp = _client().post("/documentos-nfse", json={**CORPO, **(corpo or {})}, headers=HEADERS)
             return resp, sefin, cliente
 
@@ -54,12 +54,19 @@ class DocumentosNfseTest(unittest.TestCase):
         self.assertEqual(base64.b64decode(corpo["xml_nfse_base64"]), b"<nfse/>")
 
     def test_so_busca_o_que_foi_pedido(self):
-        resp, sefin, cliente = self._post({"buscar_xml": False})
+        resp, sefin, cliente = self._post({"buscar_xml": False, "buscar_pdf": False})
         self.assertIsNone(resp.json()["xml_nfse_base64"])
         cliente.consultar_nfse.assert_not_called()
         resp, sefin, _ = self._post({"buscar_pdf": False})
         self.assertIsNone(resp.json()["pdf_base64"])
-        sefin.fetch_danfse_pdf.assert_not_called()
+        sefin.gerar.assert_not_called()
+
+    def test_pdf_usa_o_xml_enviado_sem_ir_a_sefin(self):
+        xml = base64.b64encode(b"<nfse-do-chamador/>").decode()
+        resp, sefin, cliente = self._post({"buscar_xml": False, "xml_nfse_base64": xml})
+        cliente.consultar_nfse.assert_not_called()
+        sefin.gerar.assert_called_once_with(b"<nfse-do-chamador/>", "homologacao")
+        self.assertEqual(base64.b64decode(resp.json()["pdf_base64"]), b"%PDF-ok")
 
     def test_indisponibilidade_vira_none_sem_erro(self):
         resp, _, _ = self._post(cliente=FakeCliente(falha=True), pdf=None)

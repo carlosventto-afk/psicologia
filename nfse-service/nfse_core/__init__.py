@@ -32,6 +32,7 @@ numeração é controlada, onde a emissão é gravada) fica FORA daqui, de prop�
 
 from nfse_core.certificado import InfoCertificado, conferir_titularidade, inspecionar
 from nfse_core.client import SefinClient, SefinError
+from nfse_core.danfse import gerar_danfse
 from nfse_core.dps import DpsData, build_dps_xml, NFSE_NS
 from nfse_core.error_catalog import summarize_for_exception, translate, translate_erros
 from nfse_core.evento import EventoCancelamentoData, build_evento_cancelamento_xml
@@ -48,7 +49,7 @@ __all__ = [
     # assinatura
     "sign_dps", "sign_evento", "load_pfx", "CertificateError",
     # comunicação
-    "SefinClient", "SefinError",
+    "SefinClient", "SefinError", "gerar_danfse",
     # leitura das respostas
     "RespostaEmissao", "RespostaEvento",
     "ler_resposta_emissao", "ler_resposta_evento", "erros_de_falha",
