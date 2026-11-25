@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { gerarPdfsDasNotas } from "@/lib/nfse-pdf";
 import { rebuscarDocumentos } from "@/lib/nfse-rebusca";
 import {
   CONTENT_TYPE,
@@ -12,13 +13,16 @@ import {
   notaTemDocumento,
 } from "@/lib/nfse-documentos";
 
-// Download do PDF (DANFSe oficial) e/ou XML da NFS-e.
+// Download do PDF (DANFSe) e/ou XML da NFS-e.
 //   GET ?id=12&formato=pdf|xml          -> o arquivo (uma nota)
 //   GET ?id=12&formato=todos            -> .zip com PDF + XML da nota
 //   GET ?id=1&id=2&...&formato=...      -> .zip com os arquivos das notas (em bloco)
 // Autenticado pela sessão; a RLS de NotaFiscal só devolve notas do dono (ou admin).
-// Uma nota só: se faltar o documento (ADN instável na emissão), busca de novo no
-// nfse-service e guarda. Em bloco não re-busca (lento): lista o que faltou no LEIA-ME.txt.
+// O PDF é desenhado na hora pelo nfse-service a partir do XML guardado: o layout é sempre o
+// atual e vale para qualquer nota que o usuário enxerga. O PDF guardado (pdf_base64) só entra
+// se o serviço não responder. Uma nota só e sem XML guardado (raro): busca de novo na SEFIN
+// e guarda (só o dono, pois usa o certificado). Em bloco não busca na SEFIN: lista o que
+// faltou no LEIA-ME.txt.
 
 const TEXTO = { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" };
 const resposta = (status, mensagem) => new Response(mensagem, { status, headers: TEXTO });
@@ -61,12 +65,16 @@ export async function GET(request) {
     }
   }
 
+  // PDF desenhado na hora a partir do XML; se o serviço falhar, cai no PDF guardado.
+  const geradas = extensoes.includes("pdf") ? await gerarPdfsDasNotas(notas) : new Map();
+
   const arquivos = [];
   const ausentes = [];
   for (const nota of notas) {
     for (const ext of extensoes) {
-      const conteudo = bytesDoDocumento(nota, ext);
-      if (conteudo) arquivos.push({ nome: nomeArquivoNota(nota, ext), conteudo, ext });
+      const pdfGerado = ext === "pdf" ? (geradas.get(String(nota.id)) ?? null) : null;
+      const conteudo = bytesDoDocumento(nota, ext, pdfGerado);
+      if (conteudo) arquivos.push({ nome: nomeArquivoNota(nota, ext), conteudo, ext, origem: pdfGerado ? "gerado" : "guardado" });
       else ausentes.push(nomeArquivoNota(nota, ext));
     }
   }
@@ -87,6 +95,8 @@ export async function GET(request) {
         ...cabecalhos,
         "Content-Type": CONTENT_TYPE[a.ext],
         "Content-Disposition": `attachment; filename="${a.nome}"`,
+        // De onde veio o PDF (gerado agora ou o guardado de reserva): ajuda a diagnosticar.
+        ...(a.ext === "pdf" ? { "X-Nfse-Pdf-Origem": a.origem } : {}),
       },
     });
   }
@@ -97,7 +107,7 @@ export async function GET(request) {
       "Estes arquivos não estavam disponíveis e ficaram de fora deste pacote:",
       ...ausentes.map((n) => `- ${n}`),
       "",
-      "Baixe cada nota individualmente em Notas Fiscais: o sistema tenta buscar o documento de novo no portal nacional.",
+      "Baixe cada nota individualmente em Notas Fiscais; se continuar sem o documento, tente de novo em alguns minutos.",
     ];
     zipados.push({ nome: "LEIA-ME.txt", conteudo: Buffer.from(linhas.join("\n"), "utf-8") });
   }

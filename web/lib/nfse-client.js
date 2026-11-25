@@ -2,7 +2,9 @@
 // docs/superpowers/specs/2026-08-14-nfse-emissao-design.md. Nunca lida com
 // o certificado em texto puro: so repassa os blobs ja cifrados que o
 // microservico devolveu no upload.
-export async function chamarServicoNfse(caminho, corpo) {
+// opcoes.timeoutMs: aborta a chamada (erro TimeoutError) em vez de esperar o servico
+// indefinidamente -- usado onde um usuario espera a resposta (ex.: download).
+export async function chamarServicoNfse(caminho, corpo, opcoes = {}) {
   const url = process.env.NFSE_SERVICE_URL;
   const segredo = process.env.NFSE_SERVICE_SECRET;
   if (!url || !segredo) {
@@ -18,6 +20,7 @@ export async function chamarServicoNfse(caminho, corpo) {
       "X-Nfse-Secret": segredo,
     },
     body: JSON.stringify(corpo),
+    signal: opcoes.timeoutMs ? AbortSignal.timeout(opcoes.timeoutMs) : undefined,
   });
 
   const dados = await resposta.json().catch(() => null);
