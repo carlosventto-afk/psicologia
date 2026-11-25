@@ -7,7 +7,11 @@ import {
   sessoesMarcadasPorPadrao,
   totalSelecionado,
   pacientesParaEnviar,
+  gruposPorResponsavel,
+  pacientePrincipal,
 } from "@/lib/cobranca";
+
+const ROTULO_TIPO = { nenhum: "Nenhum", recibo: "Recibo", nota_fiscal: "Nota Fiscal" };
 
 const estadoInicial = {};
 
@@ -66,6 +70,40 @@ export default function NovaCobrancaMesForm({
     [marcadosAtuais, sessoesMarcadas],
   );
   const semSessao = marcadosAtuais.filter((id) => !enviar.includes(id));
+
+  // Responsavel efetivo de cada paciente incluido (unico vinculado ou o escolhido).
+  // Pacientes que dividem o mesmo responsavel podem virar uma cobranca so.
+  const [juntar, setJuntar] = useState({});
+  const gruposComuns = useMemo(() => {
+    const itens = enviar.map((id) => {
+      const g = pacientes.find((p) => p.paciente.id === id);
+      const resps = g?.responsaveis ?? [];
+      const responsavelId = resps.length === 1 ? resps[0].id : Number(responsaveisEscolhidos[id]) || null;
+      return { pacienteId: id, responsavelId };
+    });
+    return gruposPorResponsavel(itens).map((grupo) => {
+      const membros = grupo.pacienteIds.map((id) => pacientes.find((p) => p.paciente.id === id));
+      const sessoes = membros.flatMap((m) =>
+        m.sessoes
+          .filter((s) => (sessoesMarcadas[m.paciente.id] ?? []).includes(s.id))
+          .map((s) => ({ ...s, paciente: m.paciente.id })),
+      );
+      const principalId = pacientePrincipal(sessoes) ?? membros[0].paciente.id;
+      const nomeResp = membros[0].responsaveis.find((r) => r.id === grupo.responsavelId)?.nome ?? "o mesmo responsável";
+      const tipoDe = (id) => tipos[id] ?? pacientes.find((p) => p.paciente.id === id).tipoDocumentoPadrao;
+      return {
+        ...grupo,
+        nomeResp,
+        nomes: membros.map((m) => m.paciente.nome),
+        principalNome: membros.find((m) => m.paciente.id === principalId).paciente.nome,
+        tipoPrincipal: tipoDe(principalId),
+        tiposDiferentes: new Set(grupo.pacienteIds.map(tipoDe)).size > 1,
+        total: totalSelecionado(sessoes, sessoes.map((s) => s.id)),
+      };
+    });
+  }, [enviar, pacientes, responsaveisEscolhidos, sessoesMarcadas, tipos]);
+  const juntando = gruposComuns.filter((g) => juntar[g.responsavelId] === "sim");
+  const qtdCobrancas = enviar.length - juntando.reduce((n, g) => n + g.pacienteIds.length - 1, 0);
 
   function alternarPaciente(id) {
     setMarcados((a) =>
@@ -258,12 +296,54 @@ export default function NovaCobrancaMesForm({
         })}
       </div>
 
+      {gruposComuns.map((g) => {
+        const valor = juntar[g.responsavelId] ?? "nao";
+        return (
+          <fieldset key={g.responsavelId} className="card space-y-2 border-l-4 border-l-yellow-500 px-4 py-3 text-sm">
+            <legend className="sr-only">Juntar cobranças de {g.nomeResp}</legend>
+            <p className="font-semibold text-navy">
+              {g.nomes.join(", ")} têm o mesmo responsável financeiro ({g.nomeResp}). Juntar todas as sessões numa
+              única cobrança, que vai gerar uma só nota?
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name={`escolha_juntar_${g.responsavelId}`}
+                  checked={valor === "sim"}
+                  onChange={() => setJuntar((j) => ({ ...j, [g.responsavelId]: "sim" }))}
+                />
+                Sim, juntar ({formatarMoeda(g.total)})
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name={`escolha_juntar_${g.responsavelId}`}
+                  checked={valor === "nao"}
+                  onChange={() => setJuntar((j) => ({ ...j, [g.responsavelId]: "nao" }))}
+                />
+                Não, manter uma cobrança por paciente
+              </label>
+            </div>
+            {valor === "sim" && (
+              <p className="text-xs text-muted">
+                A cobrança fica no nome de {g.principalNome} (sessão mais antiga) e usa o documento dele:{" "}
+                {ROTULO_TIPO[g.tipoPrincipal]}.
+                {g.tiposDiferentes && " Os outros pacientes têm documentos diferentes; o dele prevalece."}
+              </p>
+            )}
+            <input type="hidden" name={`juntar_${g.responsavelId}`} value={valor} />
+          </fieldset>
+        );
+      })}
+
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
 
       {state?.criadas > 0 && (
         <p className="text-sm font-semibold text-navy">
           {state.criadas}{" "}
-          {state.criadas === 1 ? "cobrança criada" : "cobranças criadas"}.{" "}
+          {state.criadas === 1 ? "cobrança criada" : "cobranças criadas"}
+          {state.juntadas > 0 && ` (${state.juntadas} reunindo vários pacientes)`}.{" "}
           <Link href="/cobrancas" className="link">
             Ver cobranças
           </Link>
@@ -303,7 +383,7 @@ export default function NovaCobrancaMesForm({
         >
           {pending
             ? "Criando..."
-            : `Criar ${enviar.length} ${enviar.length === 1 ? "cobrança" : "cobranças"}`}
+            : `Criar ${qtdCobrancas} ${qtdCobrancas === 1 ? "cobrança" : "cobranças"}`}
         </button>
       )}
     </form>

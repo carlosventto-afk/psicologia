@@ -92,7 +92,7 @@ export default async function PaginaCobrancas({ searchParams }) {
             >
               <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-5 sm:items-center">
                 <Link href={`/cobrancas/${c.id}`} className="truncate font-semibold text-navy sm:col-span-2">
-                  {c.Paciente?.nome ?? "Paciente"}
+                  {c.nomes_pacientes.length > 0 ? c.nomes_pacientes.join(" + ") : "Paciente"}
                 </Link>
                 <p className="text-muted">{rotuloPeriodo(c)}</p>
                 <p className="font-semibold text-navy">{formatarMoeda(c.valor_total)}</p>

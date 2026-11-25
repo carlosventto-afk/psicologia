@@ -31,18 +31,36 @@ function intervaloDeDatas(vinculos) {
   return { data_inicio: datas[0] ?? null, data_fim: datas[datas.length - 1] ?? null };
 }
 
+// Nomes dos pacientes da cobranca: o principal primeiro, depois os demais com
+// sessao ativa (cobranca conjunta). Cancelada usa os vinculos historicos.
+function nomesDosPacientes(principal, vinculos) {
+  const todos = vinculos ?? [];
+  const ativos = todos.filter((v) => v.ativa);
+  const nomes = (ativos.length > 0 ? ativos : todos).map((v) => v.Sessao?.Paciente?.nome).filter(Boolean);
+  return [...new Set([principal, ...nomes].filter(Boolean))];
+}
+
 // periodo: "YYYY-MM" (periodo_referencia, ou datas das sessoes se for nulo).
 export async function listarCobrancas({ situacao, pacienteId, periodo } = {}) {
   const supabase = await createClient();
   let query = supabase
     .from("Cobranca")
     .select(
-      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, Paciente(id, nome, apelido), CobrancaSessao(ativa, Sessao(data))"
+      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, Paciente(id, nome, apelido), CobrancaSessao(ativa, Sessao(data, paciente, Paciente(nome)))"
     )
     .order("created_at", { ascending: false });
 
   if (situacao) query = query.eq("situacao", situacao);
-  if (pacienteId) query = query.eq("paciente", pacienteId);
+  if (pacienteId) {
+    // Cobranca conjunta aparece para todos os pacientes que tem sessao nela.
+    const { data: vinculos, error: erroVinculos } = await supabase
+      .from("CobrancaSessao")
+      .select("cobranca, Sessao!inner(paciente)")
+      .eq("Sessao.paciente", pacienteId);
+    if (erroVinculos) throw new Error(erroVinculos.message);
+    const ids = [...new Set((vinculos ?? []).map((v) => Number(v.cobranca)))];
+    query = ids.length > 0 ? query.or(`paciente.eq.${pacienteId},id.in.(${ids.join(",")})`) : query.eq("paciente", pacienteId);
+  }
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
@@ -57,6 +75,7 @@ export async function listarCobrancas({ situacao, pacienteId, periodo } = {}) {
     ...c,
     valor_total: Number(c.valor_total),
     qtd_sessoes: (c.CobrancaSessao ?? []).filter((v) => v.ativa).length,
+    nomes_pacientes: nomesDosPacientes(c.Paciente?.nome, c.CobrancaSessao),
     ...intervaloDeDatas(c.CobrancaSessao),
   }));
 }
@@ -96,7 +115,7 @@ export async function buscarCobranca(id) {
   const { data, error } = await supabase
     .from("Cobranca")
     .select(
-      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, emissao_por, nota_pendencia, Paciente(id, nome, apelido, documento), ResponsavelFinanceiro:responsavel_financeiro(id, nome), Recebimento:recebimento(id, data_recebimento, valor_total, forma_pagamento, conta), CobrancaSessao(id, ativa, valor, Sessao(id, data, horario))"
+      "id, created_at, paciente, valor_total, tipo_documento, situacao, periodo_referencia, recebida_em, responsavel_financeiro, emissao_por, nota_pendencia, Paciente(id, nome, apelido, documento), ResponsavelFinanceiro:responsavel_financeiro(id, nome), Recebimento:recebimento(id, data_recebimento, valor_total, forma_pagamento, conta), CobrancaSessao(id, ativa, valor, Sessao(id, data, horario, Paciente(nome)))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -121,11 +140,13 @@ export async function buscarCobranca(id) {
     notas,
     valor_total: Number(base.valor_total),
     paciente: normalizarIds(paciente, ["id"]),
+    nomes_pacientes: nomesDosPacientes(paciente?.nome, usar),
     sessoes: usar
       .map((v) => ({
         id: Number(v.Sessao.id),
         data: v.Sessao.data,
         horario: v.Sessao.horario,
+        pacienteNome: v.Sessao.Paciente?.nome ?? null,
         valor: Number(v.valor),
         // Mesma regra da aba Sessoes do paciente (sessaoDocumentada): cobranca sem
         // recebimento (reaberta) nao documenta nada, mesmo com nota antiga.

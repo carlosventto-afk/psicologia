@@ -96,6 +96,33 @@ export function escolherResponsavel(responsaveis, escolhidoId) {
   return { id: Number(escolhido.id) };
 }
 
+// Pacientes que dividem o mesmo responsavel financeiro (so grupos com 2+).
+// itens: [{ pacienteId, responsavelId }]; itens sem responsavel sao ignorados.
+// Devolve [{ responsavelId, pacienteIds }] na ordem em que o responsavel aparece.
+export function gruposPorResponsavel(itens) {
+  const porResp = new Map();
+  for (const { pacienteId, responsavelId } of itens ?? []) {
+    if (!responsavelId) continue;
+    const chave = Number(responsavelId);
+    const ids = porResp.get(chave) ?? [];
+    if (!ids.includes(Number(pacienteId))) ids.push(Number(pacienteId));
+    porResp.set(chave, ids);
+  }
+  return [...porResp]
+    .filter(([, ids]) => ids.length >= 2)
+    .map(([responsavelId, pacienteIds]) => ({ responsavelId, pacienteIds }));
+}
+
+// Paciente "principal" de uma cobranca conjunta: o da sessao mais antiga
+// (data e horario; empate pelo menor id da sessao). sessoes: [{ id, data, horario, paciente }].
+export function pacientePrincipal(sessoes) {
+  const chave = (s) => `${s.data ?? ""}T${s.horario ?? ""}`;
+  const ordenadas = [...(sessoes ?? [])].sort((a, b) =>
+    chave(a) === chave(b) ? Number(a.id) - Number(b.id) : chave(a) < chave(b) ? -1 : 1
+  );
+  return ordenadas.length > 0 ? Number(ordenadas[0].paciente) : null;
+}
+
 const PREFIXO_ERRO = "COBRANCA: ";
 
 const capitalizar = (t) => t.charAt(0).toUpperCase() + t.slice(1);

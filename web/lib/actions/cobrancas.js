@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { listarResponsaveisDoPaciente } from "@/lib/data/responsaveis-financeiros";
-import { escolherResponsavel, mensagemErroCobranca } from "@/lib/cobranca";
+import { escolherResponsavel, mensagemErroCobranca, gruposPorResponsavel, pacientePrincipal } from "@/lib/cobranca";
 import { emitirEEntregarCobranca } from "@/lib/nfse-emitir-entregar";
 import { resolverEmissaoPor } from "@/lib/nota-fiscal";
 
@@ -73,6 +73,9 @@ export async function criarCobranca(prevState, formData) {
 // Campos: paciente_id (repetido, um por paciente marcado); por paciente:
 // tipo_documento_<id>, sessao_id_<id> (repetido), responsavel_financeiro_<id>
 // (so quando ha mais de um responsavel), emissao_por_<id> (so nota_fiscal); periodo (primeiro dia do mes).
+// juntar_<responsavelId> = "sim": os pacientes marcados que dividem esse responsavel
+// entram numa so cobranca (um recebimento e uma nota). O paciente principal e o da
+// sessao mais antiga; o tipo de documento e a emissao vem dele.
 export async function criarCobrancasDoMes(prevState, formData) {
   const supabase = await createClient();
   const periodo = formData.get("periodo");
@@ -83,26 +86,67 @@ export async function criarCobrancasDoMes(prevState, formData) {
   const nomes = new Map();
   const { data: pacientes } = await supabase.from("Paciente").select("id, nome").in("id", pacienteIds);
   for (const p of pacientes ?? []) nomes.set(Number(p.id), p.nome);
+  const nomeDe = (id) => nomes.get(id) ?? `Paciente ${id}`;
+
+  const porPaciente = new Map(
+    pacienteIds.map((pacienteId) => {
+      const escolhido = formData.get(`responsavel_financeiro_${pacienteId}`);
+      return [
+        pacienteId,
+        {
+          pacienteId,
+          sessaoIds: formData.getAll(`sessao_id_${pacienteId}`).map(Number).filter(Boolean),
+          tipoDocumento: formData.get(`tipo_documento_${pacienteId}`),
+          periodo,
+          responsavelEscolhido: escolhido ? Number(escolhido) : null,
+          emissaoPor: formData.get(`emissao_por_${pacienteId}`),
+        },
+      ];
+    }),
+  );
+
+  // Responsavel efetivo de cada paciente (so para detectar quem pode ser juntado;
+  // quem falhar aqui segue o caminho individual, que reporta o erro).
+  const itens = [];
+  for (const entrada of porPaciente.values()) {
+    try {
+      const resp = escolherResponsavel(
+        await listarResponsaveisDoPaciente(entrada.pacienteId),
+        entrada.responsavelEscolhido,
+      );
+      if (!resp.error) itens.push({ pacienteId: entrada.pacienteId, responsavelId: resp.id });
+    } catch {
+      // segue individual
+    }
+  }
+  const grupos = gruposPorResponsavel(itens).filter(
+    (g) => formData.get(`juntar_${g.responsavelId}`) === "sim",
+  );
+  const emGrupo = new Set(grupos.flatMap((g) => g.pacienteIds));
 
   let criadas = 0;
   const falhas = [];
+  const registrar = (r, pacienteId, nome) => {
+    if (r.error) falhas.push({ pacienteId, nome, error: r.error });
+    else criadas += 1;
+  };
 
-  // Cada paciente em sua propria transacao: uma falha nao aborta as outras.
-  for (const pacienteId of pacienteIds) {
-    const escolhido = formData.get(`responsavel_financeiro_${pacienteId}`);
+  // Cada cobranca em sua propria transacao: uma falha nao aborta as outras.
+  for (const g of grupos) {
+    const sessaoIds = [...new Set(g.pacienteIds.flatMap((id) => porPaciente.get(id).sessaoIds))];
+    const { data: sessoes } = await supabase.from("Sessao").select("id, data, horario, paciente").in("id", sessaoIds);
+    const principalId = pacientePrincipal(sessoes ?? []) ?? g.pacienteIds[0];
     const r = await criarUma(supabase, {
-      pacienteId,
-      sessaoIds: formData.getAll(`sessao_id_${pacienteId}`).map(Number).filter(Boolean),
-      tipoDocumento: formData.get(`tipo_documento_${pacienteId}`),
-      periodo,
-      responsavelEscolhido: escolhido ? Number(escolhido) : null,
-      emissaoPor: formData.get(`emissao_por_${pacienteId}`),
+      ...porPaciente.get(principalId),
+      sessaoIds,
+      responsavelEscolhido: g.responsavelId,
     });
-    if (r.error) {
-      falhas.push({ pacienteId, nome: nomes.get(pacienteId) ?? `Paciente ${pacienteId}`, error: r.error });
-    } else {
-      criadas += 1;
-    }
+    registrar(r, principalId, g.pacienteIds.map(nomeDe).join(" + "));
+  }
+
+  for (const entrada of porPaciente.values()) {
+    if (emGrupo.has(entrada.pacienteId)) continue;
+    registrar(await criarUma(supabase, entrada), entrada.pacienteId, nomeDe(entrada.pacienteId));
   }
 
   revalidatePath("/cobrancas/nova");
@@ -111,7 +155,7 @@ export async function criarCobrancasDoMes(prevState, formData) {
   revalidatePath("/financeiro");
   for (const id of pacienteIds) revalidatePath(`/pacientes/${id}`);
 
-  return { criadas, falhas };
+  return { criadas, falhas, juntadas: grupos.length };
 }
 
 // Emissão automática depois do recebimento. Nunca altera o resultado do recebimento:
