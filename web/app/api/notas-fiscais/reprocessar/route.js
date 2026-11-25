@@ -74,14 +74,14 @@ export async function POST(request) {
     return true;
   }
 
-  // (0) PDF ausente (ADN do governo fora na emissão): re-busca e guarda, antes da
+  // (0) PDF ausente: o servico o gera a partir do XML (o governo desativou o PDF da API); gera e guarda, antes da
   // entrega para o PDF seguir junto. Notas dos últimos 30 dias; para após 3 falhas
   // seguidas (ADN provavelmente fora) para não gastar o job.
   try {
     const desde = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data: semPdf, error } = await admin
       .from("NotaFiscal")
-      .select("id, owner, ambiente, chave_acesso")
+      .select("id, owner, ambiente, chave_acesso, xml_nfse")
       .eq("status", "autorizada")
       .eq("ambiente", "producao")
       .is("pdf_base64", null)

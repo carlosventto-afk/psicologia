@@ -1,4 +1,5 @@
 import base64
+import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -36,6 +37,7 @@ from nfse_core import (
     build_evento_cancelamento_xml,
     sign_evento,
     SefinClient,
+    gerar_danfse,
     SefinError,
     ler_resposta_emissao,
     ler_resposta_evento,
@@ -43,6 +45,21 @@ from nfse_core import (
 )
 from nfse_core.dps import montar_dps_id
 from nfse_core.resposta import interpretar_consulta_dps
+
+logger = logging.getLogger(__name__)
+
+
+def _pdf_do_xml(xml_nfse: bytes | None, ambiente: str) -> bytes | None:
+    """DANFSe gerado localmente a partir do XML autorizado (o governo descontinuou o
+    PDF pela API do ADN em 03/08/2026). Nunca levanta: sem PDF a nota segue valida."""
+    if not xml_nfse:
+        return None
+    try:
+        return gerar_danfse(xml_nfse, ambiente)
+    except Exception:
+        logger.exception("Falha ao gerar o DANFSe a partir do XML")
+        return None
+
 
 app = FastAPI(title="PsiAgente NFS-e Service")
 
@@ -161,7 +178,7 @@ async def emitir(req: EmitirRequest) -> EmitirResponse:
 
     pdf_base64 = None
     if resultado.autorizada and resultado.chave_acesso:
-        pdf_bytes = await SefinClient.fetch_danfse_pdf(req.ambiente, pfx, senha, resultado.chave_acesso)
+        pdf_bytes = _pdf_do_xml(resultado.xml_nfse, req.ambiente)
         if pdf_bytes:
             pdf_base64 = _b64(pdf_bytes)
 
@@ -262,20 +279,23 @@ async def documentos_nfse(req: DocumentosRequest) -> DocumentosResponse:
     senha = decifrar(req.certificado_senha_cifrada)
 
     xml_b64 = None
-    if req.buscar_xml:
+    xml_bytes = base64.b64decode(req.xml_nfse_base64) if req.xml_nfse_base64 else None
+    if req.buscar_xml or (req.buscar_pdf and not xml_bytes):
         cliente = SefinClient(req.ambiente, pfx, senha)
         try:
             try:
                 detalhe = ler_resposta_emissao(await cliente.consultar_nfse(req.chave_acesso))
-                xml_b64 = _b64(detalhe.xml_nfse) if detalhe.xml_nfse else None
+                if detalhe.xml_nfse:
+                    xml_bytes = detalhe.xml_nfse
+                    xml_b64 = _b64(detalhe.xml_nfse) if req.buscar_xml else None
             except SefinError:
                 pass
         finally:
             await cliente.close()
 
     pdf_b64 = None
-    if req.buscar_pdf:
-        pdf_bytes = await SefinClient.fetch_danfse_pdf(req.ambiente, pfx, senha, req.chave_acesso)
+    if req.buscar_pdf and xml_bytes:
+        pdf_bytes = _pdf_do_xml(xml_bytes, req.ambiente)
         pdf_b64 = _b64(pdf_bytes) if pdf_bytes else None
 
     return DocumentosResponse(xml_nfse_base64=xml_b64, pdf_base64=pdf_b64)
@@ -307,16 +327,18 @@ async def consultar_dps(req: ConsultarDpsRequest) -> ConsultarDpsResponse:
         # Documento e PDF sao best-effort: a chave ja prova que a nota existe.
         numero_nfse = None
         xml_b64 = None
+        xml_bytes_nfse = None
         try:
             detalhe = ler_resposta_emissao(await cliente.consultar_nfse(chave))
             numero_nfse = detalhe.numero_nfse
+            xml_bytes_nfse = detalhe.xml_nfse
             xml_b64 = _b64(detalhe.xml_nfse) if detalhe.xml_nfse else None
         except SefinError:
             pass
     finally:
         await cliente.close()
 
-    pdf_bytes = await SefinClient.fetch_danfse_pdf(req.ambiente, pfx, senha, chave)
+    pdf_bytes = _pdf_do_xml(xml_bytes_nfse, req.ambiente)
     return ConsultarDpsResponse(
         situacao="encontrada",
         dps_id=dps_id,

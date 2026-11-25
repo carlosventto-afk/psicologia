@@ -10,19 +10,15 @@ Ambientes:
 """
 from __future__ import annotations
 
-import asyncio
 import base64
 import gzip
 import json
-import logging
 import os
 import tempfile
 
 import httpx
 
 from nfse_core.signer import load_pfx_pem
-
-logger = logging.getLogger(__name__)
 
 BASE_URLS = {
     # SEM o prefixo /API: é o caminho dos integradores em produção (o /API/ da
@@ -32,14 +28,8 @@ BASE_URLS = {
     "producao": "https://sefin.nfse.gov.br/SefinNacional",
 }
 
-# API DANFSe fica no ADN (Ambiente de Dados Nacional), domínio diferente do
-# SEFIN — GET /{chaveAcesso} devolve o PDF oficial do governo. Instável em
-# produção real na prática (502 observado) — sempre ter fallback para gerar
-# a representação própria (nfse/danfe.py) quando esta API não responder.
-DANFSE_BASE_URLS = {
-    "homologacao": "https://adn.producaorestrita.nfse.gov.br/danfse",
-    "producao": "https://adn.nfse.gov.br/danfse",
-}
+# O PDF (DANFSe) NAO vem mais da API do ADN (descontinuada em 03/08/2026, NT 008/2026):
+# e gerado localmente a partir do XML autorizado — ver nfse_core/danfse.py.
 
 
 class SefinError(RuntimeError):
@@ -127,52 +117,6 @@ class SefinClient:
             return await self._client.request(method, path, **kwargs)
         except httpx.HTTPError as exc:
             raise SefinError(f"falha de rede com a SEFIN ({type(exc).__name__}): {exc}")
-
-    @staticmethod
-    async def fetch_danfse_pdf(
-        environment: str, pfx_base64: str, cert_password: str | None, chave_acesso: str,
-    ) -> bytes | None:
-        """Busca o DANFSe (PDF oficial) na API do ADN. Retorna None (nunca
-        levanta) se a API não responder após todas as tentativas — quem chama
-        decide o fallback.
-
-        Confirmado ao vivo (20/07): a API do ADN devolve 502 de forma
-        intermitente — 2 tentativas seguidas falharam e só a 3ª trouxe o PDF
-        real. Uma tentativa só é otimista demais pra essa infraestrutura;
-        insiste algumas vezes antes de desistir (nunca sem verificação de
-        certificado — é resiliência de rede, não workaround de segurança)."""
-        if environment not in DANFSE_BASE_URLS:
-            return None
-        key_pem, cert_pem, chain_pem = load_pfx_pem(pfx_base64, cert_password)
-        cert_file = tempfile.NamedTemporaryFile(suffix=".pem", delete=False)
-        cert_file.write(cert_pem + b"".join(chain_pem))
-        cert_file.close()
-        key_file = tempfile.NamedTemporaryFile(suffix=".pem", delete=False)
-        key_file.write(key_pem)
-        key_file.close()
-        try:
-            url = f"{DANFSE_BASE_URLS[environment]}/{chave_acesso}"
-            for attempt in range(4):
-                try:
-                    async with httpx.AsyncClient(cert=(cert_file.name, key_file.name), timeout=20.0) as client:
-                        resp = await client.get(url)
-                    if resp.status_code == 200 and resp.headers.get("content-type", "").startswith("application/pdf"):
-                        return resp.content
-                    logger.warning(
-                        "DANFSe ADN tentativa %d/4: HTTP %s (%s)",
-                        attempt + 1, resp.status_code, resp.headers.get("content-type", "?"),
-                    )
-                except httpx.HTTPError as exc:
-                    logger.warning("DANFSe ADN tentativa %d/4: falha de rede (%s)", attempt + 1, type(exc).__name__)
-                if attempt < 3:
-                    await asyncio.sleep(1.5 * (attempt + 1))
-            return None
-        finally:
-            for path in (cert_file.name, key_file.name):
-                try:
-                    os.unlink(path)
-                except OSError:
-                    pass
 
     @staticmethod
     def _handle(resp: httpx.Response) -> dict:

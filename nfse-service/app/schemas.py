@@ -104,6 +104,8 @@ class DocumentosRequest(BaseModel):
     # So busca o que o chamador ainda nao tem (evita as retentativas do ADN a toa).
     buscar_xml: bool = True
     buscar_pdf: bool = True
+    # XML que o chamador ja tem: o PDF e desenhado a partir dele (sem ir a SEFIN).
+    xml_nfse_base64: str | None = None
 
 
 class DocumentosResponse(BaseModel):
