@@ -47,7 +47,7 @@ export default async function PaginaCobranca({ params }) {
           <Link href="/cobrancas" className="link text-sm">
             ← Cobranças
           </Link>
-          <h1 className="page-title">Cobrança — {cobranca.paciente.nome}</h1>
+          <h1 className="page-title">Cobrança — {cobranca.nomes_pacientes.join(" + ")}</h1>
         </div>
         <SituacaoCobrancaBadge situacao={cobranca.situacao} />
       </div>
@@ -81,6 +81,9 @@ export default async function PaginaCobranca({ params }) {
                     {dataBR(s.data)}
                     {s.horario ? ` às ${String(s.horario).slice(0, 5)}` : ""}
                   </span>
+                  {cobranca.nomes_pacientes.length > 1 && s.pacienteNome && (
+                    <span className="text-muted">{s.pacienteNome}</span>
+                  )}
                   {s.documentada && (
                     <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
                       Documentada

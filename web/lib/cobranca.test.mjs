@@ -24,6 +24,8 @@ import {
   mensagemBloqueioOu,
   primeiraCobrancaAberta,
   mensagemSessaoEmCobranca,
+  gruposPorResponsavel,
+  pacientePrincipal,
 } from "./cobranca.js";
 
 test("textoBloqueioCobranca remove o prefixo ou devolve null", () => {
@@ -255,4 +257,39 @@ test("cobrancaNoMes: limites do mes", () => {
   assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-11", ["2026-11-01"]), true);
   assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-11", ["2026-11-30"]), true);
   assert.equal(cobrancaNoMes({ periodo_referencia: null }, "2026-02", ["2026-03-01"]), false);
+});
+
+test("gruposPorResponsavel: so grupos com 2+ pacientes do mesmo responsavel", () => {
+  const itens = [
+    { pacienteId: 1, responsavelId: 10 },
+    { pacienteId: 2, responsavelId: 10 },
+    { pacienteId: 3, responsavelId: 11 },
+    { pacienteId: 4, responsavelId: null },
+    { pacienteId: 5, responsavelId: 12 },
+    { pacienteId: 6, responsavelId: "12" },
+    { pacienteId: 6, responsavelId: 12 },
+  ];
+  assert.deepEqual(gruposPorResponsavel(itens), [
+    { responsavelId: 10, pacienteIds: [1, 2] },
+    { responsavelId: 12, pacienteIds: [5, 6] },
+  ]);
+  assert.deepEqual(gruposPorResponsavel([{ pacienteId: 1, responsavelId: 10 }]), []);
+  assert.deepEqual(gruposPorResponsavel(undefined), []);
+});
+
+test("pacientePrincipal: paciente da sessao mais antiga, empate pelo menor id", () => {
+  const sessoes = [
+    { id: 9, data: "2026-11-10", horario: "10:00:00", paciente: 2 },
+    { id: 4, data: "2026-11-03", horario: "15:00:00", paciente: 1 },
+    { id: 5, data: "2026-11-03", horario: "09:00:00", paciente: 3 },
+  ];
+  assert.equal(pacientePrincipal(sessoes), 3);
+  assert.equal(
+    pacientePrincipal([
+      { id: 8, data: "2026-11-03", horario: "09:00:00", paciente: 2 },
+      { id: 7, data: "2026-11-03", horario: "09:00:00", paciente: 1 },
+    ]),
+    1
+  );
+  assert.equal(pacientePrincipal([]), null);
 });
