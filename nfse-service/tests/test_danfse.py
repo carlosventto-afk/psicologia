@@ -15,10 +15,12 @@ class DanfseTest(unittest.TestCase):
         c = extrair_campos(XML)
         self.assertEqual(c["chave"], "33045572263402300000117000000000015726111560661854")
         self.assertEqual(c["numero"], "157")
-        self.assertEqual(c["emit_doc"], "63.402.300/0001-17")
-        self.assertEqual(c["toma_doc"], "529.982.247-25")
+        self.assertEqual(c["emit"]["doc"], "63.402.300/0001-17")
+        self.assertEqual(c["toma"]["doc"], "529.982.247-25")
         self.assertEqual(c["valor_servico"], "R$ 3.000,00")
         self.assertEqual(c["competencia"], "28/10/2026")
+        self.assertEqual(c["regime_sn"], "Optante - Microempresa ou Empresa de Pequeno Porte (ME/EPP)")
+        self.assertEqual(c["serv_cod"], "04.16.01 / 001")
 
     def test_gera_pdf_de_uma_pagina(self):
         pdf = gerar_danfse(XML, "producao")
