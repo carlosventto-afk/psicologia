@@ -46,6 +46,23 @@ class DanfseTest(unittest.TestCase):
         self.assertEqual(t["end"], "Rua A, 10, Centro")
         self.assertEqual(t["ibge_cep"], "33.04557 / 20.040-020")
 
+    def test_liquido_mais_ibscbs_e_o_liquido_quando_a_nota_nao_tem_ibscbs(self):
+        c = extrair_campos(XML)
+        self.assertEqual(c["liquido_mais_ibscbs"], "R$ 3.000,00")
+        self.assertEqual(c["ibscbs_total"], "R$ 0,00")
+
+    def test_ibscbs_na_nota_soma_o_total_e_usa_o_vtotnf(self):
+        com_ibscbs = XML.replace(
+            b"<valores><vLiq>3000.00</vLiq></valores>",
+            b"<valores><vLiq>3000.00</vLiq></valores><IBSCBS><totCIBS><vTotNF>3030.00</vTotNF>"
+            b"<gIBS><vIBSTot>20.00</vIBSTot></gIBS><gCBS><vCBS>10.00</vCBS></gCBS></totCIBS></IBSCBS>",
+        )
+        self.assertNotEqual(com_ibscbs, XML)
+        c = extrair_campos(com_ibscbs)
+        self.assertEqual(c["ibscbs_total"], "R$ 30,00")
+        self.assertEqual(c["liquido_mais_ibscbs"], "R$ 3.030,00")
+        self.assertEqual(c["valor_liquido"], "R$ 3.000,00")
+
     def test_qr_usa_o_link_de_consulta_oficial(self):
         self.assertEqual(url_consulta(CHAVE), f"https://www.nfse.gov.br/ConsultaPublica?tpc=1&chave={CHAVE}")
         self.assertIn("producaorestrita", url_consulta(CHAVE, "homologacao"))

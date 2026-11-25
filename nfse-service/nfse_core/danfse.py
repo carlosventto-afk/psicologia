@@ -101,6 +101,13 @@ def _pct(valor: str) -> str:
         return V
 
 
+def _num(valor: str) -> float | None:
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        return None
+
+
 def _data(valor: str, com_hora: bool = False) -> str:
     if not valor:
         return V
@@ -185,6 +192,11 @@ def extrair_campos(xml_nfse: bytes | str) -> dict:
         )
     loc_incid = _t(inf, "xLocIncid")
     aliq = _t(inf, "pAliqAplic")
+    # IBS/CBS (reforma tributaria): o total vem dos grupos gIBS/gCBS quando a nota os traz.
+    # "Valor liquido + IBS/CBS" e o vTotNF da NFS-e; sem o grupo, vale o liquido
+    # (esquema oficial: vTotNF = vLiq em 2026; a partir de 2027, vLiq + vCBS + vIBSTot).
+    partes_ibscbs = [n for n in (_num(_t(inf, "gIBS/vIBSTot")), _num(_t(inf, "gCBS/vCBS"))) if n is not None]
+    v_tot_nf = _t(inf, "totCIBS/vTotNF") or v_liq
     return {
         "chave": (inf.get("Id") or "").removeprefix("NFS"),
         "numero": _t(inf, "nNFSe") or V,
@@ -221,6 +233,8 @@ def extrair_campos(xml_nfse: bytes | str) -> dict:
         "cofins": _moeda(_t(inf, "vCofins")),
         "valor_servico": _moeda(_t(inf, "vServ")),
         "valor_liquido": _moeda(v_liq),
+        "ibscbs_total": _moeda(str(sum(partes_ibscbs))),
+        "liquido_mais_ibscbs": _moeda(v_tot_nf),
         "info": "\n".join(x for x in (totais, compl) if x),
     }
 
@@ -437,8 +451,8 @@ def gerar_danfse(xml_nfse: bytes | str, ambiente: str = "producao", comprimir: b
         [(1, 1, "VALOR DA OPERAÇÃO / SERVIÇO", d["valor_servico"]), (2, 1, "Desconto Incondicionado", V),
          (3, 1, "Desconto Condicionado", V)],
         [(0, 1, "Total das Retenções (ISSQN / Federais)", V), (1, 1, "VALOR LÍQUIDO DA NFS-e", d["valor_liquido"]),
-         (2, 1, "Total do IBS/CBS", "R$ 0,00"),
-         (3, 1, "VALOR LÍQUIDO DA NFS-e + IBS/CBS", d["valor_liquido"], True)],
+         (2, 1, "Total do IBS/CBS", d["ibscbs_total"]),
+         (3, 1, "VALOR LÍQUIDO DA NFS-e + IBS/CBS", d["liquido_mais_ibscbs"], True)],
     ])
 
     # --- Informacoes complementares
