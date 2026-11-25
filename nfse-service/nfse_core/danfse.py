@@ -9,17 +9,30 @@ Tolerante: campo ausente no XML vira "-".
 from __future__ import annotations
 
 import io
+import itertools
 from datetime import datetime
 from pathlib import Path
 
 from lxml import etree
-from reportlab.graphics import renderPDF
-from reportlab.graphics.barcode.qr import QrCodeWidget
-from reportlab.graphics.shapes import Drawing
+from reportlab import rl_config
+from reportlab.graphics.barcode import qrencoder
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
+# Streams so com Flate (sem ASCII85): metade do tempo de gerar e PDF ~25% menor.
+rl_config.useA85 = 0
+
 LOGO = Path(__file__).parent / "assets" / "logo_nfse.png"
+_logo: ImageReader | None = None
+
+
+def _logo_pronto() -> ImageReader | None:
+    """Logo decodificado uma vez so (o PDF e gerado a cada download)."""
+    global _logo
+    if _logo is None and LOGO.exists():
+        _logo = ImageReader(str(LOGO))
+    return _logo
 
 # Mesmo formato do QR do PDF oficial (sem barra antes do "?").
 CONSULTA_PUBLICA = {
@@ -282,6 +295,26 @@ def _quebrar(texto: str, fonte: str, tam: float, largura: float) -> list[str]:
     return linhas
 
 
+def _desenhar_qr(c: canvas.Canvas, valor: str, x: float, y: float, lado: float, borda: int = 2) -> None:
+    """QR Code (nivel M) direto no canvas, como um caminho unico. (x, y) = canto inferior
+    esquerdo do quadrado de `lado` pt, ja com `borda` modulos de margem. O QrCodeWidget do
+    reportlab criava um objeto por modulo (e rodava duas vezes): ~150 ms por nota."""
+    qr = qrencoder.QRCode(None, qrencoder.QRErrorCorrectLevel.M)
+    qr.addData(valor)
+    qr.make()
+    modulo = lado / (qr.getModuleCount() + 2 * borda)
+    caminho = c.beginPath()
+    for r, linha in enumerate(qr.modules):
+        col = 0
+        for escuro, grupo in itertools.groupby(map(bool, linha)):
+            n = len(list(grupo))
+            if escuro:
+                caminho.rect(x + (col + borda) * modulo, y + lado - (r + borda + 1) * modulo, n * modulo, modulo)
+            col += n
+    c.setFillGray(0)
+    c.drawPath(caminho, stroke=0, fill=1)
+
+
 def gerar_danfse(xml_nfse: bytes | str, ambiente: str = "producao", comprimir: bool = True) -> bytes:
     """PDF (A4, 1 pagina) do DANFSe v2.0. Levanta ValueError se o XML nao for uma NFS-e."""
     d = extrair_campos(xml_nfse)
@@ -315,8 +348,9 @@ def gerar_danfse(xml_nfse: bytes | str, ambiente: str = "producao", comprimir: b
     # --- Cabecalho
     for i in range(3):
         cinza((XS[0], XS[1], XS[3])[i], 5.67, (XS[1], XS[3], XS[4])[i], 39.68)
-    if LOGO.exists():
-        c.drawImage(str(LOGO), 11.9055, Y(10.3229 + 22.9165), 115.6536, 22.9165, mask="auto")
+    logo = _logo_pronto()
+    if logo is not None:
+        c.drawImage(logo, 11.9055, Y(10.3229 + 22.9165), 115.6536, 22.9165, mask="auto")
     else:
         texto(11.9, 28, "NFS-e", negrito=True, tam=14)
     centro = (XS[1] + XS[3]) / 2
@@ -342,12 +376,7 @@ def gerar_danfse(xml_nfse: bytes | str, ambiente: str = "producao", comprimir: b
             texto(XS[i] + PAD, base, rotulo, negrito=True)
             texto(XS[i] + PAD, base + 7.93, valor)
 
-    qr = QrCodeWidget(url_consulta(d["chave"], ambiente), barLevel="M", barBorder=2)
-    qx0, qy0, qx1, qy1 = qr.getBounds()
-    lado = 45.0
-    desenho = Drawing(lado, lado, transform=[lado / (qx1 - qx0), 0, 0, lado / (qy1 - qy0), 0, 0])
-    desenho.add(qr)
-    renderPDF.draw(desenho, c, 491.9882, Y(44.7642 + lado))
+    _desenhar_qr(c, url_consulta(d["chave"], ambiente), 491.9882, Y(44.7642 + 45.0), 45.0)
     for i, ln in enumerate(("A autenticidade desta NFS-e pode ser verificada",
                             "pela leitura deste código QR ou pela consulta da",
                             "chave de acesso no portal nacional da NFS-e")):

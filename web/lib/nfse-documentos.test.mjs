@@ -42,10 +42,21 @@ test("nomeArquivoNota remove caracteres perigosos", () => {
   assert.equal(nomeArquivoNota({ id: 9, serie: null, numero: null }, "xml"), "NFSe-0-9.xml");
 });
 
-test("documentosFaltantes respeita o formato pedido", () => {
+test("documentosFaltantes: com XML o PDF se desenha na hora, então nada falta", () => {
   const nota = { xml_nfse: "<a/>", pdf_base64: null };
-  assert.deepEqual(documentosFaltantes(nota, ["pdf", "xml"]), { xml: false, pdf: true });
+  assert.deepEqual(documentosFaltantes(nota, ["pdf", "xml"]), { xml: false, pdf: false });
+  assert.deepEqual(documentosFaltantes(nota, ["pdf"]), { xml: false, pdf: false });
   assert.deepEqual(documentosFaltantes(nota, ["xml"]), { xml: false, pdf: false });
+});
+
+test("documentosFaltantes: sem XML, busca o XML; sem XML nem PDF guardado, busca os dois", () => {
+  const semNada = { xml_nfse: null, pdf_base64: null };
+  assert.deepEqual(documentosFaltantes(semNada, ["xml"]), { xml: true, pdf: false });
+  assert.deepEqual(documentosFaltantes(semNada, ["pdf"]), { xml: true, pdf: true });
+  assert.deepEqual(documentosFaltantes(semNada, ["pdf", "xml"]), { xml: true, pdf: true });
+  const soPdf = { xml_nfse: " ", pdf_base64: "UERG" };
+  assert.deepEqual(documentosFaltantes(soPdf, ["pdf"]), { xml: false, pdf: false });
+  assert.deepEqual(documentosFaltantes(soPdf, ["xml"]), { xml: true, pdf: false });
 });
 
 test("bytesDoDocumento", () => {
@@ -54,6 +65,16 @@ test("bytesDoDocumento", () => {
   assert.equal(bytesDoDocumento(nota, "xml").toString("utf-8"), "<nfse>ç</nfse>");
   assert.equal(bytesDoDocumento({}, "pdf"), null);
   assert.equal(bytesDoDocumento({ xml_nfse: "  " }, "xml"), null);
+});
+
+test("bytesDoDocumento: PDF recém-gerado tem prioridade sobre o guardado, que é a reserva", () => {
+  const nota = { xml_nfse: "<a/>", pdf_base64: Buffer.from("VELHO").toString("base64") };
+  assert.equal(bytesDoDocumento(nota, "pdf", Buffer.from("NOVO")).toString(), "NOVO");
+  assert.equal(bytesDoDocumento(nota, "pdf", null).toString(), "VELHO");
+  assert.equal(bytesDoDocumento({ xml_nfse: "<a/>" }, "pdf", Buffer.from("NOVO")).toString(), "NOVO");
+  assert.equal(bytesDoDocumento({ xml_nfse: "<a/>" }, "pdf", null), null);
+  // o PDF gerado não interfere no XML
+  assert.equal(bytesDoDocumento(nota, "xml", Buffer.from("NOVO")).toString("utf-8"), "<a/>");
 });
 
 test("crc32 bate com o do node:zlib", () => {

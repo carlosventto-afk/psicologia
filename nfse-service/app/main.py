@@ -21,6 +21,9 @@ from app.schemas import (
     ConsultarDpsRequest,
     ConsultarDpsResponse,
     ConsultarResponse,
+    DanfseRequest,
+    DanfseResponse,
+    DanfseResultado,
     DocumentosRequest,
     DocumentosResponse,
     EmitirRequest,
@@ -299,6 +302,24 @@ async def documentos_nfse(req: DocumentosRequest) -> DocumentosResponse:
         pdf_b64 = _b64(pdf_bytes) if pdf_bytes else None
 
     return DocumentosResponse(xml_nfse_base64=xml_b64, pdf_base64=pdf_b64)
+
+
+@app.post("/danfse", response_model=DanfseResponse, dependencies=[Depends(verificar_segredo)])
+def danfse_lote(req: DanfseRequest) -> DanfseResponse:
+    """Desenha o DANFSe de varias notas a partir do XML que o chamador ja guarda. Nao usa o
+    certificado nem fala com a SEFIN: o PDF e funcao pura do XML, entao o chamador pode pedir
+    sempre que precisar e um layout novo vale na hora para todas as notas. Funcao sincrona de
+    proposito: desenhar e trabalho de CPU e o FastAPI a roda fora do laco de eventos."""
+    resultados = []
+    for item in req.notas:
+        pdf = None
+        if item.ambiente in AMBIENTE_TP:
+            try:
+                pdf = _pdf_do_xml(base64.b64decode(item.xml_nfse_base64), item.ambiente)
+            except ValueError:  # base64 invalido
+                logger.warning("DANFSe: XML em base64 invalido (nota %s)", item.id)
+        resultados.append(DanfseResultado(id=item.id, pdf_base64=_b64(pdf) if pdf else None))
+    return DanfseResponse(resultados=resultados)
 
 
 @app.post("/consultar-dps", response_model=ConsultarDpsResponse, dependencies=[Depends(verificar_segredo)])

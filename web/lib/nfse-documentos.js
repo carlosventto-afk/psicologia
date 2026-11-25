@@ -59,17 +59,25 @@ export function nomeArquivoNota(nota, extensao) {
   return `NFSe-${serie}-${numero}.${extensao}`;
 }
 
-// Quais documentos a nota ainda não tem guardados, dado o formato pedido.
+const temTexto = (v) => String(v ?? "").trim() !== "";
+
+// O que ainda precisa ser buscado na SEFIN (só o dono, com o certificado), dado o formato pedido.
+// O XML é o documento fiscal e não se refaz; o PDF se desenha na hora a partir do XML, então só
+// falta PDF quando não há XML nem PDF guardado (e, nesse caso, o XML é buscado junto).
 export function documentosFaltantes(nota, extensoes) {
-  return {
-    xml: extensoes.includes("xml") && !String(nota.xml_nfse ?? "").trim(),
-    pdf: extensoes.includes("pdf") && !String(nota.pdf_base64 ?? "").trim(),
-  };
+  const semXml = !temTexto(nota.xml_nfse);
+  const pdf = extensoes.includes("pdf") && semXml && !temTexto(nota.pdf_base64);
+  return { xml: semXml && (extensoes.includes("xml") || pdf), pdf };
 }
 
-export function bytesDoDocumento(nota, extensao) {
-  if (extensao === "pdf") return nota.pdf_base64 ? Buffer.from(nota.pdf_base64, "base64") : null;
-  return String(nota.xml_nfse ?? "").trim() ? Buffer.from(nota.xml_nfse, "utf-8") : null;
+// pdfGerado: PDF recém-desenhado a partir do XML (Buffer); tem prioridade sobre o guardado,
+// que fica de reserva (serviço fora do ar, XML ausente).
+export function bytesDoDocumento(nota, extensao, pdfGerado = null) {
+  if (extensao === "pdf") {
+    if (pdfGerado) return pdfGerado;
+    return temTexto(nota.pdf_base64) ? Buffer.from(nota.pdf_base64, "base64") : null;
+  }
+  return temTexto(nota.xml_nfse) ? Buffer.from(nota.xml_nfse, "utf-8") : null;
 }
 
 export const CONTENT_TYPE = { pdf: "application/pdf", xml: "application/xml; charset=utf-8" };

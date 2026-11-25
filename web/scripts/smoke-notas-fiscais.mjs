@@ -2,11 +2,21 @@
 // detalhe da cobrança, com usuário e dados descartáveis (criados e apagados aqui).
 // Rodar com o preview standalone no ar e .env.local carregado:
 //   BASE=http://127.0.0.1:3100 node scripts/smoke-notas-fiscais.mjs
+// O PDF do download é desenhado na hora pelo nfse-service a partir do XML. Diga ao teste como o
+// preview foi iniciado:
+//   SERVICO_NFSE=sim (padrão)  preview com NFSE_SERVICE_URL/SECRET apontando para um nfse-service
+//                              (ex.: uvicorn local) -> o PDF vem "gerado", o guardado é só reserva
+//   SERVICO_NFSE=nao           preview sem o serviço -> o PDF vem do guardado (reserva)
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, readFileSync } from "node:fs";
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:3100";
+const COM_SERVICO = (process.env.SERVICO_NFSE ?? "sim") !== "nao";
+// NFS-e autorizada de verdade (anonimizada): o serviço consegue desenhar o PDF dela.
+const XML_VALIDO = readFileSync(new URL("../../nfse-service/tests/fixtures/nfse_autorizada.xml", import.meta.url), "utf-8");
+// Sem infNFSe: o serviço não consegue desenhar -> exercita a reserva (PDF guardado).
+const XML_INVALIDO = "<NFSe><x>sem infNFSe</x></NFSe>";
 const OUT = process.env.OUT ?? "./.smoke";
 mkdirSync(OUT, { recursive: true });
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -50,11 +60,14 @@ async function semear() {
     await admin.from("ResponsavelFinanceiro").insert({ owner: userId, nome: "Paciente Smoke" }).select("id").single()
   ).id;
 
+  // N1: XML válido + PDF guardado (o gerado deve ganhar do guardado).
+  // N2: XML válido, sem PDF guardado.
+  // N4: XML que o serviço não desenha + PDF guardado (reserva).
   const defs = [
-    { chave: "N1", status: "autorizada", comp: "2026-10-15", numero: 101, pdf: true },
-    { chave: "N2", status: "autorizada", comp: "2026-11-10", numero: 102, pdf: false },
-    { chave: "N3", status: "pendente", comp: "2026-11-12", numero: 103, pdf: false },
-    { chave: "N4", status: "autorizada", comp: "2026-11-20", numero: 104, pdf: true },
+    { chave: "N1", status: "autorizada", comp: "2026-10-15", numero: 101, pdf: true, xml: XML_VALIDO },
+    { chave: "N2", status: "autorizada", comp: "2026-11-10", numero: 102, pdf: false, xml: XML_VALIDO },
+    { chave: "N3", status: "pendente", comp: "2026-11-12", numero: 103, pdf: false, xml: null },
+    { chave: "N4", status: "autorizada", comp: "2026-11-20", numero: 104, pdf: true, xml: XML_INVALIDO },
   ];
   const ids = {};
   for (const d of defs) {
@@ -70,7 +83,7 @@ async function semear() {
         owner: userId, cobranca: cobId, status: d.status, ambiente: "homologacao",
         numero: d.numero, serie: "1", dps_id: `DPS${d.numero}`, xml_dps: xmlDps(d.comp),
         chave_acesso: d.status === "pendente" ? null : chave(d.numero),
-        xml_nfse: d.status === "pendente" ? null : `<NFSe><infNFSe><nNFSe>${d.numero}</nNFSe></infNFSe></NFSe>`,
+        xml_nfse: d.xml,
         pdf_base64: d.pdf ? PDF.toString("base64") : null,
         ultimo_erro: d.status === "pendente" ? "Aguardando confirmação da prefeitura (teste)" : null,
         created_at: new Date(Date.now() - 3600_000).toISOString(),
@@ -102,6 +115,19 @@ async function limpar() {
   } catch (e) {
     console.error("ERRO NA LIMPEZA — conferir manualmente:", e.message, { userId, criados });
   }
+}
+
+// Conteúdo de um arquivo do .zip (o montarZip usa o método "store", sem compressão).
+function conteudoNoZip(buf, nome) {
+  let i = 0;
+  while ((i = buf.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]), i)) !== -1) {
+    const tam = buf.readUInt32LE(i + 18);
+    const len = buf.readUInt16LE(i + 26);
+    const inicio = i + 30 + len;
+    if (buf.subarray(i + 30, inicio).toString("utf-8") === nome) return buf.subarray(inicio, inicio + tam);
+    i = inicio + tam;
+  }
+  return null;
 }
 
 function nomesNoZip(buf) {
@@ -151,15 +177,33 @@ try {
   // --- downloads individuais via rota
   const req = ctx.request;
   const get = (q) => req.get(`${BASE}/api/notas-fiscais/download?${q}`, { maxRedirects: 0 });
+  // N1 (XML válido + PDF guardado falso): com o serviço o PDF é desenhado na hora e ganha do guardado.
   let r = await get(`id=${ids.N1.nota}&formato=pdf`);
   const corpoPdf = await r.body();
-  ok("PDF individual (N1) 200 + application/pdf + bytes originais", r.status() === 200 && r.headers()["content-type"] === "application/pdf" && corpoPdf.equals(PDF), r.headers()["content-disposition"]);
+  const origem = r.headers()["x-nfse-pdf-origem"];
+  ok("PDF individual (N1) 200 + application/pdf", r.status() === 200 && r.headers()["content-type"] === "application/pdf", r.headers()["content-disposition"]);
+  if (COM_SERVICO) {
+    ok("N1: PDF desenhado na hora (A4), não o guardado", origem === "gerado" && corpoPdf.subarray(0, 5).toString() === "%PDF-" && !corpoPdf.equals(PDF) && corpoPdf.includes("595 842"), `origem=${origem}, ${corpoPdf.length} bytes`);
+  } else {
+    ok("N1: sem serviço, usa o PDF guardado (reserva)", origem === "guardado" && corpoPdf.equals(PDF), `origem=${origem}`);
+  }
   r = await get(`id=${ids.N1.nota}&formato=xml`);
-  ok("XML individual (N1) 200 + application/xml", r.status() === 200 && r.headers()["content-type"].startsWith("application/xml") && (await r.text()).includes("<nNFSe>101</nNFSe>"), r.headers()["content-disposition"]);
+  ok("XML individual (N1) 200 + application/xml", r.status() === 200 && r.headers()["content-type"].startsWith("application/xml") && (await r.text()).includes("<nNFSe>157</nNFSe>"), r.headers()["content-disposition"]);
+  // N2 (XML válido, sem PDF guardado): com o serviço baixa; sem ele não há de onde tirar o PDF.
   r = await get(`id=${ids.N2.nota}&formato=pdf`);
-  ok("PDF ausente (N2) -> 503 com mensagem clara", r.status() === 503 && (await r.text()).includes("não está disponível"));
+  if (COM_SERVICO) {
+    const b = await r.body();
+    ok("N2 (sem PDF guardado) baixa: PDF desenhado a partir do XML", r.status() === 200 && r.headers()["x-nfse-pdf-origem"] === "gerado" && b.subarray(0, 5).toString() === "%PDF-", `status=${r.status()}`);
+  } else {
+    ok("N2 sem serviço e sem PDF guardado -> 503 com mensagem clara", r.status() === 503 && (await r.text()).includes("Não foi possível gerar"));
+  }
+  const { data: n2 } = await admin.from("NotaFiscal").select("pdf_base64").eq("id", ids.N2.nota).single();
+  ok("baixar não grava nada: N2 continua sem PDF guardado", n2.pdf_base64 === null);
   r = await get(`id=${ids.N2.nota}&formato=xml`);
   ok("XML de nota sem PDF (N2) ainda baixa", r.status() === 200);
+  // N4 (XML que o serviço não desenha + PDF guardado): a reserva entra nos dois modos.
+  r = await get(`id=${ids.N4.nota}&formato=pdf`);
+  ok("N4: serviço não desenha o XML -> cai no PDF guardado (reserva)", r.status() === 200 && r.headers()["x-nfse-pdf-origem"] === "guardado" && (await r.body()).equals(PDF), `origem=${r.headers()["x-nfse-pdf-origem"]}`);
   r = await get(`id=${ids.N3.nota}&formato=pdf`);
   ok("nota pendente (N3) não baixa (404)", r.status() === 404);
   r = await get(`id=${ids.N1.nota}&formato=todos`);
@@ -168,9 +212,16 @@ try {
   r = await get(`id=${ids.N1.nota}&id=${ids.N4.nota}&formato=pdf`);
   zip = await r.body();
   ok("lote PDF (N1+N4) -> zip com 2 PDFs", nomesNoZip(zip).sort().join() === "NFSe-1-101.pdf,NFSe-1-104.pdf", nomesNoZip(zip).join());
+  ok("lote: N4 (não desenhável) leva o PDF guardado", conteudoNoZip(zip, "NFSe-1-104.pdf")?.equals(PDF));
+  const n1NoLote = conteudoNoZip(zip, "NFSe-1-101.pdf");
+  ok(COM_SERVICO ? "lote: N1 leva o PDF desenhado na hora (não o guardado)" : "lote: N1 leva o PDF guardado", COM_SERVICO ? n1NoLote?.subarray(0, 5).toString() === "%PDF-" && !n1NoLote.equals(PDF) : n1NoLote?.equals(PDF));
   r = await get(`id=${ids.N1.nota}&id=${ids.N2.nota}&formato=pdf`);
   zip = await r.body();
-  ok("lote com nota sem PDF -> zip traz LEIA-ME.txt", nomesNoZip(zip).includes("LEIA-ME.txt") && nomesNoZip(zip).includes("NFSe-1-101.pdf"), nomesNoZip(zip).join());
+  if (COM_SERVICO) {
+    ok("lote N1+N2 com serviço -> 2 PDFs desenhados e sem LEIA-ME", nomesNoZip(zip).sort().join() === "NFSe-1-101.pdf,NFSe-1-102.pdf", nomesNoZip(zip).join());
+  } else {
+    ok("lote com nota sem PDF -> zip traz LEIA-ME.txt", nomesNoZip(zip).includes("LEIA-ME.txt") && nomesNoZip(zip).includes("NFSe-1-101.pdf"), nomesNoZip(zip).join());
+  }
   r = await get("formato=pdf");
   ok("sem ids -> 400", r.status() === 400);
   r = await get(`id=${ids.N1.nota}&formato=exe`);
