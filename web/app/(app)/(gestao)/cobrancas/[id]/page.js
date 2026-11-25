@@ -132,7 +132,17 @@ export default async function PaginaCobranca({ params }) {
         <div className="space-y-3">
           <NotaCobrancaStatus notas={cobranca.notas} />
           {recebida && !cobranca.notas.some((n) => n.status === "pendente" || n.status === "autorizada") && cobranca.nota_pendencia && (
-            <p className="text-sm text-yellow-700">Nota pendente: {cobranca.nota_pendencia}</p>
+            <p className="text-sm text-yellow-700">
+              Nota pendente: {cobranca.nota_pendencia}
+              {cobranca.responsavel_financeiro && (
+                <>
+                  {" "}
+                  <Link href={`/responsaveis-financeiros/${cobranca.responsavel_financeiro}/editar`} className="link">
+                    Editar o responsável financeiro
+                  </Link>
+                </>
+              )}
+            </p>
           )}
           {rotuloNota && <EmitirNotaCobrancaBotao cobrancaId={cobranca.id} rotulo={rotuloNota} />}
         </div>

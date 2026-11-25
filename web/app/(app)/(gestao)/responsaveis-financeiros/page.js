@@ -23,9 +23,14 @@ export default async function PaginaResponsaveisFinanceiros() {
                 <p className="font-semibold text-navy">{r.nome}</p>
                 <p className="text-muted">{r.telefone || r.email || "—"}</p>
               </div>
-              <span className={`font-semibold ${r.qtd_pacientes > 1 ? "text-primary" : "text-muted"}`}>
-                {r.qtd_pacientes} paciente(s) vinculado(s)
-              </span>
+              <div className="flex items-center gap-4">
+                <span className={`font-semibold ${r.qtd_pacientes > 1 ? "text-primary" : "text-muted"}`}>
+                  {r.qtd_pacientes} paciente(s) vinculado(s)
+                </span>
+                <Link href={`/responsaveis-financeiros/${r.id}/editar`} className="link">
+                  Editar
+                </Link>
+              </div>
             </div>
           ))}
         </div>

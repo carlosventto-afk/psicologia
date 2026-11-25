@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export async function criarResponsavelFinanceiro(prevState, formData) {
@@ -21,6 +22,35 @@ export async function criarResponsavelFinanceiro(prevState, formData) {
 
   revalidatePath("/responsaveis-financeiros");
   return { error: null, sucesso: true };
+}
+
+export async function atualizarResponsavelFinanceiro(id, prevState, formData) {
+  const supabase = await createClient();
+  const nome = String(formData.get("nome") ?? "").trim();
+  if (!nome) return { error: "Informe o nome do responsável financeiro." };
+
+  const { data, error } = await supabase
+    .from("ResponsavelFinanceiro")
+    .update({
+      nome,
+      cpf_cnpj: formData.get("cpf_cnpj") || null,
+      telefone: formData.get("telefone") || null,
+      email: formData.get("email") || null,
+      paciente_vinculado: formData.get("paciente_vinculado") ? Number(formData.get("paciente_vinculado")) : null,
+    })
+    .eq("id", id)
+    .select("id");
+
+  if (error) {
+    // Indice unico: um paciente so pode ser o "proprio responsavel" de um cadastro.
+    if (error.code === "23505") return { error: "Esse paciente já está vinculado a outro responsável financeiro como o próprio responsável." };
+    return { error: "Não foi possível salvar o responsável financeiro." };
+  }
+  if (!data?.length) return { error: "Responsável financeiro não encontrado." };
+
+  revalidatePath("/responsaveis-financeiros");
+  revalidatePath("/cobrancas", "layout");
+  redirect("/responsaveis-financeiros");
 }
 
 export async function criarEVincularResponsavel(pacienteId, prevState, formData) {

@@ -73,14 +73,17 @@ export async function buscarResponsavelFinanceiro(id) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("ResponsavelFinanceiro")
-    .select("id, nome, cpf_cnpj, telefone, email, PacienteResponsavelFinanceiro(Paciente(id, nome))")
+    .select("id, nome, cpf_cnpj, telefone, email, paciente_vinculado, PacienteResponsavelFinanceiro(Paciente(id, nome))")
     .eq("id", id)
     .single();
 
   if (error) throw new Error(error.message);
 
   return {
-    ...normalizarIds({ id: data.id, nome: data.nome, cpf_cnpj: data.cpf_cnpj, telefone: data.telefone, email: data.email }, ["id"]),
+    ...normalizarIds(
+      { id: data.id, nome: data.nome, cpf_cnpj: data.cpf_cnpj, telefone: data.telefone, email: data.email, paciente_vinculado: data.paciente_vinculado },
+      ["id", "paciente_vinculado"]
+    ),
     pacientes: normalizarIdsLista(
       (data.PacienteResponsavelFinanceiro ?? []).map((v) => v.Paciente),
       ["id"]

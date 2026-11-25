@@ -329,13 +329,25 @@ export function validarCompetencias({ planos, hoje }) {
 
 // ResponsavelFinanceiro "próprio" (aponta para o próprio paciente) não tem
 // cpf_cnpj: o paciente é o tomador (mesma regra de carne-leao.js).
-export function responsavelParaTomador({ responsavel, pacienteId }) {
+export function responsavelParaTomador({ responsavel, pacienteId, pacienteVinculado }) {
   if (!responsavel) return null;
   if (
     responsavel.paciente_vinculado != null &&
     Number(responsavel.paciente_vinculado) === Number(pacienteId)
   ) {
     return null;
+  }
+  // Responsavel que tambem e paciente (de outro paciente): o que faltar no cadastro
+  // do responsavel (CPF, e-mail, telefone) vem do cadastro do paciente vinculado.
+  if (responsavel.paciente_vinculado != null && pacienteVinculado) {
+    const vazio = (v) => v == null || String(v).trim() === "";
+    return {
+      ...responsavel,
+      nome: vazio(responsavel.nome) ? pacienteVinculado.nome : responsavel.nome,
+      cpf_cnpj: vazio(responsavel.cpf_cnpj) ? pacienteVinculado.cpf : responsavel.cpf_cnpj,
+      email: vazio(responsavel.email) ? pacienteVinculado.email : responsavel.email,
+      telefone: vazio(responsavel.telefone) ? pacienteVinculado.telefone : responsavel.telefone,
+    };
   }
   return responsavel;
 }
