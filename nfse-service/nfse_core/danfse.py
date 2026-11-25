@@ -1,29 +1,34 @@
 """DANFSe local (layout "DANFSe v2.0"): desenha o PDF a partir do XML autorizado.
 
 Desde 03/08/2026 (Nota Tecnica 008/2026) o governo nao entrega mais o PDF pela API do
-ADN; o emissor gera a representacao grafica a partir do XML. Layout seguindo o modelo
-oficial: A4 retrato, pagina unica, QR Code, blocos padronizados (incluindo IBS/CBS) e
-rodape de cientificacao. Tolerante: campo ausente no XML vira "-".
+ADN; o emissor gera a representacao grafica a partir do XML. As medidas abaixo foram
+lidas do PDF oficial de referencia (DANFSe v2.0, gerado pelo Emissor Nacional): A4
+595x842 pt, grade de 4 colunas, linha so no topo de cada bloco, fontes Arial 6/7/9 pt.
+Tolerante: campo ausente no XML vira "-".
 """
 from __future__ import annotations
 
 import io
 from datetime import datetime
+from pathlib import Path
 
 from lxml import etree
 from reportlab.graphics import renderPDF
 from reportlab.graphics.barcode.qr import QrCodeWidget
 from reportlab.graphics.shapes import Drawing
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
+LOGO = Path(__file__).parent / "assets" / "logo_nfse.png"
+
+# Mesmo formato do QR do PDF oficial (sem barra antes do "?").
 CONSULTA_PUBLICA = {
-    "producao": "https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave={chave}",
-    "homologacao": "https://www.producaorestrita.nfse.gov.br/ConsultaPublica/?tpc=1&chave={chave}",
+    "producao": "https://www.nfse.gov.br/ConsultaPublica?tpc=1&chave={chave}",
+    "homologacao": "https://www.producaorestrita.nfse.gov.br/ConsultaPublica?tpc=1&chave={chave}",
 }
 
 V = "-"
+TIPO_EMITENTE = {"1": "Prestador", "2": "Tomador", "3": "Intermediário"}
 OP_SIMPLES = {
     "1": "Não Optante",
     "2": "Optante - Microempreendedor Individual (MEI)",
@@ -38,6 +43,14 @@ TRIB_ISSQN = {"1": "Operação Tributável", "2": "Imunidade", "3": "Exportaçã
 RET_ISSQN = {"1": "Não Retido", "2": "Retido pelo Tomador", "3": "Retido pelo Intermediário"}
 SITUACAO = {"100": "NFS-e Gerada"}
 
+
+def url_consulta(chave: str, ambiente: str = "producao") -> str:
+    return CONSULTA_PUBLICA.get(ambiente, CONSULTA_PUBLICA["producao"]).format(chave=chave)
+
+
+# ---------------------------------------------------------------------------
+# Leitura do XML
+# ---------------------------------------------------------------------------
 
 def _no(raiz, caminho: str):
     """Elemento de 'a/b/c' ignorando namespace: 'a' em qualquer profundidade, resto como filhos."""
@@ -61,6 +74,15 @@ def _doc(valor: str) -> str:
         return f"{d[:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-{d[12:]}"
     if len(d) == 11:
         return f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}"
+    return valor or V
+
+
+def _fone(valor: str) -> str:
+    d = "".join(ch for ch in valor if ch.isdigit())
+    if len(d) == 11:
+        return f"({d[:2]}) {d[2:7]}-{d[7:]}"
+    if len(d) == 10:
+        return f"({d[:2]}) {d[2:6]}-{d[6:]}"
     return valor or V
 
 
@@ -122,7 +144,7 @@ def _parte(inf, tag: str) -> dict:
     return {
         "doc": _doc(_t(no, "CNPJ") or _t(no, "CPF") or _t(no, "NIF")),
         "im": _t(no, "IM") or V,
-        "fone": _t(no, "fone") or V,
+        "fone": _fone(_t(no, "fone")),
         "nome": _t(no, "xNome") or V,
         "email": _t(no, "email") or V,
         "uf": _t(end, "UF") if end is not None else "",
@@ -145,10 +167,10 @@ def extrair_campos(xml_nfse: bytes | str) -> dict:
     emit["mun_uf"] = f"{mun_emit} / {emit['uf']}" if mun_emit and emit["uf"] else V
     toma["mun_uf"] = V
     # O prestador na DPS pode trazer IM, telefone e e-mail que o emit da NFS-e nao tem.
-    for chave in ("im", "fone", "email"):
-        valor = _t(prest_dps, {"im": "IM", "fone": "fone", "email": "email"}[chave])
+    for chave, tag, fmt in (("im", "IM", str), ("fone", "fone", _fone), ("email", "email", str)):
+        valor = _t(prest_dps, tag)
         if valor:
-            emit[chave] = valor
+            emit[chave] = fmt(valor)
 
     trib_mun = _no(inf, "tribMun")
     tot = _no(inf, "pTotTrib")
@@ -174,7 +196,9 @@ def extrair_campos(xml_nfse: bytes | str) -> dict:
         "amb_ger": _t(inf, "ambGer") or V,
         "tp_amb": _t(inf, "tpAmb") or V,
         "municipio": f"{mun_emit} - {emit['uf']}" if mun_emit and emit["uf"] else mun_emit,
+        "tp_emit": TIPO_EMITENTE.get(_t(inf, "tpEmit"), "Prestador"),
         "situacao": SITUACAO.get(_t(inf, "cStat"), V),
+        "finalidade": _t(inf, "finNFSe") or V,
         "emit": emit,
         "toma": toma,
         "regime_sn": OP_SIMPLES.get(_t(inf, "opSimpNac"), V),
@@ -190,19 +214,51 @@ def extrair_campos(xml_nfse: bytes | str) -> dict:
         "bc_issqn": _moeda(_t(inf, "vBC")),
         "aliq": _pct(aliq) if aliq else V,
         "issqn": _moeda(_t(inf, "vISSQN")),
+        "irrf": _moeda(_t(inf, "vRetIRRF")),
+        "cp": _moeda(_t(inf, "vRetCP")),
+        "csll": _moeda(_t(inf, "vRetCSLL")),
+        "pis": _moeda(_t(inf, "vPis")),
+        "cofins": _moeda(_t(inf, "vCofins")),
         "valor_servico": _moeda(_t(inf, "vServ")),
         "valor_liquido": _moeda(v_liq),
         "info": "\n".join(x for x in (totais, compl) if x),
     }
 
 
-def _quebrar(c: canvas.Canvas, texto: str, fonte: str, tamanho: float, largura: float) -> list[str]:
+# ---------------------------------------------------------------------------
+# Desenho (coordenadas em pt, origem no topo esquerdo, como no PDF oficial)
+# ---------------------------------------------------------------------------
+
+PW, PH = 595.0, 842.0
+X0 = 8.5039                       # borda esquerda da grade
+COL = 144.5669                    # largura de cada uma das 4 colunas
+XS = [X0 + i * COL for i in range(5)]
+PAD = 3.4016                      # recuo do texto dentro da celula
+PASSO = 19.0733                   # altura de uma linha de campos
+NEGRITO, NORMAL = "Helvetica-Bold", "Helvetica"
+LARGURA_TEXTO = XS[4] - XS[0] - 2 * PAD
+
+
+def _ajustar(texto: str, fonte: str, tam: float, largura: float) -> str:
+    """Cabe na celula: corta por palavras e termina em ' ...' (como o PDF oficial)."""
+    if stringWidth(texto, fonte, tam) <= largura:
+        return texto
+    palavras = texto.split(" ")
+    while len(palavras) > 1 and stringWidth(" ".join(palavras) + " ...", fonte, tam) > largura:
+        palavras.pop()
+    candidato = " ".join(palavras) + " ..."
+    while len(candidato) > 4 and stringWidth(candidato, fonte, tam) > largura:
+        candidato = candidato[:-5].rstrip() + " ..."
+    return candidato
+
+
+def _quebrar(texto: str, fonte: str, tam: float, largura: float) -> list[str]:
     linhas: list[str] = []
     for paragrafo in (texto or "").split("\n"):
         atual = ""
         for palavra in paragrafo.split():
             teste = f"{atual} {palavra}".strip()
-            if c.stringWidth(teste, fonte, tamanho) <= largura:
+            if stringWidth(teste, fonte, tam) <= largura:
                 atual = teste
             else:
                 if atual:
@@ -212,200 +268,197 @@ def _quebrar(c: canvas.Canvas, texto: str, fonte: str, tamanho: float, largura: 
     return linhas
 
 
-def gerar_danfse(xml_nfse: bytes | str, ambiente: str = "producao") -> bytes:
+def gerar_danfse(xml_nfse: bytes | str, ambiente: str = "producao", comprimir: bool = True) -> bytes:
     """PDF (A4, 1 pagina) do DANFSe v2.0. Levanta ValueError se o XML nao for uma NFS-e."""
     d = extrair_campos(xml_nfse)
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
+    c = canvas.Canvas(buf, pagesize=(PW, PH), pageCompression=1 if comprimir else 0)
     c.setTitle(f"DANFSe {d['numero']}")
-    larg, alt = A4
-    mx = 7 * mm
-    inner = larg - 2 * mx
-    topo = alt - 7 * mm
-    base = 7 * mm
-    rodape_h = 11 * mm
-    y = topo
+    c.setCreator("PsiAgente")
 
-    c.setLineWidth(0.5)
-    c.rect(mx, base, inner, topo - base)
+    def Y(y: float) -> float:
+        return PH - y
 
-    def linha():
-        c.setLineWidth(0.4)
-        c.line(mx, y, mx + inner, y)
+    def texto(x, y, s, negrito=False, tam=7.0, centro=False, cor=0.0):
+        c.setFillGray(cor)
+        c.setFont(NEGRITO if negrito else NORMAL, tam)
+        (c.drawCentredString if centro else c.drawString)(x, Y(y), s)
+        c.setFillGray(0)
 
-    def celula(x, w, h, rotulo, valor, cinza=False):
-        if cinza:
-            c.setFillGray(0.93)
-            c.rect(x, y - h, w, h, stroke=0, fill=1)
-            c.setFillGray(0)
-        if rotulo:
-            tam = 7.2 if cinza else 6.3
-            while c.stringWidth(rotulo, "Helvetica-Bold", tam) > w - 2 * mm and tam > 4.5:
-                tam -= 0.2
-            c.setFont("Helvetica-Bold", tam)
-            c.drawString(x + 1.5 * mm, y - 3 * mm, rotulo)
-        if valor:
-            txt = valor
-            while c.stringWidth(txt, "Helvetica", 7.8) > w - 3 * mm and len(txt) > 4:
-                txt = txt[:-2]
-            if txt != valor:
-                txt = txt.rstrip() + "..."
-            c.setFont("Helvetica", 7.8)
-            c.drawString(x + 1.5 * mm, y - 6.6 * mm, txt)
+    def linha_h(y, lw=0.5):
+        c.setLineWidth(lw)
+        c.line(XS[0], Y(y), XS[4], Y(y))
 
-    def row(*cells, h=9 * mm, largura=inner, x0=mx):
-        """cells: (fracao, rotulo, valor[, cinza])."""
-        nonlocal y
-        linha()
-        x = x0
-        for cell in cells:
-            frac, rotulo, valor = cell[0], cell[1], cell[2]
-            celula(x, largura * frac, h, rotulo, valor, cell[3] if len(cell) > 3 else False)
-            x += largura * frac
-        y -= h
+    def cinza(x0, y0, x1, y1):
+        c.setFillGray(0.949)
+        c.rect(x0, Y(y1), x1 - x0, y1 - y0, stroke=0, fill=1)
+        c.setFillGray(0)
 
-    def aviso(texto):
-        nonlocal y
-        linha()
-        c.setFont("Helvetica", 7)
-        c.drawCentredString(mx + inner / 2, y - 3.6 * mm, texto)
-        y -= 5 * mm
+    # --- Moldura
+    c.setLineWidth(1)
+    c.rect(5, Y(837), 585, 832)
 
     # --- Cabecalho
-    c.setFont("Helvetica-Bold", 20)
-    c.setFillColorRGB(0.1, 0.55, 0.25)
-    c.drawString(mx + 3 * mm, y - 10 * mm, "NFS")
-    c.setFillColorRGB(0.1, 0.35, 0.65)
-    c.drawString(mx + 3 * mm + c.stringWidth("NFS", "Helvetica-Bold", 20), y - 10 * mm, "e")
-    c.setFillGray(0.3)
-    c.setFont("Helvetica", 6.5)
-    c.drawString(mx + 22 * mm, y - 8 * mm, "Nota Fiscal de")
-    c.drawString(mx + 22 * mm, y - 11.2 * mm, "Serviço eletrônica")
-    c.setFillGray(0)
-    c.setFont("Helvetica-Bold", 9.5)
-    c.drawCentredString(mx + inner / 2, y - 7.2 * mm, "DANFSe v2.0")
-    c.drawCentredString(mx + inner / 2, y - 11.4 * mm, "Documento Auxiliar da NFS-e")
-    c.setFont("Helvetica", 8.5)
-    c.drawRightString(mx + inner - 2 * mm, y - 6 * mm, f"Município: {d['municipio'] or V}")
-    c.setFont("Helvetica", 6.5)
-    c.drawRightString(mx + inner - 2 * mm, y - 9.4 * mm, f"Ambiente Gerador: {d['amb_ger']}")
-    c.drawRightString(mx + inner - 2 * mm, y - 12.4 * mm, f"Tipo de Ambiente: {d['tp_amb']}")
+    for i in range(3):
+        cinza((XS[0], XS[1], XS[3])[i], 5.67, (XS[1], XS[3], XS[4])[i], 39.68)
+    if LOGO.exists():
+        c.drawImage(str(LOGO), 11.9055, Y(10.3229 + 22.9165), 115.6536, 22.9165, mask="auto")
+    else:
+        texto(11.9, 28, "NFS-e", negrito=True, tam=14)
+    centro = (XS[1] + XS[3]) / 2
+    texto(centro, 20.77, "DANFSe v2.0", negrito=True, tam=9, centro=True)
+    texto(centro, 31.12, "Documento Auxiliar da NFS-e", negrito=True, tam=9, centro=True)
     if ambiente != "producao":
-        c.setFillColorRGB(0.8, 0, 0)
-        c.setFont("Helvetica-Bold", 7)
-        c.drawCentredString(mx + inner / 2, y - 15.5 * mm, "SEM VALIDADE FISCAL - AMBIENTE DE HOMOLOGAÇÃO")
-        c.setFillGray(0)
-    y -= 17 * mm
+        texto(centro, 37.6, "SEM VALIDADE FISCAL - AMBIENTE DE HOMOLOGAÇÃO", negrito=True, tam=5.5, centro=True, cor=0.0)
+    texto(XS[3] + PAD, 18.73, f"Município: {d['municipio'] or V}", tam=8)
+    texto(XS[3] + PAD, 25.94, f"Ambiente Gerador: {d['amb_ger']}", tam=6)
+    texto(XS[3] + PAD, 32.74, f"Tipo de Ambiente: {d['tp_amb']}", tam=6)
+    linha_h(39.93)
 
-    # --- Chave de acesso, campos principais e QR Code
-    bloco_y = y
-    lado = 22 * mm
-    esq = inner - 40 * mm
-    linha()
-    c.setFont("Helvetica-Bold", 6.8)
-    c.drawString(mx + 1.5 * mm, y - 3.2 * mm, "CHAVE DE ACESSO DA NFS-e")
-    c.setFont("Helvetica", 8.5)
-    c.drawString(mx + 1.5 * mm, y - 6.8 * mm, d["chave"] or V)
-    y -= 8 * mm
-    row((1 / 3, "NÚMERO DA NFS-e", d["numero"]), (1 / 3, "COMPETÊNCIA DA NFS-e", d["competencia"]),
-        (1 / 3, "DATA E HORA DA EMISSÃO DA NFS-e", d["emissao_nfse"]), largura=esq)
-    row((1 / 3, "NÚMERO DA DPS", d["ndps"]), (1 / 3, "SÉRIE DA DPS", d["serie"]),
-        (1 / 3, "DATA E HORA DA EMISSÃO DA DPS", d["emissao_dps"]), largura=esq)
-    y = bloco_y - 31 * mm
-    qr = QrCodeWidget(CONSULTA_PUBLICA.get(ambiente, CONSULTA_PUBLICA["producao"]).format(chave=d["chave"]))
-    x0, y0, x1, y1 = qr.getBounds()
-    desenho = Drawing(lado, lado, transform=[lado / (x1 - x0), 0, 0, lado / (y1 - y0), 0, 0])
+    # --- Chave de acesso, numeros, QR Code
+    texto(XS[0] + PAD, 51.00, "CHAVE DE ACESSO DA NFS-e", negrito=True)
+    texto(XS[0] + PAD, 58.94, d["chave"] or V)
+    for base, campos in (
+        (71.23, (("NÚMERO DA NFS-e", d["numero"]), ("COMPETÊNCIA DA NFS-e", d["competencia"]),
+                 ("DATA E HORA DA EMISSÃO DA NFS-e", d["emissao_nfse"]))),
+        (91.45, (("NÚMERO DA DPS", d["ndps"]), ("SÉRIE DA DPS", d["serie"]),
+                 ("DATA E HORA DA EMISSÃO DA DPS", d["emissao_dps"]))),
+    ):
+        for i, (rotulo, valor) in enumerate(campos):
+            texto(XS[i] + PAD, base, rotulo, negrito=True)
+            texto(XS[i] + PAD, base + 7.93, valor)
+
+    qr = QrCodeWidget(url_consulta(d["chave"], ambiente), barLevel="M", barBorder=2)
+    qx0, qy0, qx1, qy1 = qr.getBounds()
+    lado = 45.0
+    desenho = Drawing(lado, lado, transform=[lado / (qx1 - qx0), 0, 0, lado / (qy1 - qy0), 0, 0])
     desenho.add(qr)
-    renderPDF.draw(desenho, c, mx + inner - 20 * mm - lado / 2, bloco_y - lado - 1 * mm)
-    c.setFont("Helvetica", 5.4)
-    for i, ln in enumerate(("A autenticidade desta NFS-e pode ser", "verificada pela leitura deste código QR", "ou pela consulta da chave de acesso no", "portal nacional da NFS-e")):
-        c.drawCentredString(mx + inner - 20 * mm, bloco_y - lado - (4.6 + 2.3 * i) * mm, ln)
+    renderPDF.draw(desenho, c, 491.9882, Y(44.7642 + lado))
+    for i, ln in enumerate(("A autenticidade desta NFS-e pode ser verificada",
+                            "pela leitura deste código QR ou pela consulta da",
+                            "chave de acesso no portal nacional da NFS-e")):
+        texto(XS[3] + PAD, 97.41 + 6.795 * i, ln, tam=6)
+
+    # --- Emitente da NFS-e / situacao
+    cinza(XS[0], 105.11, XS[1], 125.33)
+    for i, (rotulo, valor) in enumerate((("EMITENTE DA NFS-e", d["tp_emit"]), ("SITUAÇÃO DA NFS-e", d["situacao"]),
+                                         ("FINALIDADE", d["finalidade"]))):
+        texto(XS[i] + PAD, 111.68, rotulo, negrito=True)
+        texto(XS[i] + PAD, 119.61, valor)
+
+    # --- Blocos em grade
+    def secao(topo, titulo, linhas):
+        """Linha no topo, celula cinza com o titulo e as linhas de campos. Devolve o topo do proximo bloco."""
+        linha_h(topo)
+        cinza(XS[0], topo + 0.25, XS[1], topo + 0.25 + 19.08)
+        texto(XS[0] + PAD, topo + 6.82, titulo, negrito=True)
+        for i, celulas in enumerate(linhas):
+            base = topo + 5.88 + i * PASSO
+            for cel in celulas:
+                col, span, rotulo, valor = cel[:4]
+                if len(cel) > 4 and cel[4]:
+                    y0 = topo + 0.25 + i * PASSO
+                    cinza(XS[col], y0, XS[col + span], y0 + 19.08)
+                largura = COL * span - 2 * PAD
+                texto(XS[col] + PAD, base, _ajustar(rotulo, NEGRITO, 6, largura), negrito=True, tam=6)
+                texto(XS[col] + PAD, base + 7.73, _ajustar(valor or V, NORMAL, 7, largura))
+        return topo + len(linhas) * PASSO + 0.5
 
     emit, toma = d["emit"], d["toma"]
-    row((0.34, "EMITENTE DA NFS-e", "Prestador", True), (0.33, "SITUAÇÃO DA NFS-e", d["situacao"]), (0.33, "FINALIDADE", V))
-    row((0.34, "PRESTADOR / FORNECEDOR", "", True), (0.22, "CNPJ / CPF / NIF", emit["doc"]),
-        (0.22, "Indicador Municipal (Inscrição)", emit["im"]), (0.22, "Telefone", emit["fone"]))
-    row((0.5, "Nome / Nome Empresarial", emit["nome"]), (0.25, "Município / Sigla UF", emit["mun_uf"]),
-        (0.25, "Código IBGE / CEP", emit["ibge_cep"]))
-    row((0.5, "Endereço", emit["end"]), (0.5, "E-mail", emit["email"]))
-    row((0.34, "Simples Nacional na Data de Competência", d["regime_sn"]), (0.66, "Regime de Apuração Tributária pelo SN", d["regime_ap"]))
-    row((0.34, "TOMADOR / ADQUIRENTE", "", True), (0.22, "CNPJ / CPF / NIF", toma["doc"]),
-        (0.22, "Indicador Municipal (Inscrição)", toma["im"]), (0.22, "Telefone", toma["fone"]))
-    row((0.5, "Nome / Nome Empresarial", toma["nome"]), (0.25, "Município / Sigla UF", toma["mun_uf"]),
-        (0.25, "Código IBGE / CEP", toma["ibge_cep"]))
-    row((0.5, "Endereço", toma["end"]), (0.5, "E-mail", toma["email"]))
-    aviso("DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e")
-    aviso("INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e")
+    topo = 125.58
+    topo = secao(topo, "PRESTADOR / FORNECEDOR", [
+        [(1, 1, "CNPJ / CPF / NIF", emit["doc"]), (2, 1, "Indicador Municipal (Inscrição)", emit["im"]),
+         (3, 1, "Telefone", emit["fone"])],
+        [(0, 2, "Nome / Nome Empresarial", emit["nome"]), (2, 1, "Município / Sigla UF", emit["mun_uf"]),
+         (3, 1, "Código IBGE / CEP", emit["ibge_cep"])],
+        [(0, 2, "Endereço", emit["end"]), (2, 2, "E-mail", emit["email"])],
+        [(0, 1, "Simples Nacional na Data de Competência", d["regime_sn"]),
+         (1, 3, "Regime de Apuração Tributária pelo SN", d["regime_ap"])],
+    ])
+    topo = secao(topo, "TOMADOR / ADQUIRENTE", [
+        [(1, 1, "CNPJ / CPF / NIF", toma["doc"]), (2, 1, "Indicador Municipal (Inscrição)", toma["im"]),
+         (3, 1, "Telefone", toma["fone"])],
+        [(0, 2, "Nome / Nome Empresarial", toma["nome"]), (2, 1, "Município / Sigla UF", toma["mun_uf"]),
+         (3, 1, "Código IBGE / CEP", toma["ibge_cep"])],
+        [(0, 2, "Endereço", toma["end"]), (2, 2, "E-mail", toma["email"])],
+    ])
 
-    row((0.28, "SERVIÇO PRESTADO", "", True), (0.24, "Código de Tributação Nacional/Municipal", d["serv_cod"]),
-        (0.2, "Código da NBS", d["nbs"]), (0.28, "Local da Prestação / Sigla UF / País", d["serv_local"]))
-    # Descricao do servico (altura variavel)
-    titulo = _quebrar(c, d["serv_trib_nac"], "Helvetica", 7.8, inner - 3 * mm)
-    desc = _quebrar(c, d["serv_desc"], "Helvetica", 7.8, inner - 3 * mm)[:12]
-    h_desc = (3.5 + 3.4 * len(titulo) + 1.5 + 3.3 + 3.4 * len(desc) + 2) * mm
-    linha()
-    yy = y - 3.5 * mm
-    c.setFont("Helvetica", 7.8)
-    for ln in titulo:
-        c.drawString(mx + 1.5 * mm, yy, ln)
-        yy -= 3.4 * mm
-    yy -= 1.5 * mm
-    c.setFont("Helvetica-Bold", 6.3)
-    c.drawString(mx + 1.5 * mm, yy, "Descrição do Serviço")
-    yy -= 3.3 * mm
-    c.setFont("Helvetica", 7.8)
-    for ln in desc:
-        c.drawString(mx + 1.5 * mm, yy, ln)
-        yy -= 3.4 * mm
-    y -= h_desc
+    # Destinatario e intermediario (nao informados nesta emissao)
+    for aviso in ("DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e",
+                  "INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e"):
+        linha_h(topo)
+        texto((XS[0] + XS[4]) / 2, topo + 6.71, aviso, centro=True)
+        topo += 8.425
 
-    row((0.28, "TRIBUTAÇÃO MUNICIPAL (ISSQN)", "", True), (0.3, "Tipo de Tributação do ISSQN", d["trib_issqn"]),
-        (0.42, "Município / Sigla UF / País de Incidência do ISSQN", d["incidencia"]))
-    row((0.28, "BC ISSQN", d["bc_issqn"]), (0.24, "Alíquota Aplicada", d["aliq"]),
-        (0.24, "Retenção do ISSQN", d["ret_issqn"]), (0.24, "ISSQN Apurado", d["issqn"]))
-    row((0.28, "TRIBUTAÇÃO FEDERAL (EXCETO CBS)", "", True), (0.24, "IRRF", V),
-        (0.24, "Contribuição Previdenciária - Retida", V), (0.24, "Contribuições Sociais - Retidas", V))
-    row((0.28, "PIS - Débito Apuração Própria", V), (0.24, "COFINS - Débito Apuração Própria", V),
-        (0.48, "Descrição Contrib. Sociais - Retidas", V))
-    row((0.28, "TRIBUTAÇÃO IBS/CBS", "", True), (0.24, "CST / cClassTrib", "- / -"),
-        (0.48, "Indicador de Operação / Código IBGE Incidência / Município Incidência / Sigla UF", "- / - / - / -"))
-    row((0.28, "Exclusões e Reduções da Base de Cálculo", "R$ 0,00"), (0.24, "Base de Cálculo Após Exclusões e Reduções", V),
-        (0.24, "Red. Alíquota IBS / Red. Alíquota CBS", "- / -"), (0.24, "Alíquota - IBS UF / IBS Mun", "- / -"))
-    row((0.28, "Alíq. Efetiva Municipal - IBS", V), (0.24, "Valor Apurado Municipal - IBS", V),
-        (0.24, "Alíq. Efetiva Estadual - IBS", V), (0.24, "Valor Apurado Estadual - IBS", V))
-    row((0.28, "Valor Total Apurado - IBS", V), (0.24, "Alíquota - CBS", V),
-        (0.24, "Alíquota Efetiva - CBS", V), (0.24, "Valor Total Apurado - CBS", V))
-    row((0.28, "VALOR TOTAL DA NFS-e", "", True), (0.24, "VALOR DA OPERAÇÃO / SERVIÇO", d["valor_servico"]),
-        (0.24, "Desconto Incondicionado", V), (0.24, "Desconto Condicionado", V))
-    row((0.28, "Total das Retenções (ISSQN / Federais)", V), (0.24, "VALOR LÍQUIDO DA NFS-e", d["valor_liquido"]),
-        (0.24, "Total do IBS/CBS", "R$ 0,00"), (0.24, "VALOR LÍQUIDO DA NFS-e + IBS/CBS", d["valor_liquido"], True))
+    # Servico prestado (descricao com altura variavel)
+    desc = _quebrar(d["serv_desc"], NORMAL, 7, LARGURA_TEXTO)[:30] or [V]
+    linha_h(topo)
+    cinza(XS[0], topo + 0.25, XS[1], topo + 0.25 + 19.08)
+    texto(XS[0] + PAD, topo + 6.82, "SERVIÇO PRESTADO", negrito=True)
+    for col, span, rotulo, valor in (
+        (1, 1, "Código de Tributação Nacional/Municipal", d["serv_cod"]),
+        (2, 1, "Código da NBS", d["nbs"]),
+        (3, 1, "Local da Prestação / Sigla UF / País", d["serv_local"]),
+    ):
+        largura = COL * span - 2 * PAD
+        texto(XS[col] + PAD, topo + 5.88, _ajustar(rotulo, NEGRITO, 6, largura), negrito=True, tam=6)
+        texto(XS[col] + PAD, topo + 13.61, _ajustar(valor, NORMAL, 7, largura))
+    texto(XS[0] + PAD, topo + 25.78, _ajustar(d["serv_trib_nac"] or V, NORMAL, 7, LARGURA_TEXTO))
+    texto(XS[0] + PAD, topo + 37.13, "Descrição do Serviço", negrito=True, tam=6)
+    for i, ln in enumerate(desc):
+        texto(XS[0] + PAD, topo + 44.85 + 7.92 * i, ln)
+    topo += 50.82 + 7.92 * (len(desc) - 1)
+
+    topo = secao(topo, "TRIBUTAÇÃO MUNICIPAL (ISSQN)", [
+        [(1, 1, "Tipo de Tributação do ISSQN", d["trib_issqn"]),
+         (2, 2, "Município / Sigla UF / País de Incidência do ISSQN", d["incidencia"])],
+        [(0, 1, "BC ISSQN", d["bc_issqn"]), (1, 1, "Alíquota Aplicada", d["aliq"]),
+         (2, 1, "Retenção do ISSQN", d["ret_issqn"]), (3, 1, "ISSQN Apurado", d["issqn"])],
+    ])
+    topo = secao(topo, "TRIBUTAÇÃO FEDERAL (EXCETO CBS)", [
+        [(1, 1, "IRRF", d["irrf"]), (2, 1, "Contribuição Previdenciária - Retida", d["cp"]),
+         (3, 1, "Contribuições Sociais - Retidas", d["csll"])],
+        [(0, 1, "PIS - Débito Apuração Própria", d["pis"]), (1, 1, "COFINS - Débito Apuração Própria", d["cofins"]),
+         (2, 2, "Descrição Contrib. Sociais - Retidas", V)],
+    ])
+    topo = secao(topo, "TRIBUTAÇÃO IBS/CBS", [
+        [(1, 1, "CST / cClassTrib", "- / -"),
+         (2, 2, "Indicador de Operação / Código IBGE Incidência / Município Incidência / Sigla UF", "- / - / - / -")],
+        [(0, 1, "Exclusões e Reduções da Base de Cálculo", "R$ 0,00"),
+         (1, 1, "Base de Cálculo Após Exclusões e Reduções", V),
+         (2, 1, "Red. Alíquota IBS / Red. Alíquota CBS", "- / - / -"),
+         (3, 1, "Alíquota - IBS UF / IBS Mun", "- / -")],
+        [(0, 1, "Alíq. Efetiva Municipal - IBS", V), (1, 1, "Valor Apurado Municipal - IBS", V),
+         (2, 1, "Alíq. Efetiva Estadual - IBS", V), (3, 1, "Valor Apurado Estadual - IBS", V)],
+        [(0, 1, "Valor Total Apurado - IBS", V), (1, 1, "Alíquota - CBS", V),
+         (2, 1, "Alíquota Efetiva - CBS", V), (3, 1, "Valor Total Apurado - CBS", V)],
+    ])
+    topo = secao(topo, "VALOR TOTAL DA NFS-e", [
+        [(1, 1, "VALOR DA OPERAÇÃO / SERVIÇO", d["valor_servico"]), (2, 1, "Desconto Incondicionado", V),
+         (3, 1, "Desconto Condicionado", V)],
+        [(0, 1, "Total das Retenções (ISSQN / Federais)", V), (1, 1, "VALOR LÍQUIDO DA NFS-e", d["valor_liquido"]),
+         (2, 1, "Total do IBS/CBS", "R$ 0,00"),
+         (3, 1, "VALOR LÍQUIDO DA NFS-e + IBS/CBS", d["valor_liquido"], True)],
+    ])
 
     # --- Informacoes complementares
-    linha()
-    c.setFillGray(0.93)
-    c.rect(mx, y - 5 * mm, inner, 5 * mm, stroke=0, fill=1)
-    c.setFillGray(0)
-    c.setFont("Helvetica-Bold", 7.2)
-    c.drawString(mx + 1.5 * mm, y - 3.5 * mm, "INFORMAÇÕES COMPLEMENTARES")
-    y -= 9 * mm
-    c.setFont("Helvetica", 7.8)
-    for ln in _quebrar(c, d["info"], "Helvetica", 7.8, inner - 3 * mm)[:20]:
-        c.drawString(mx + 1.5 * mm, y, ln)
-        y -= 3.5 * mm
+    linha_h(topo)
+    texto(XS[0] + PAD, topo + 6.81, "INFORMAÇÕES COMPLEMENTARES", negrito=True)
+    for i, ln in enumerate(_quebrar(d["info"], NORMAL, 7, LARGURA_TEXTO)[:30]):
+        texto(XS[0] + PAD, topo + 26.92 + 7.92 * i, ln)
 
     # --- Rodape de cientificacao
-    ry = base + 2 * mm
-    altura = rodape_h - 2 * mm
-    c.setLineWidth(0.5)
-    c.rect(mx + 1 * mm, ry, inner - 2 * mm, altura)
-    c.line(mx + inner * 0.25, ry, mx + inner * 0.25, ry + altura)
-    c.line(mx + inner * 0.5, ry, mx + inner * 0.5, ry + altura)
-    c.setFont("Helvetica-Bold", 6.5)
-    c.drawString(mx + 2.5 * mm, ry + altura - 3.5 * mm, "DATA CIENTIFICAÇÃO:")
-    c.drawString(mx + inner * 0.25 + 1.5 * mm, ry + altura - 3.5 * mm, "IDENTIFICAÇÃO E ASSINATURA")
-    c.drawString(mx + inner * 0.5 + 1.5 * mm, ry + altura - 3.5 * mm, "N° NFS-e / CHAVE NFS-e")
-    c.setFont("Helvetica", 7)
-    c.drawString(mx + inner * 0.5 + 1.5 * mm, ry + 1.8 * mm, f"{d['numero']} / {d['chave']}")
+    c.setLineWidth(1)
+    for x0, x1 in ((9.0039, 153.5709), (153.5709, 298.1378), (298.1378, 587.2717)):
+        c.line(x0, Y(796.30), x0, Y(816.38))
+        c.line(x1, Y(796.30), x1, Y(816.38))
+        c.line(x0 - 0.5, Y(795.80), x1 + 0.5, Y(795.80))
+        c.line(x0 - 0.5, Y(815.88), x1 + 0.5, Y(815.88))
+    texto(12.91, 801.93, "DATA CIENTIFICAÇÃO:", negrito=True, tam=6)
+    texto(157.47, 801.93, "IDENTIFICAÇÃO E ASSINATURA", negrito=True, tam=6)
+    texto(302.04, 801.93, "N° NFS-e / CHAVE NFS-e", negrito=True, tam=6)
+    texto(302.04, 809.66, f"{d['numero']} / {d['chave']}")
+
     c.showPage()
     c.save()
     return buf.getvalue()
