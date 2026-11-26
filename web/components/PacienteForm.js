@@ -196,6 +196,20 @@ export default function PacienteForm({ action, paciente, pacotes, consultorios }
         <label className="flex items-start gap-2 text-sm text-navy">
           <input
             type="checkbox"
+            name="nao_imprimir_na_nota"
+            defaultChecked={paciente?.nao_imprimir_na_nota === true}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            Não imprimir na nota fiscal
+            <span className="block text-xs text-muted">
+              Com a nota no nome do responsável financeiro, a descrição não traz o nome nem o CPF deste paciente.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-sm text-navy">
+          <input
+            type="checkbox"
             name="whatsapp_lembrete_opt_in"
             defaultChecked={paciente?.whatsapp_lembrete_opt_in === true}
             className="mt-0.5 h-4 w-4"
