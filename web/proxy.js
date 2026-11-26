@@ -113,7 +113,11 @@ export async function proxy(request) {
     if (!dentroDoPrefixo(url.pathname, "/comece")) {
       url.pathname = `/comece${url.pathname}`;
     }
-    return comCookieVisitante(NextResponse.rewrite(url), sessaoId, novo);
+    const resposta = NextResponse.rewrite(url);
+    // Landing de campanha fora do índice do Google: o noindex também vai no
+    // cabeçalho para valer inclusive para respostas que não são HTML.
+    resposta.headers.set("X-Robots-Tag", "noindex, follow");
+    return comCookieVisitante(resposta, sessaoId, novo);
   }
 
   // busca.psiagente.com.br: diretório público de psicólogos, reescreve
