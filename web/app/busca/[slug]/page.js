@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import JsonLd from "@/components/JsonLd";
 import { buscarPerfilPorSlug } from "@/lib/data/diretorio";
 import { iniciais } from "@/lib/iniciais";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import {
   IMAGEM_PADRAO,
   descricaoPerfil,
+  jsonLdPerfil,
   montarCompartilhamento,
   origens,
   tituloPerfil,
@@ -46,6 +48,10 @@ export default async function PaginaPerfilPublico({ params }) {
 
   return (
     <article>
+      {/* Só dados que a página já mostra; o contato (WhatsApp) fica de fora de
+          propósito — o diretório o esconde atrás de /ir/<id>. */}
+      <JsonLd dados={jsonLdPerfil(perfil, { url: `${origens().busca}/${perfil.slug}` })} />
+
       {/* Faixa de cabeçalho — mesma linguagem visual da listagem de busca */}
       <section className="relative overflow-hidden bg-navy">
         <div

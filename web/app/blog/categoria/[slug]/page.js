@@ -1,10 +1,17 @@
 import { notFound } from "next/navigation";
+import JsonLd from "@/components/JsonLd";
 import CategoriasBlog from "@/components/blog/CategoriasBlog";
 import ListaArtigos from "@/components/blog/ListaArtigos";
 import { contarArtigosPublicados, listarArtigosPublicadosPagina } from "@/lib/data/artigos";
 import { buscarCategoriaPorSlug, listarCategoriasComArtigos } from "@/lib/data/categorias";
 import { MIN_ARTIGOS_CATEGORIA, POR_PAGINA, numeroDaPagina, paginar } from "@/lib/blog";
-import { IMAGEM_PADRAO, alternativasBlog, montarCompartilhamento } from "@/lib/seo";
+import {
+  IMAGEM_PADRAO,
+  alternativasBlog,
+  jsonLdBreadcrumb,
+  montarCompartilhamento,
+  origens,
+} from "@/lib/seo";
 
 export async function generateMetadata({ params, searchParams }) {
   const { slug } = await params;
@@ -49,8 +56,15 @@ export default async function PaginaCategoria({ params, searchParams }) {
     listarCategoriasComArtigos(),
   ]);
 
+  const o = origens();
+  const trilha = jsonLdBreadcrumb([
+    { nome: "Blog", url: o.blog },
+    { nome: categoria.nome, url: `${o.blog}/categoria/${categoria.slug}` },
+  ]);
+
   return (
     <div className="space-y-10">
+      <JsonLd dados={trilha} />
       <div>
         <h1 className="page-title mb-2">{categoria.nome}</h1>
         <p className="text-muted mb-5">Artigos do blog do PsiAgente sobre {categoria.nome}.</p>

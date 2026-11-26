@@ -13,7 +13,8 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { listarArtigosPublicadosPagina } from "@/lib/data/artigos";
 import ConsentimentoCookies from "@/components/ConsentimentoCookies";
 import LogoPsiAgente from "@/components/LogoPsiAgente";
-import { IMAGEM_PADRAO, montarCompartilhamento } from "@/lib/seo";
+import JsonLd from "@/components/JsonLd";
+import { IMAGEM_PADRAO, jsonLdHome, montarCompartilhamento } from "@/lib/seo";
 
 const CADASTRO_URL = "/cadastro?origem=home";
 const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL ?? "https://blog.psiagente.com.br";
@@ -144,6 +145,7 @@ export default async function PaginaInicial() {
 
   return (
     <>
+      <JsonLd dados={jsonLdHome()} />
       <HeaderInstitucional />
 
       <main>

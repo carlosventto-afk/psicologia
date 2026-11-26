@@ -1,10 +1,17 @@
 import { notFound, permanentRedirect } from "next/navigation";
+import JsonLd from "@/components/JsonLd";
 import CategoriasBlog from "@/components/blog/CategoriasBlog";
 import ListaArtigos from "@/components/blog/ListaArtigos";
 import { contarArtigosPublicados, listarArtigosPublicadosPagina } from "@/lib/data/artigos";
 import { listarCategoriasComArtigos } from "@/lib/data/categorias";
 import { POR_PAGINA, numeroDaPagina, paginar } from "@/lib/blog";
-import { DESCRICAO_BLOG, IMAGEM_PADRAO, alternativasBlog, montarCompartilhamento } from "@/lib/seo";
+import {
+  DESCRICAO_BLOG,
+  IMAGEM_PADRAO,
+  alternativasBlog,
+  jsonLdBlog,
+  montarCompartilhamento,
+} from "@/lib/seo";
 
 export async function generateMetadata({ searchParams }) {
   const { categoria, pagina } = await searchParams;
@@ -44,6 +51,7 @@ export default async function PaginaBlog({ searchParams }) {
 
   return (
     <div className="space-y-10">
+      <JsonLd dados={jsonLdBlog()} />
       <div>
         <h1 className="page-title mb-2">Blog PsiAgente</h1>
         <p className="text-muted mb-5">{DESCRICAO_BLOG}</p>
