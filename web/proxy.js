@@ -1,23 +1,11 @@
 import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { dentroDoPrefixo, destinoSemWww, deveRastrearVisita } from "@/lib/hosts";
 
 const OLD_DOMAIN = "psifacil.com.br";
 const NEW_DOMAIN = "psiagente.com.br";
 const BLOG_HOST = "blog.psiagente.com.br";
-
-// Funil de venda pré-login no domínio principal — rastreado igual aos
-// subdomínios públicos (ver deveRastrear). Igualdade exata, não prefixo:
-// mesmo cuidado já usado pra "/" no middleware de sessão, senão qualquer
-// path prefixado indevidamente entraria no funil.
-const PATHS_FUNIL = ["/", "/login", "/cadastro", "/completar-cadastro", "/esqueci-senha", "/comparativo"];
-
-function deveRastrear(host, pathname) {
-  if (host.startsWith("comece.") || host.startsWith("busca.") || host.startsWith("blog.")) {
-    return true;
-  }
-  return PATHS_FUNIL.includes(pathname);
-}
 
 function obterSessaoVisitante(request) {
   const existente = request.cookies.get("pv_id")?.value;
@@ -91,6 +79,19 @@ export async function proxy(request) {
     return comCookieVisitante(NextResponse.redirect(url, 308), sessaoId, novo);
   }
 
+  // www.psiagente.com.br -> psiagente.com.br, de forma permanente. Sem isso o
+  // mesmo conteúdo existe em dois endereços e o Google rastreia os dois como
+  // sites separados (era o que acontecia). Não rastreado aqui: o destino é
+  // contado na requisição seguinte.
+  const semWww = destinoSemWww(host);
+  if (semWww) {
+    const url = request.nextUrl.clone();
+    url.host = semWww;
+    url.port = "";
+    url.protocol = "https:";
+    return comCookieVisitante(NextResponse.redirect(url, 308), sessaoId, novo);
+  }
+
   // Sem Next-Router-Prefetch: exclui prefetch especulativo de <Link> no
   // viewport, que ainda não é visita de verdade. RSC de navegação real
   // (clique de verdade em <Link>, transição client-side) continua contado
@@ -99,7 +100,7 @@ export async function proxy(request) {
   if (
     request.method === "GET" &&
     !request.headers.get("next-router-prefetch") &&
-    deveRastrear(host, request.nextUrl.pathname)
+    deveRastrearVisita(host, request.nextUrl.pathname)
   ) {
     await registrarVisita(request, sessaoId);
   }
@@ -109,10 +110,14 @@ export async function proxy(request) {
   // updateSession.
   if (host.startsWith("comece.")) {
     const url = request.nextUrl.clone();
-    if (!url.pathname.startsWith("/comece")) {
+    if (!dentroDoPrefixo(url.pathname, "/comece")) {
       url.pathname = `/comece${url.pathname}`;
     }
-    return comCookieVisitante(NextResponse.rewrite(url), sessaoId, novo);
+    const resposta = NextResponse.rewrite(url);
+    // Landing de campanha fora do índice do Google: o noindex também vai no
+    // cabeçalho para valer inclusive para respostas que não são HTML.
+    resposta.headers.set("X-Robots-Tag", "noindex, follow");
+    return comCookieVisitante(resposta, sessaoId, novo);
   }
 
   // busca.psiagente.com.br: diretório público de psicólogos, reescreve
@@ -120,11 +125,12 @@ export async function proxy(request) {
   // updateSession.
   if (host.startsWith("busca.")) {
     const url = request.nextUrl.clone();
-    const isMetadataFile = url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt";
-    // sitemap.js/robots.js só existem na raiz do app (não têm convenção
-    // aninhada por segmento) — não prefixar, senão viram /busca/sitemap.xml
-    // e dão 404.
-    if (!isMetadataFile && !url.pathname.startsWith("/busca")) {
+    // robots.js só existe na raiz do app (não tem convenção aninhada) e
+    // escolhe o conteúdo pelo host — não prefixar, senão vira
+    // /busca/robots.txt e dá 404. O sitemap é um por segmento
+    // (app/busca/sitemap.js), então esse sim recebe o prefixo.
+    const isRobots = url.pathname === "/robots.txt";
+    if (!isRobots && !dentroDoPrefixo(url.pathname, "/busca")) {
       url.pathname = `/busca${url.pathname}`;
     }
     return comCookieVisitante(NextResponse.rewrite(url), sessaoId, novo);
@@ -135,11 +141,12 @@ export async function proxy(request) {
   // precisa criar client do Supabase pra checar sessão a cada pageview.
   if (host.startsWith("blog.")) {
     const url = request.nextUrl.clone();
-    const isMetadataFile = url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt";
-    // sitemap.js/robots.js só existem na raiz do app (não têm convenção
-    // aninhada por segmento) — não prefixar, senão viram /blog/sitemap.xml
-    // e dão 404.
-    if (!isMetadataFile && !url.pathname.startsWith("/blog")) {
+    // robots.js só existe na raiz do app (não tem convenção aninhada) e
+    // escolhe o conteúdo pelo host — não prefixar, senão vira
+    // /blog/robots.txt e dá 404. O sitemap é um por segmento
+    // (app/blog/sitemap.js), então esse sim recebe o prefixo.
+    const isRobots = url.pathname === "/robots.txt";
+    if (!isRobots && !dentroDoPrefixo(url.pathname, "/blog")) {
       url.pathname = `/blog${url.pathname}`;
     }
     return comCookieVisitante(NextResponse.rewrite(url), sessaoId, novo);
@@ -147,7 +154,7 @@ export async function proxy(request) {
 
   // Links antigos pro blog no domínio principal (psiagente.com.br/blog...)
   // redirecionam pro subdomínio novo, de forma permanente.
-  if (request.nextUrl.pathname.startsWith("/blog")) {
+  if (dentroDoPrefixo(request.nextUrl.pathname, "/blog")) {
     const url = request.nextUrl.clone();
     url.host = BLOG_HOST;
     url.port = "";

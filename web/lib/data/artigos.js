@@ -1,45 +1,75 @@
 import { createClient } from "@/lib/supabase/server";
 
-export async function listarArtigosPublicados(categoriaSlug) {
+const EMBED_CATEGORIAS = "artigo_categorias(categorias(nome, slug))";
+// Sem `conteudo`: para quem só precisa de título, resumo, datas e categorias
+// (sitemap, "leia também"), sem carregar o texto de todos os artigos.
+const COLUNAS_RESUMO = `id, titulo, slug, resumo, autor, publicado_em, atualizado_em, imagem_capa, ${EMBED_CATEGORIAS}`;
+const COLUNAS_LISTA = `id, titulo, slug, resumo, conteudo, autor, publicado_em, atualizado_em, imagem_capa, ${EMBED_CATEGORIAS}`;
+
+function comCategorias(artigo) {
+  return {
+    ...artigo,
+    categorias: (artigo.artigo_categorias || []).map((ac) => ac.categorias),
+  };
+}
+
+// Ids dos artigos de uma categoria; null quando não há filtro de categoria.
+async function idsDaCategoria(supabase, categoriaId) {
+  if (!categoriaId) return null;
+  const { data, error } = await supabase
+    .from("artigo_categorias")
+    .select("artigo_id")
+    .eq("categoria_id", categoriaId);
+  if (error) throw new Error(error.message);
+  return data.map((v) => v.artigo_id);
+}
+
+export async function contarArtigosPublicados(categoriaId) {
   const supabase = await createClient();
+  const ids = await idsDaCategoria(supabase, categoriaId);
+  if (ids && ids.length === 0) return 0;
 
-  let idsFiltrados = null;
-  if (categoriaSlug) {
-    const { data: categoria } = await supabase
-      .from("categorias")
-      .select("id")
-      .eq("slug", categoriaSlug)
-      .maybeSingle();
+  let query = supabase.from("artigos").select("id", { count: "exact", head: true }).eq("publicado", true);
+  if (ids) query = query.in("id", ids);
 
-    if (!categoria) return [];
+  const { count, error } = await query;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
 
-    const { data: vinculos, error: erroVinculos } = await supabase
-      .from("artigo_categorias")
-      .select("artigo_id")
-      .eq("categoria_id", categoria.id);
-
-    if (erroVinculos) throw new Error(erroVinculos.message);
-    idsFiltrados = vinculos.map((v) => v.artigo_id);
-    if (idsFiltrados.length === 0) return [];
-  }
+// Uma página da listagem (mais recentes primeiro). `inicio`/`fim` são índices
+// base 0 inclusivos (ver `paginar` em lib/blog.js). O `id` desempata artigos
+// publicados no mesmo instante, para que a ordem não mude entre páginas.
+export async function listarArtigosPublicadosPagina({ categoriaId, inicio, fim }) {
+  const supabase = await createClient();
+  const ids = await idsDaCategoria(supabase, categoriaId);
+  if (ids && ids.length === 0) return [];
 
   let query = supabase
     .from("artigos")
-    .select(
-      "id, titulo, slug, resumo, conteudo, autor, publicado_em, imagem_capa, artigo_categorias(categorias(nome, slug))"
-    )
+    .select(COLUNAS_LISTA)
     .eq("publicado", true)
-    .order("publicado_em", { ascending: false });
-
-  if (idsFiltrados) query = query.in("id", idsFiltrados);
+    .order("publicado_em", { ascending: false })
+    .order("id", { ascending: false })
+    .range(inicio, fim);
+  if (ids) query = query.in("id", ids);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
+  return data.map(comCategorias);
+}
 
-  return data.map((a) => ({
-    ...a,
-    categorias: (a.artigo_categorias || []).map((ac) => ac.categorias),
-  }));
+export async function listarArtigosResumo() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("artigos")
+    .select(COLUNAS_RESUMO)
+    .eq("publicado", true)
+    .order("publicado_em", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return data.map(comCategorias);
 }
 
 export async function buscarArtigoPublicadoPorSlug(slug) {

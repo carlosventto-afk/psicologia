@@ -1,22 +1,40 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import JsonLd from "@/components/JsonLd";
 import { buscarPerfilPorSlug } from "@/lib/data/diretorio";
 import { iniciais } from "@/lib/iniciais";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import {
+  IMAGEM_PADRAO,
+  descricaoPerfil,
+  jsonLdPerfil,
+  montarCompartilhamento,
+  origens,
+  tituloPerfil,
+} from "@/lib/seo";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   const perfil = await buscarPerfilPorSlug(slug);
   if (!perfil) return {};
 
+  const url = `${origens().busca}/${perfil.slug}`;
+  const titulo = tituloPerfil(perfil);
+  const descricao = descricaoPerfil(perfil);
+
   return {
-    title: perfil.nome,
-    description: perfil.bio ?? undefined,
-    openGraph: {
-      title: perfil.nome,
-      description: perfil.bio ?? undefined,
-      images: perfil.foto_url ? [perfil.foto_url] : undefined,
-    },
+    // Absoluto: o sufixo " | Encontre um psicólogo" do layout estouraria os
+    // ~60 caracteres que o Google exibe, e o título já diz "Psicólogo(a)".
+    title: { absolute: titulo },
+    description: descricao,
+    alternates: { canonical: url },
+    ...montarCompartilhamento({
+      titulo,
+      descricao,
+      url,
+      tipo: "profile",
+      imagens: [perfil.foto_url ?? IMAGEM_PADRAO],
+    }),
   };
 }
 
@@ -30,6 +48,10 @@ export default async function PaginaPerfilPublico({ params }) {
 
   return (
     <article>
+      {/* Só dados que a página já mostra; o contato (WhatsApp) fica de fora de
+          propósito — o diretório o esconde atrás de /ir/<id>. */}
+      <JsonLd dados={jsonLdPerfil(perfil, { url: `${origens().busca}/${perfil.slug}` })} />
+
       {/* Faixa de cabeçalho — mesma linguagem visual da listagem de busca */}
       <section className="relative overflow-hidden bg-navy">
         <div
@@ -93,7 +115,9 @@ export default async function PaginaPerfilPublico({ params }) {
               "Valor a combinar"
             )}
           </p>
-          <a href={`/ir/${perfil.id}`} className="btn-primary whitespace-nowrap">
+          {/* /ir/<id> registra o contato e redireciona para o WhatsApp: robô não
+              deve seguir (robots.txt também bloqueia). */}
+          <a href={`/ir/${perfil.id}`} rel="nofollow" className="btn-primary whitespace-nowrap">
             Falar no WhatsApp
           </a>
         </div>

@@ -2,9 +2,33 @@ import Link from "next/link";
 import { buscarPerfisPublicos, listarEspecialidades } from "@/lib/data/diretorio";
 import { iniciais } from "@/lib/iniciais";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { DESCRICAO_BUSCA, IMAGEM_PADRAO, montarCompartilhamento } from "@/lib/seo";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const CADASTRO_URL = `${SITE_URL}/cadastro?origem=busca`;
+
+const FILTROS = ["cidade", "modalidade", "especialidade", "valorMax"];
+
+export async function generateMetadata({ searchParams }) {
+  const params = await searchParams;
+
+  // Resultado de busca filtrada são combinações sem fim e nenhuma delas vale
+  // como página própria: fora do índice (e sem canonical, que misturaria os
+  // sinais), mas com os links dos perfis seguidos.
+  if (FILTROS.some((filtro) => params[filtro])) {
+    return { robots: { index: false, follow: true } };
+  }
+
+  return {
+    alternates: { canonical: "/" },
+    ...montarCompartilhamento({
+      titulo: "Encontre um psicólogo | PsiAgente",
+      descricao: DESCRICAO_BUSCA,
+      url: "/",
+      imagens: [IMAGEM_PADRAO],
+    }),
+  };
+}
 
 const RESUMO_MODALIDADE = {
   presencial: "Presencial",

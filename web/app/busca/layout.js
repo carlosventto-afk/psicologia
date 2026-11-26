@@ -1,9 +1,14 @@
+import { DESCRICAO_BUSCA, origens } from "@/lib/seo";
+
 export const metadata = {
+  // O diretório vive em busca.psiagente.com.br: endereços relativos de
+  // canonical e Open Graph daqui para baixo resolvem contra o host da busca.
+  metadataBase: new URL(origens().busca),
   title: {
     default: "Encontre um psicólogo | PsiAgente",
     template: "%s | Encontre um psicólogo",
   },
-  description: "Encontre psicólogos por especialidade, cidade e modalidade de atendimento.",
+  description: DESCRICAO_BUSCA,
 };
 
 export default function LayoutBusca({ children }) {

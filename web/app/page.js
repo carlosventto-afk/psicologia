@@ -10,26 +10,26 @@ import {
 } from "@/components/icons/NavIcons";
 import { PLANOS } from "@/lib/planos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
-import { listarArtigosPublicados } from "@/lib/data/artigos";
+import { listarArtigosPublicadosPagina } from "@/lib/data/artigos";
 import ConsentimentoCookies from "@/components/ConsentimentoCookies";
 import LogoPsiAgente from "@/components/LogoPsiAgente";
+import JsonLd from "@/components/JsonLd";
+import { IMAGEM_PADRAO, jsonLdHome, montarCompartilhamento } from "@/lib/seo";
 
 const CADASTRO_URL = "/cadastro?origem=home";
 const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL ?? "https://blog.psiagente.com.br";
 
-const origem = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const TITULO = "PsiAgente — Gestão de consultório para psicólogos";
+const DESCRICAO =
+  "Agenda, pacientes, financeiro e lembrete automático de sessão por WhatsApp, com um agente que cuida da parte administrativa do seu consultório.";
 
 export const metadata = {
-  title: "PsiAgente — Gestão de consultório para psicólogos",
-  description:
-    "Agenda, pacientes, financeiro e lembrete automático de sessão por WhatsApp, com um agente que cuida da parte administrativa do seu consultório.",
-  openGraph: {
-    title: "PsiAgente — Gestão de consultório para psicólogos",
-    description:
-      "Agenda, pacientes, financeiro e lembrete automático de sessão por WhatsApp, com um agente que cuida da parte administrativa do seu consultório.",
-    type: "website",
-    images: [`${origem}/og-default.png`],
-  },
+  title: TITULO,
+  description: DESCRICAO,
+  // Canonical sem parâmetros: links de campanha (?utm_source=...) e a
+  // ?origem=... do cadastro não podem virar páginas duplicadas no índice.
+  alternates: { canonical: "/" },
+  ...montarCompartilhamento({ titulo: TITULO, descricao: DESCRICAO, url: "/", imagens: [IMAGEM_PADRAO] }),
 };
 
 const RECURSOS = [
@@ -141,11 +141,11 @@ function IconeInstagram(props) {
 }
 
 export default async function PaginaInicial() {
-  const artigos = await listarArtigosPublicados().catch(() => []);
-  const artigosDestaque = artigos.slice(0, 3);
+  const artigosDestaque = await listarArtigosPublicadosPagina({ inicio: 0, fim: 2 }).catch(() => []);
 
   return (
     <>
+      <JsonLd dados={jsonLdHome()} />
       <HeaderInstitucional />
 
       <main>

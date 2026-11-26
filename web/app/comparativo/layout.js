@@ -1,4 +1,5 @@
 import { sora, inter } from "@/lib/fontes";
+import { IMAGEM_PADRAO, montarCompartilhamento } from "@/lib/seo";
 import "./comparativo.css";
 
 const TITULO = "Carnê-Leão ou Simples Nacional? Compare quanto sobra para você";
@@ -9,12 +10,12 @@ export const metadata = {
   title: TITULO,
   description: DESCRICAO,
   alternates: { canonical: "/comparativo" },
-  openGraph: {
-    title: TITULO,
-    description: DESCRICAO,
-    type: "website",
+  ...montarCompartilhamento({
+    titulo: TITULO,
+    descricao: DESCRICAO,
     url: "/comparativo",
-  },
+    imagens: [IMAGEM_PADRAO],
+  }),
 };
 
 export default function LayoutComparativo({ children }) {
