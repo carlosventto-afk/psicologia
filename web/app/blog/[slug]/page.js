@@ -3,7 +3,7 @@ import Link from "next/link";
 import { marked } from "marked";
 import { buscarArtigoPublicadoPorSlug } from "@/lib/data/artigos";
 import { calcularTempoLeitura } from "@/lib/tempo-leitura";
-import { IMAGEM_PADRAO, descricaoArtigo, montarCompartilhamento, origens } from "@/lib/seo";
+import { descricaoArtigo, imagemDoArtigo, montarCompartilhamento, origens } from "@/lib/seo";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -13,9 +13,9 @@ export async function generateMetadata({ params }) {
 
   const url = `${origens().blog}/${artigo.slug}`;
   const descricao = descricaoArtigo(artigo);
-  // Capa do artigo; sem capa, a imagem padrão — nunca deixar o
+  // Capa do artigo; sem capa, o cartão com o título — nunca deixar o
   // compartilhamento sem imagem (exigência explícita do spec).
-  const imagens = [artigo.imagem_capa ?? IMAGEM_PADRAO];
+  const imagens = [imagemDoArtigo(artigo)];
 
   return {
     title: artigo.titulo,

@@ -464,6 +464,18 @@ export const IMAGEM_PADRAO = {
   alt: "PsiAgente — gestão de consultório para psicólogos",
 };
 
+// Imagem de compartilhamento de um artigo: a capa, quando há; senão o cartão
+// 1200x630 com o título, gerado por app/blog/[slug]/imagem-compartilhamento.
+export function imagemDoArtigo(artigo, o = origens()) {
+  if (artigo.imagem_capa) return artigo.imagem_capa;
+  return {
+    url: `${o.blog}/${artigo.slug}/imagem-compartilhamento`,
+    width: 1200,
+    height: 630,
+    alt: artigo.titulo,
+  };
+}
+
 // Todas as páginas do blog levam o feed RSS no <head>. Como o Next troca o
 // objeto `alternates` inteiro quando uma página define o seu, o feed precisa
 // acompanhar o canonical em cada uma delas — daí este montador.

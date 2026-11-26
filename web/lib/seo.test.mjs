@@ -21,6 +21,7 @@ import {
   montarCompartilhamento,
   IMAGEM_PADRAO,
   alternativasBlog,
+  imagemDoArtigo,
 } from "./seo.js";
 
 const O = origens({
@@ -439,6 +440,19 @@ test("IMAGEM_PADRAO: imagem 1200x630 servida do proprio host (relativa, resolvid
     width: 1200,
     height: 630,
     alt: "PsiAgente — gestão de consultório para psicólogos",
+  });
+});
+
+test("imagemDoArtigo: a capa do artigo, quando existe; senao o cartao gerado com o titulo", () => {
+  assert.equal(
+    imagemDoArtigo({ slug: "x", titulo: "T", imagem_capa: "https://img.example/x.jpg" }, O),
+    "https://img.example/x.jpg",
+  );
+  assert.deepEqual(imagemDoArtigo({ slug: "luto-e-perda", titulo: "Luto e perda", imagem_capa: null }, O), {
+    url: "https://blog.psiagente.com.br/luto-e-perda/imagem-compartilhamento",
+    width: 1200,
+    height: 630,
+    alt: "Luto e perda",
   });
 });
 
