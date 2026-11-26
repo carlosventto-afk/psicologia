@@ -8,12 +8,17 @@
 //   NEXT_PUBLIC_SITE_URL=https://psiagente.com.br NEXT_PUBLIC_BLOG_URL=https://blog.psiagente.com.br \
 //   NEXT_PUBLIC_BUSCA_URL=https://busca.psiagente.com.br npm run build
 //   (copiar public/ e .next/static para dentro de .next/standalone)
-//   PORT=3100 HOSTNAME=127.0.0.1 SUPABASE_SERVICE_ROLE_KEY=invalida \
+//   PORT=3100 HOSTNAME=localhost SUPABASE_SERVICE_ROLE_KEY=invalida \
 //     node --env-file=.env.local .next/standalone/server.js
-//   BASE=http://127.0.0.1:3100 node scripts/smoke-seo.mjs
+//   BASE=http://localhost:3100 node scripts/smoke-seo.mjs
+//
+// HOSTNAME=localhost (e não 127.0.0.1) importa: o Next monta a URL interna do proxy com esse valor, e
+// com 127.0.0.1 a regravação de blog./busca./comece. vira "externa" e o proxy roda de novo com
+// Host: localhost, o que faz o robots.txt sair igual em todos os hosts e o smoke falhar sem haver
+// defeito no código. A produção usa HOSTNAME=0.0.0.0 e não sofre disso.
 import http from "node:http";
 
-const BASE = new URL(process.env.BASE ?? "http://127.0.0.1:3100");
+const BASE = new URL(process.env.BASE ?? "http://localhost:3100");
 const SITE_HOST = "psiagente.com.br";
 const BLOG_HOST = "blog.psiagente.com.br";
 const BUSCA_HOST = "busca.psiagente.com.br";
