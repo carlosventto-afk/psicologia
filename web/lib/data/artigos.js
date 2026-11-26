@@ -26,7 +26,7 @@ export async function listarArtigosPublicados(categoriaSlug) {
   let query = supabase
     .from("artigos")
     .select(
-      "id, titulo, slug, resumo, conteudo, autor, publicado_em, imagem_capa, artigo_categorias(categorias(nome, slug))"
+      "id, titulo, slug, resumo, conteudo, autor, publicado_em, atualizado_em, imagem_capa, artigo_categorias(categorias(nome, slug))"
     )
     .eq("publicado", true)
     .order("publicado_em", { ascending: false });

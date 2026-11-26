@@ -121,11 +121,12 @@ export async function proxy(request) {
   // updateSession.
   if (host.startsWith("busca.")) {
     const url = request.nextUrl.clone();
-    const isMetadataFile = url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt";
-    // sitemap.js/robots.js só existem na raiz do app (não têm convenção
-    // aninhada por segmento) — não prefixar, senão viram /busca/sitemap.xml
-    // e dão 404.
-    if (!isMetadataFile && !dentroDoPrefixo(url.pathname, "/busca")) {
+    // robots.js só existe na raiz do app (não tem convenção aninhada) e
+    // escolhe o conteúdo pelo host — não prefixar, senão vira
+    // /busca/robots.txt e dá 404. O sitemap é um por segmento
+    // (app/busca/sitemap.js), então esse sim recebe o prefixo.
+    const isRobots = url.pathname === "/robots.txt";
+    if (!isRobots && !dentroDoPrefixo(url.pathname, "/busca")) {
       url.pathname = `/busca${url.pathname}`;
     }
     return comCookieVisitante(NextResponse.rewrite(url), sessaoId, novo);
@@ -136,11 +137,12 @@ export async function proxy(request) {
   // precisa criar client do Supabase pra checar sessão a cada pageview.
   if (host.startsWith("blog.")) {
     const url = request.nextUrl.clone();
-    const isMetadataFile = url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt";
-    // sitemap.js/robots.js só existem na raiz do app (não têm convenção
-    // aninhada por segmento) — não prefixar, senão viram /blog/sitemap.xml
-    // e dão 404.
-    if (!isMetadataFile && !dentroDoPrefixo(url.pathname, "/blog")) {
+    // robots.js só existe na raiz do app (não tem convenção aninhada) e
+    // escolhe o conteúdo pelo host — não prefixar, senão vira
+    // /blog/robots.txt e dá 404. O sitemap é um por segmento
+    // (app/blog/sitemap.js), então esse sim recebe o prefixo.
+    const isRobots = url.pathname === "/robots.txt";
+    if (!isRobots && !dentroDoPrefixo(url.pathname, "/blog")) {
       url.pathname = `/blog${url.pathname}`;
     }
     return comCookieVisitante(NextResponse.rewrite(url), sessaoId, novo);
