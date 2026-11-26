@@ -120,6 +120,18 @@ const artigos = [
       { nome: "Ansiedade", slug: "ansiedade" },
     ],
   },
+  {
+    slug: "estresse",
+    titulo: "Estresse",
+    publicado_em: "2026-10-05T10:00:00Z",
+    categorias: [{ nome: "Ansiedade", slug: "ansiedade" }],
+  },
+  {
+    slug: "perda",
+    titulo: "Perda",
+    publicado_em: "2026-10-04T10:00:00Z",
+    categorias: [{ nome: "Luto", slug: "luto" }],
+  },
   { slug: "sem-categoria", titulo: "Sem", publicado_em: "2026-09-01T10:00:00Z", categorias: [] },
 ];
 
@@ -132,16 +144,18 @@ test("sitemap do site: home, comparativo e cadastro, sem data inventada", () => 
   for (const e of s) assert.equal(e.lastModified, undefined);
 });
 
-test("sitemap do blog: home, categorias com artigo e artigos — so URLs do host do blog", () => {
+test("sitemap do blog: home, categorias com 3+ artigos e artigos — so URLs do host do blog", () => {
   const s = sitemapBlog(artigos, O);
   assert.deepEqual(
     s.map((e) => e.url),
     [
       "https://blog.psiagente.com.br",
+      // "luto" tem so 2 artigos: pagina fina, fica de fora do sitemap
       "https://blog.psiagente.com.br/categoria/ansiedade",
-      "https://blog.psiagente.com.br/categoria/luto",
       "https://blog.psiagente.com.br/ansiedade",
       "https://blog.psiagente.com.br/luto",
+      "https://blog.psiagente.com.br/estresse",
+      "https://blog.psiagente.com.br/perda",
       "https://blog.psiagente.com.br/sem-categoria",
     ],
   );
@@ -156,7 +170,6 @@ test("sitemap do blog: lastModified real (atualizado_em ou, sem ele, publicado_e
   // home e categorias: data do artigo mais recente que elas listam
   assert.equal(por["https://blog.psiagente.com.br"], "2026-11-01T10:00:00.000Z");
   assert.equal(por["https://blog.psiagente.com.br/categoria/ansiedade"], "2026-11-01T10:00:00.000Z");
-  assert.equal(por["https://blog.psiagente.com.br/categoria/luto"], "2026-10-10T10:00:00.000Z");
 });
 
 test("sitemap do blog: sem artigos so a home, sem data", () => {

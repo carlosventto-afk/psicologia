@@ -3,6 +3,34 @@
 
 export const POR_PAGINA = 12;
 
+// Categoria com menos artigos que isso é página fina (repete o que já está nos
+// artigos): continua existindo para o leitor, mas sai do sitemap e do índice.
+export const MIN_ARTIGOS_CATEGORIA = 3;
+
+// Número da página para quem só precisa de um valor (metadata): o inteiro em
+// forma canônica, ou 1. Quem precisa decidir 404 usa `paginar`.
+export function numeroDaPagina(paginaParam) {
+  const texto = String(paginaParam ?? "");
+  return /^[1-9]\d*$/.test(texto) ? Number(texto) : 1;
+}
+
+// Linhas da junção artigo x categoria (uma por par) viram a lista de
+// categorias com o total de artigos, em ordem alfabética.
+export function agruparCategorias(linhas) {
+  const porSlug = new Map();
+  for (const linha of linhas) {
+    const categoria = linha.categorias;
+    if (!categoria?.slug) continue;
+    const atual = porSlug.get(categoria.slug);
+    if (atual) {
+      atual.total += 1;
+    } else {
+      porSlug.set(categoria.slug, { id: categoria.id, nome: categoria.nome, slug: categoria.slug, total: 1 });
+    }
+  }
+  return [...porSlug.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
 // `paginaParam` vem da URL (?pagina=2). Só vale o inteiro positivo em forma
 // canônica ("2", não "02" nem "2.0"), dentro do total de páginas: qualquer
 // outra coisa é inválida e o chamador responde 404, em vez de servir a mesma

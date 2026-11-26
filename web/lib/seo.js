@@ -2,6 +2,7 @@
 // dados estruturados e Open Graph). Módulo puro — sem imports do Next nem do
 // banco — para poder ser testado com `node --test`.
 
+import { MIN_ARTIGOS_CATEGORIA } from "./blog.js";
 import { classificarHost } from "./hosts.js";
 
 const PADRAO = {
@@ -129,7 +130,8 @@ export function sitemapSite(o = origens()) {
 }
 
 // `artigos`: publicados, cada um com `categorias: [{ nome, slug }]`. Só entram
-// categorias que têm pelo menos um artigo (categoria vazia seria página fina).
+// categorias com artigos suficientes (MIN_ARTIGOS_CATEGORIA): menos que isso é
+// página fina, que só repete os artigos.
 export function sitemapBlog(artigos, o = origens()) {
   const modificadoEm = (a) => paraIso(a.atualizado_em ?? a.publicado_em);
 
@@ -142,9 +144,9 @@ export function sitemapBlog(artigos, o = origens()) {
       categorias.set(categoria.slug, item);
     }
   }
-  const categoriasOrdenadas = [...categorias.entries()].sort((x, y) =>
-    x[1].nome.localeCompare(y[1].nome, "pt-BR"),
-  );
+  const categoriasOrdenadas = [...categorias.entries()]
+    .filter(([, { datas }]) => datas.length >= MIN_ARTIGOS_CATEGORIA)
+    .sort((x, y) => x[1].nome.localeCompare(y[1].nome, "pt-BR"));
 
   return [
     semUndefined({

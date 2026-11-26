@@ -1,9 +1,17 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { marked } from "marked";
-import { buscarArtigoPublicadoPorSlug } from "@/lib/data/artigos";
+import LeiaTambem from "@/components/blog/LeiaTambem";
+import { buscarArtigoPublicadoPorSlug, listarArtigosResumo } from "@/lib/data/artigos";
+import { escolherRelacionados } from "@/lib/blog";
 import { calcularTempoLeitura } from "@/lib/tempo-leitura";
-import { descricaoArtigo, imagemDoArtigo, montarCompartilhamento, origens } from "@/lib/seo";
+import {
+  alternativasBlog,
+  descricaoArtigo,
+  imagemDoArtigo,
+  montarCompartilhamento,
+  origens,
+} from "@/lib/seo";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -20,9 +28,7 @@ export async function generateMetadata({ params }) {
   return {
     title: artigo.titulo,
     description: descricao,
-    alternates: {
-      canonical: url,
-    },
+    alternates: alternativasBlog(url),
     ...montarCompartilhamento({
       titulo: artigo.titulo,
       descricao,
@@ -49,6 +55,7 @@ export default async function PaginaArtigo({ params }) {
 
   const html = marked.parse(artigo.conteudo);
   const tempoLeitura = calcularTempoLeitura(artigo.conteudo);
+  const relacionados = escolherRelacionados(artigo, await listarArtigosResumo(), 3);
 
   const origem = process.env.NEXT_PUBLIC_BLOG_URL ?? "http://localhost:3000";
   // Mesmo fallback do Open Graph (ver generateMetadata acima): rich
@@ -73,6 +80,7 @@ export default async function PaginaArtigo({ params }) {
   const jsonLdString = JSON.stringify(jsonLd).replace(/</g, "\\u003c");
 
   return (
+    <>
     <article className="space-y-4">
       <script
         type="application/ld+json"
@@ -97,7 +105,7 @@ export default async function PaginaArtigo({ params }) {
         {artigo.categorias.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {artigo.categorias.map((c) => (
-              <Link key={c.slug} href={`/?categoria=${c.slug}`} className="blog-categoria-badge">
+              <Link key={c.slug} href={`/categoria/${c.slug}`} className="blog-categoria-badge">
                 {c.nome}
               </Link>
             ))}
@@ -107,5 +115,8 @@ export default async function PaginaArtigo({ params }) {
 
       <div className="article-content" dangerouslySetInnerHTML={{ __html: html }} />
     </article>
+
+    <LeiaTambem artigos={relacionados} />
+    </>
   );
 }

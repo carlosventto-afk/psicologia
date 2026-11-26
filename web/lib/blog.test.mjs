@@ -1,9 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { POR_PAGINA, paginar, escolherRelacionados } from "./blog.js";
+import {
+  POR_PAGINA,
+  MIN_ARTIGOS_CATEGORIA,
+  paginar,
+  numeroDaPagina,
+  agruparCategorias,
+  escolherRelacionados,
+} from "./blog.js";
 
-test("POR_PAGINA: 12 artigos por pagina", () => {
+test("POR_PAGINA: 12 artigos por pagina; categoria so e indexada a partir de 3 artigos", () => {
   assert.equal(POR_PAGINA, 12);
+  assert.equal(MIN_ARTIGOS_CATEGORIA, 3);
+});
+
+test("numeroDaPagina: so o inteiro canonico vale; qualquer outra coisa e a pagina 1", () => {
+  assert.equal(numeroDaPagina("3"), 3);
+  assert.equal(numeroDaPagina("12"), 12);
+  for (const ruim of [undefined, null, "", "abc", "0", "-2", "02", "1.5", ["1", "2"]]) {
+    assert.equal(numeroDaPagina(ruim), 1, `devia ser 1 para ${JSON.stringify(ruim)}`);
+  }
+});
+
+test("agruparCategorias: junta as linhas da juncao por categoria, conta artigos e ordena pelo nome", () => {
+  const linhas = [
+    { categorias: { id: 2, nome: "Psicologia", slug: "psicologia" } },
+    { categorias: { id: 1, nome: "Ansiedade", slug: "ansiedade" } },
+    { categorias: { id: 2, nome: "Psicologia", slug: "psicologia" } },
+    { categorias: null },
+  ];
+  assert.deepEqual(agruparCategorias(linhas), [
+    { id: 1, nome: "Ansiedade", slug: "ansiedade", total: 1 },
+    { id: 2, nome: "Psicologia", slug: "psicologia", total: 2 },
+  ]);
+  assert.deepEqual(agruparCategorias([]), []);
 });
 
 test("paginar: primeira pagina", () => {

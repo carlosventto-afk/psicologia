@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DESCRICAO_BLOG, origens } from "@/lib/seo";
+import { DESCRICAO_BLOG, alternativasBlog, origens } from "@/lib/seo";
 
 export const metadata = {
   // O blog vive em blog.psiagente.com.br: endereços relativos de canonical,
@@ -10,6 +10,9 @@ export const metadata = {
     template: "%s · Blog PsiAgente",
   },
   description: DESCRICAO_BLOG,
+  // Feed RSS em todas as páginas do blog. Cada página que define o próprio
+  // `alternates` (canonical) o refaz com alternativasBlog.
+  alternates: alternativasBlog(),
 };
 
 export default function LayoutBlog({ children }) {

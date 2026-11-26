@@ -10,7 +10,7 @@ import {
 } from "@/components/icons/NavIcons";
 import { PLANOS } from "@/lib/planos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
-import { listarArtigosPublicados } from "@/lib/data/artigos";
+import { listarArtigosPublicadosPagina } from "@/lib/data/artigos";
 import ConsentimentoCookies from "@/components/ConsentimentoCookies";
 import LogoPsiAgente from "@/components/LogoPsiAgente";
 import { IMAGEM_PADRAO, montarCompartilhamento } from "@/lib/seo";
@@ -140,8 +140,7 @@ function IconeInstagram(props) {
 }
 
 export default async function PaginaInicial() {
-  const artigos = await listarArtigosPublicados().catch(() => []);
-  const artigosDestaque = artigos.slice(0, 3);
+  const artigosDestaque = await listarArtigosPublicadosPagina({ inicio: 0, fim: 2 }).catch(() => []);
 
   return (
     <>
