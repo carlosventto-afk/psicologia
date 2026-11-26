@@ -3,6 +3,7 @@ import Link from "next/link";
 import { marked } from "marked";
 import { buscarArtigoPublicadoPorSlug } from "@/lib/data/artigos";
 import { calcularTempoLeitura } from "@/lib/tempo-leitura";
+import { IMAGEM_PADRAO, descricaoArtigo, montarCompartilhamento, origens } from "@/lib/seo";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -10,26 +11,31 @@ export async function generateMetadata({ params }) {
 
   if (!artigo) return {};
 
-  const origem = process.env.NEXT_PUBLIC_BLOG_URL ?? "http://localhost:3000";
-  const url = `${origem}/${artigo.slug}`;
-  // Fallback pro logo do PsiAgente quando o artigo não tem capa — nunca
-  // deixar o compartilhamento sem imagem (exigência explícita do spec).
-  const imagemOg = artigo.imagem_capa ?? `${origem}/og-default.png`;
-  const imagens = [{ url: imagemOg }];
+  const url = `${origens().blog}/${artigo.slug}`;
+  const descricao = descricaoArtigo(artigo);
+  // Capa do artigo; sem capa, a imagem padrão — nunca deixar o
+  // compartilhamento sem imagem (exigência explícita do spec).
+  const imagens = [artigo.imagem_capa ?? IMAGEM_PADRAO];
 
   return {
     title: artigo.titulo,
-    description: artigo.resumo ?? undefined,
+    description: descricao,
     alternates: {
       canonical: url,
     },
-    openGraph: {
-      title: artigo.titulo,
-      description: artigo.resumo ?? undefined,
-      type: "article",
+    ...montarCompartilhamento({
+      titulo: artigo.titulo,
+      descricao,
       url,
-      images: imagens,
-    },
+      tipo: "article",
+      imagens,
+      extras: {
+        publishedTime: artigo.publicado_em,
+        modifiedTime: artigo.atualizado_em ?? artigo.publicado_em,
+        section: artigo.categorias[0]?.nome,
+        tags: artigo.categorias.map((c) => c.nome),
+      },
+    }),
   };
 }
 

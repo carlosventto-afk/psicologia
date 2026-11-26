@@ -1,6 +1,7 @@
 export const metadata = {
   title: "Termos de Uso do Diretório | PsiAgente",
   description: "Termos de uso do diretório público de psicólogos do PsiAgente.",
+  alternates: { canonical: "/termos" },
 };
 
 export default function PaginaTermos() {

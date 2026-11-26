@@ -19,6 +19,8 @@ import {
   tituloPerfil,
   descricaoPerfil,
   montarCompartilhamento,
+  IMAGEM_PADRAO,
+  alternativasBlog,
 } from "./seo.js";
 
 const O = origens({
@@ -407,6 +409,13 @@ test("tituloPerfil: nome + psicologo(a) + local", () => {
   assert.equal(tituloPerfil({ ...perfil, cidade: null, estado: null }), "Marta Lima — Psicólogo(a) online");
 });
 
+test("tituloPerfil e descricaoPerfil: sem nome nunca escrevem 'null'", () => {
+  const semNome = { ...perfil, nome: null };
+  assert.equal(tituloPerfil(semNome), "Psicólogo(a) em Belém/PA");
+  assert.doesNotMatch(descricaoPerfil({ ...semNome, bio: null }), /null/);
+  assert.match(descricaoPerfil({ ...semNome, bio: null }), /^Psicólogo\(a\) em Belém\/PA\./);
+});
+
 test("descricaoPerfil: bio boa vale; bio curta ou ausente vira texto montado com os dados", () => {
   const longa =
     "Psicóloga clínica com foco em ansiedade e luto, atendendo adultos e adolescentes há mais de dez anos em Belém.";
@@ -423,6 +432,23 @@ test("descricaoPerfil: bio boa vale; bio curta ou ausente vira texto montado com
 });
 
 // ------------------------------------------------------ compartilhamento
+
+test("IMAGEM_PADRAO: imagem 1200x630 servida do proprio host (relativa, resolvida pelo metadataBase)", () => {
+  assert.deepEqual(IMAGEM_PADRAO, {
+    url: "/og-default.png",
+    width: 1200,
+    height: 630,
+    alt: "PsiAgente — gestão de consultório para psicólogos",
+  });
+});
+
+test("alternativasBlog: canonical e feed RSS juntos (o Next troca 'alternates' inteiro a cada pagina)", () => {
+  assert.deepEqual(alternativasBlog("/categoria/x"), {
+    canonical: "/categoria/x",
+    types: { "application/rss+xml": "/feed.xml" },
+  });
+  assert.deepEqual(alternativasBlog(), { types: { "application/rss+xml": "/feed.xml" } });
+});
 
 test("montarCompartilhamento: Open Graph e Twitter com marca e idioma fixos", () => {
   const c = montarCompartilhamento({

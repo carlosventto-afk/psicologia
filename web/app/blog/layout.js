@@ -1,11 +1,15 @@
 import Link from "next/link";
+import { DESCRICAO_BLOG, origens } from "@/lib/seo";
 
 export const metadata = {
+  // O blog vive em blog.psiagente.com.br: endereços relativos de canonical,
+  // Open Graph e feed daqui para baixo resolvem contra o host do blog.
+  metadataBase: new URL(origens().blog),
   title: {
     default: "Blog PsiAgente",
     template: "%s · Blog PsiAgente",
   },
-  description: "Artigos sobre psicologia e saúde mental.",
+  description: DESCRICAO_BLOG,
 };
 
 export default function LayoutBlog({ children }) {

@@ -11,6 +11,9 @@ const PADRAO = {
 };
 
 export const NOME_SITE = "PsiAgente";
+export const DESCRICAO_BLOG = "Artigos sobre psicologia e saúde mental.";
+export const DESCRICAO_BUSCA =
+  "Encontre psicólogos por cidade, especialidade e modalidade (presencial ou online) e fale direto pelo WhatsApp, sem intermediários.";
 const INSTAGRAM = "https://instagram.com/psiagente";
 const DESCRICAO_SITE =
   "Agenda, pacientes, financeiro e lembrete automático de sessão por WhatsApp, com um agente que cuida da parte administrativa do consultório de psicologia.";
@@ -430,7 +433,8 @@ export function jsonLdPerfil(perfil, { url }) {
 }
 
 export function tituloPerfil(perfil) {
-  return `${perfil.nome} — Psicólogo(a) ${localDoPerfil(perfil)}`;
+  const funcao = `Psicólogo(a) ${localDoPerfil(perfil)}`;
+  return perfil.nome ? `${perfil.nome} — ${funcao}` : funcao;
 }
 
 // Bio boa (>= 70 caracteres) vale como está. Bio curta ou ausente vira um
@@ -441,7 +445,8 @@ export function descricaoPerfil(perfil) {
   if (bio && bio.length >= 70) return bio;
 
   const especialidades = nomesEspecialidades(perfil);
-  const partes = [`${perfil.nome}, psicólogo(a) ${localDoPerfil(perfil)}.`];
+  const apresentacao = perfil.nome ? `${perfil.nome}, psicólogo(a)` : "Psicólogo(a)";
+  const partes = [`${apresentacao} ${localDoPerfil(perfil)}.`];
   if (bio) partes.push(/[.!?]$/.test(bio) ? bio : `${bio}.`);
   if (especialidades.length > 0) partes.push(`Especialidades: ${especialidades.join(", ")}.`);
   partes.push("Fale direto pelo WhatsApp.");
@@ -449,6 +454,22 @@ export function descricaoPerfil(perfil) {
 }
 
 // ----------------------------------------------------------- compartilhar
+
+// Imagem padrão de compartilhamento (public/og-default.png). URL relativa de
+// propósito: o `metadataBase` do layout de cada host monta o endereço absoluto.
+export const IMAGEM_PADRAO = {
+  url: "/og-default.png",
+  width: 1200,
+  height: 630,
+  alt: "PsiAgente — gestão de consultório para psicólogos",
+};
+
+// Todas as páginas do blog levam o feed RSS no <head>. Como o Next troca o
+// objeto `alternates` inteiro quando uma página define o seu, o feed precisa
+// acompanhar o canonical em cada uma delas — daí este montador.
+export function alternativasBlog(canonical) {
+  return semUndefined({ canonical, types: { "application/rss+xml": "/feed.xml" } });
+}
 
 // O `openGraph` de uma página SUBSTITUI o do layout (o Next mescla de forma
 // rasa), então marca e idioma precisam ir em todos — daí este montador único.
