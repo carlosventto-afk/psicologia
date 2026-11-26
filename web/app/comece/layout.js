@@ -1,19 +1,5 @@
-import { Sora, Inter } from "next/font/google";
+import { sora, inter } from "@/lib/fontes";
 import "./comece.css";
-
-const sora = Sora({
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-body",
-  display: "swap",
-});
 
 export const metadata = {
   title: "PsiAgente — menos trabalho repetitivo, mais paciente",
