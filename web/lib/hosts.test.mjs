@@ -47,7 +47,8 @@ test("ehHostLocal: localhost, subdominios de localhost, loopback e IP puro", () 
   assert.equal(ehHostLocal("127.0.0.1:3000"), true);
   assert.equal(ehHostLocal("[::1]:3000"), true);
   assert.equal(ehHostLocal("0.0.0.0:3000"), true);
-  assert.equal(ehHostLocal("179.198.103.130"), true);
+  // 203.0.113.0/24 e a faixa reservada para documentacao (RFC 5737): qualquer IPv4 puro vale
+  assert.equal(ehHostLocal("203.0.113.7"), true);
   assert.equal(ehHostLocal(""), true);
   assert.equal(ehHostLocal(undefined), true);
   assert.equal(ehHostLocal("psiagente.com.br"), false);
@@ -83,5 +84,5 @@ test("deveRastrearVisita: hosts locais e IP puro nao entram na analise de visita
   assert.equal(deveRastrearVisita("comece.localhost:3000", "/"), false);
   assert.equal(deveRastrearVisita("busca.localhost", "/"), false);
   assert.equal(deveRastrearVisita("127.0.0.1:3000", "/login"), false);
-  assert.equal(deveRastrearVisita("179.198.103.130", "/"), false);
+  assert.equal(deveRastrearVisita("203.0.113.7", "/"), false);
 });
