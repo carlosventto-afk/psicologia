@@ -31,6 +31,55 @@ export function montarDescricaoNota({ datasISO, nomeProfissional, crp }) {
   return `Atendimento(s) psicológico(s) em ${formatarListaDatas(datasISO)}.\n\nServiço prestado por:\n${nomeProfissional}\nCRP: ${crp}`;
 }
 
+// Datas no estilo do modelo do cliente: "03, 10, 17 e 24/03/2026" quando todas caem no mesmo mês;
+// ao cruzar meses (ou anos) usa a lista completa de formatarListaDatas.
+export function formatarListaDatasCompacta(datasISO) {
+  const datas = datasUnicasOrdenadas(datasISO ?? []);
+  if (datas.length === 0) return "";
+  if (new Set(datas.map((d) => d.slice(0, 7))).size > 1) return formatarListaDatas(datas);
+  const [ano, mes] = datas[0].split("-");
+  const dias = datas.map((d) => d.slice(8, 10));
+  const lista = dias.length === 1 ? dias[0] : `${dias.slice(0, -1).join(", ")} e ${dias[dias.length - 1]}`;
+  return `${lista}/${mes}/${ano}`;
+}
+
+// 11 dígitos ganham a máscara 000.000.000-00; qualquer outra coisa sai como está (aparada).
+export function formatarCpf(valor) {
+  const digitos = apenasDigitos(valor);
+  if (digitos.length === 11) {
+    return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-${digitos.slice(9)}`;
+  }
+  return String(valor ?? "").trim();
+}
+
+// Descrição para nota emitida no nome do responsável financeiro: identifica o paciente atendido.
+// Uma linha só, com espaço entre os campos (o serviço de emissão troca quebras de linha por espaço
+// de qualquer jeito). Os dois espaços depois de "Sr.(a):" e "CPF:" são do modelo do cliente.
+// pacientes: [{ nome, cpf }]; vários são separados por ponto e vírgula.
+export function montarDescricaoNotaComPaciente({ datasISO, pacientes, nomeProfissional, crp }) {
+  const quem = (pacientes ?? [])
+    .map((p) => {
+      const nome = String(p.nome).trim();
+      const cpf = formatarCpf(p.cpf);
+      return cpf ? `${nome} CPF:  ${cpf}` : nome;
+    })
+    .join("; ");
+  return `Atendimento(s) psicológico(s) em ${formatarListaDatasCompacta(datasISO)} Atendimento ao(à) Sr.(a):  ${quem} Serviço prestado por: ${nomeProfissional} CRP: ${crp}`;
+}
+
+// Escolhe a descrição da nota. Com o paciente só quando a nota sai no nome do responsável
+// financeiro e nenhum paciente da nota está marcado "não imprimir na nota fiscal" (basta um
+// marcado para a nota inteira usar a descrição padrão). pacientes: [{ nome, cpf, naoImprimir }].
+export function descricaoDaNota({ tomadorOrigem, pacientes, datasISO, nomeProfissional, crp }) {
+  const lista = pacientes ?? [];
+  const comNome = lista.filter((p) => String(p?.nome ?? "").trim() !== "");
+  const imprimirPaciente =
+    tomadorOrigem === "responsavel" && comNome.length > 0 && !lista.some((p) => p?.naoImprimir === true);
+  return imprimirPaciente
+    ? montarDescricaoNotaComPaciente({ datasISO, pacientes: comNome, nomeProfissional, crp })
+    : montarDescricaoNota({ datasISO, nomeProfissional, crp });
+}
+
 export function competenciaDaNota(datasISO) {
   if (!datasISO || datasISO.length === 0) {
     throw new Error("Lista de datas vazia: não há competência para a nota.");
@@ -152,9 +201,11 @@ export function contarRejeitadas(notas) {
   return (notas ?? []).filter((n) => n.status === "rejeitada").length;
 }
 
-// rateios: [{ id, valor_aplicado, data }] (uma linha de RecebimentoSessao com a
-// data da sessão). Devolve as notas a emitir: uma só (modo cobrança) ou uma por
-// rateio (modo sessão). Lança se faltar rateio, data ou valor positivo.
+// rateios: [{ id, valor_aplicado, data, paciente? }] (uma linha de RecebimentoSessao com a
+// data da sessão e o paciente atendido { id, nome, cpf, naoImprimir }). Devolve as notas a
+// emitir: uma só (modo cobrança) ou uma por rateio (modo sessão). Cada nota leva os pacientes
+// atendidos (sem repetir, na ordem das sessões) para a descrição. Lança se faltar rateio, data
+// ou valor positivo.
 // competenciaOrigem 'pagamento': a competência de cada nota é dataPagamento (data do
 // recebimento da cobrança) em vez da data dos atendimentos; datasISO continua com os
 // atendimentos, que é o que a descrição da nota lista.
@@ -178,6 +229,7 @@ export function planejarNotas({ emissaoPor, rateios, competenciaOrigem = "atendi
       valor: paraCentavos(r.valor_aplicado) / 100,
       datasISO: [data(r)],
       competencia: pelaDataDoPagamento ?? competenciaDaNota([data(r)]),
+      pacientes: r.paciente ? [r.paciente] : [],
     }));
   }
   const datasISO = rateios.map(data);
@@ -187,8 +239,25 @@ export function planejarNotas({ emissaoPor, rateios, competenciaOrigem = "atendi
       valor: somarValores(rateios.map((r) => r.valor_aplicado)),
       datasISO,
       competencia: pelaDataDoPagamento ?? competenciaDaNota(datasISO),
+      pacientes: pacientesDosRateios(rateios),
     },
   ];
+}
+
+// Pacientes atendidos nos rateios, sem repetir (por id), na ordem da data da sessão.
+function pacientesDosRateios(rateios) {
+  const porData = [...rateios].sort((a, b) => String(a.data).slice(0, 10).localeCompare(String(b.data).slice(0, 10)));
+  const vistos = new Set();
+  const lista = [];
+  for (const r of porData) {
+    const p = r.paciente;
+    if (!p) continue;
+    const chave = p.id ?? p.nome;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    lista.push(p);
+  }
+  return lista;
 }
 
 export function montarPayloadEmissao({ reserva, fiscal, plano, tomador, nomeProfissional, crp }) {
@@ -213,7 +282,9 @@ export function montarPayloadEmissao({ reserva, fiscal, plano, tomador, nomeProf
       nome: tomador.nome,
       email: tomador.email || null,
     },
-    descricao_servico: montarDescricaoNota({
+    descricao_servico: descricaoDaNota({
+      tomadorOrigem: tomador.origem,
+      pacientes: plano.pacientes,
       datasISO: plano.datasISO,
       nomeProfissional: String(nomeProfissional ?? "").trim(),
       crp: String(crp ?? "").trim(),

@@ -201,20 +201,25 @@ export async function emitirNotasDaCobranca(supabase, cobrancaId, { owner } = {}
 
     const emissaoPor = cobranca.emissao_por === "sessao" ? "sessao" : "cobranca";
 
-    // Rateio do recebimento, com a data de cada sessão e a data do pagamento (a mesma em todas as linhas).
+    // Rateio do recebimento, com a data e o paciente de cada sessão (a descrição da nota no nome do
+    // responsável financeiro identifica o paciente) e a data do pagamento (a mesma em todas as linhas).
     const { data: linhas, error: erroRateio } = await supabase
       .from("RecebimentoSessao")
-      .select("id, valor_aplicado, Sessao(data), Recebimento(data_recebimento)")
+      .select("id, valor_aplicado, Sessao(data, Paciente(id, nome, cpf, nao_imprimir_na_nota)), Recebimento(data_recebimento)")
       .eq("recebimento", cobranca.recebimento)
       .order("id");
     if (erroRateio) return { notas: [], pendencia: "Não foi possível carregar o recebimento: " + erroRateio.message };
 
-    const rateios = (linhas ?? []).map((l) => ({
-      id: l.id,
-      valor_aplicado: l.valor_aplicado,
-      data: l.Sessao?.data ?? null,
-      dataPagamento: l.Recebimento?.data_recebimento ?? null,
-    }));
+    const rateios = (linhas ?? []).map((l) => {
+      const p = l.Sessao?.Paciente;
+      return {
+        id: l.id,
+        valor_aplicado: l.valor_aplicado,
+        data: l.Sessao?.data ?? null,
+        dataPagamento: l.Recebimento?.data_recebimento ?? null,
+        paciente: p ? { id: p.id, nome: p.nome, cpf: p.cpf, naoImprimir: p.nao_imprimir_na_nota === true } : null,
+      };
+    });
     if (rateios.length === 0) return { notas: [], pendencia: "Recebimento sem sessões aplicadas." };
     const rateioIds = rateios.map((r) => r.id);
 

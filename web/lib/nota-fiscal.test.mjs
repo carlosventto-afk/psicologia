@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import {
   formatarListaDatas,
   montarDescricaoNota,
+  formatarListaDatasCompacta,
+  formatarCpf,
+  montarDescricaoNotaComPaciente,
+  descricaoDaNota,
   competenciaDaNota,
   escolherTomador,
   validarPreCondicoes,
@@ -742,4 +746,165 @@ test("montarAtualizacaoVerificadaNaoEmitida: rejeitada com mensagem clara", () =
     ultimo_erro: MENSAGEM_VERIFICADA_NAO_EMITIDA,
   });
   assert.equal(montarAtualizacaoVerificadaNaoEmitida({}).dps_id, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// Descrição com o paciente (nota no nome do responsável financeiro)
+// ---------------------------------------------------------------------------
+
+test("formatarListaDatasCompacta: mesmo mês vira dias + mês/ano no fim", () => {
+  assert.equal(formatarListaDatasCompacta(["2026-03-03", "2026-03-10", "2026-03-17", "2026-03-24"]), "03, 10, 17 e 24/03/2026");
+  assert.equal(formatarListaDatasCompacta(["2026-03-10", "2026-03-03"]), "03 e 10/03/2026");
+  assert.equal(formatarListaDatasCompacta(["2026-03-03"]), "03/03/2026");
+});
+
+test("formatarListaDatasCompacta: ordena, remove repetidas e, ao cruzar meses, usa as datas completas", () => {
+  assert.equal(formatarListaDatasCompacta(["2026-03-10", "2026-03-03", "2026-03-10"]), "03 e 10/03/2026");
+  assert.equal(formatarListaDatasCompacta(["2026-03-03", "2026-02-24"]), "24/02/2026 e 03/03/2026");
+  assert.equal(formatarListaDatasCompacta(["2026-12-29", "2027-01-05", "2026-12-22"]), "22/12/2026, 29/12/2026 e 05/01/2027");
+  assert.equal(formatarListaDatasCompacta([]), "");
+});
+
+test("formatarCpf: 11 dígitos ganham máscara; o resto sai como está (aparado) e vazio vira vazio", () => {
+  assert.equal(formatarCpf("52998224725"), "529.982.247-25");
+  assert.equal(formatarCpf(" 529.982.247-25 "), "529.982.247-25");
+  assert.equal(formatarCpf("123"), "123");
+  assert.equal(formatarCpf(""), "");
+  assert.equal(formatarCpf(null), "");
+  assert.equal(formatarCpf(undefined), "");
+});
+
+const helena = { id: 1, nome: "Helena Prado Souza", cpf: "529.982.247-25", naoImprimir: false };
+const joao = { id: 2, nome: "João Pedro Alves", cpf: "11122233344", naoImprimir: false };
+const profissional = { nomeProfissional: "Ana Souza", crp: "06/12345" };
+
+test("montarDescricaoNotaComPaciente: o modelo do cliente em uma linha, com espaço entre os campos", () => {
+  assert.equal(
+    montarDescricaoNotaComPaciente({
+      datasISO: ["2026-03-03", "2026-03-10", "2026-03-17", "2026-03-24"],
+      pacientes: [helena],
+      ...profissional,
+    }),
+    "Atendimento(s) psicológico(s) em 03, 10, 17 e 24/03/2026 Atendimento ao(à) Sr.(a):  Helena Prado Souza CPF:  529.982.247-25 Serviço prestado por: Ana Souza CRP: 06/12345",
+  );
+});
+
+test("montarDescricaoNotaComPaciente: paciente sem CPF sai só com o nome", () => {
+  const texto = montarDescricaoNotaComPaciente({
+    datasISO: ["2026-03-03"],
+    pacientes: [{ ...helena, cpf: null }],
+    ...profissional,
+  });
+  assert.equal(
+    texto,
+    "Atendimento(s) psicológico(s) em 03/03/2026 Atendimento ao(à) Sr.(a):  Helena Prado Souza Serviço prestado por: Ana Souza CRP: 06/12345",
+  );
+});
+
+test("montarDescricaoNotaComPaciente: vários pacientes separados por ponto e vírgula, CPF só de quem tem", () => {
+  const texto = montarDescricaoNotaComPaciente({
+    datasISO: ["2026-03-03", "2026-03-10"],
+    pacientes: [helena, { ...joao, cpf: "" }, { ...joao, id: 3, nome: "Maria Souza", cpf: "11122233344" }],
+    ...profissional,
+  });
+  assert.ok(
+    texto.includes(
+      "Sr.(a):  Helena Prado Souza CPF:  529.982.247-25; João Pedro Alves; Maria Souza CPF:  111.222.333-44 Serviço prestado por:",
+    ),
+    texto,
+  );
+});
+
+const entradaDescricao = { datasISO: ["2026-03-03", "2026-03-10"], ...profissional };
+
+test("descricaoDaNota: responsável financeiro e paciente sem a flag -> descrição com o paciente", () => {
+  assert.equal(
+    descricaoDaNota({ tomadorOrigem: "responsavel", pacientes: [helena], ...entradaDescricao }),
+    montarDescricaoNotaComPaciente({ pacientes: [helena], ...entradaDescricao }),
+  );
+});
+
+test("descricaoDaNota: paciente com a flag 'não imprimir' -> descrição padrão", () => {
+  assert.equal(
+    descricaoDaNota({ tomadorOrigem: "responsavel", pacientes: [{ ...helena, naoImprimir: true }], ...entradaDescricao }),
+    montarDescricaoNota(entradaDescricao),
+  );
+});
+
+test("descricaoDaNota: nota no nome do próprio paciente -> descrição padrão", () => {
+  assert.equal(
+    descricaoDaNota({ tomadorOrigem: "paciente", pacientes: [helena], ...entradaDescricao }),
+    montarDescricaoNota(entradaDescricao),
+  );
+});
+
+test("descricaoDaNota: sem pacientes ou sem origem do tomador -> descrição padrão", () => {
+  const padrao = montarDescricaoNota(entradaDescricao);
+  assert.equal(descricaoDaNota({ tomadorOrigem: "responsavel", pacientes: [], ...entradaDescricao }), padrao);
+  assert.equal(descricaoDaNota({ tomadorOrigem: "responsavel", pacientes: undefined, ...entradaDescricao }), padrao);
+  assert.equal(descricaoDaNota({ tomadorOrigem: undefined, pacientes: [helena], ...entradaDescricao }), padrao);
+});
+
+test("descricaoDaNota: basta um paciente com a flag para a nota inteira usar a descrição padrão", () => {
+  assert.equal(
+    descricaoDaNota({
+      tomadorOrigem: "responsavel",
+      pacientes: [helena, { ...joao, naoImprimir: true }],
+      ...entradaDescricao,
+    }),
+    montarDescricaoNota(entradaDescricao),
+  );
+  assert.ok(
+    descricaoDaNota({ tomadorOrigem: "responsavel", pacientes: [helena, joao], ...entradaDescricao }).includes("João Pedro Alves"),
+  );
+});
+
+test("planejarNotas: modo cobrança junta os pacientes sem repetir, na ordem das sessões", () => {
+  const p = planejarNotas({
+    emissaoPor: "cobranca",
+    rateios: [
+      { id: 1, valor_aplicado: 100, data: "2026-05-20", paciente: joao },
+      { id: 2, valor_aplicado: 100, data: "2026-05-06", paciente: helena },
+      { id: 3, valor_aplicado: 100, data: "2026-05-13", paciente: joao },
+    ],
+  });
+  assert.deepEqual(p[0].pacientes, [helena, joao]);
+  assert.deepEqual(p[0].datasISO, ["2026-05-20", "2026-05-06", "2026-05-13"]); // datas seguem como antes
+});
+
+test("planejarNotas: modo sessão leva o paciente da própria sessão em cada nota", () => {
+  const p = planejarNotas({
+    emissaoPor: "sessao",
+    rateios: [
+      { id: 7, valor_aplicado: 100, data: "2026-05-20", paciente: joao },
+      { id: 8, valor_aplicado: 80, data: "2026-05-13", paciente: helena },
+    ],
+  });
+  assert.deepEqual(p.map((n) => n.pacientes), [[joao], [helena]]);
+});
+
+test("planejarNotas: rateio sem dados do paciente deixa a lista vazia", () => {
+  const rateios = [{ id: 1, valor_aplicado: 10, data: "2026-05-13" }];
+  assert.deepEqual(planejarNotas({ emissaoPor: "cobranca", rateios })[0].pacientes, []);
+  assert.deepEqual(planejarNotas({ emissaoPor: "sessao", rateios })[0].pacientes, []);
+});
+
+test("montarPayloadEmissao: nota no nome do responsável leva o paciente na descrição; do paciente, não", () => {
+  const base = {
+    reserva: { ambiente: "producao", serie: "1", numero: 11 },
+    fiscal: {},
+    plano: { valor: 100, datasISO: ["2026-03-03", "2026-03-10"], competencia: "2026-03-10", pacientes: [helena] },
+    nomeProfissional: " Ana Souza ",
+    crp: " 06/12345 ",
+  };
+  const comResponsavel = montarPayloadEmissao({ ...base, tomador: { documento: "1", nome: "Marta", origem: "responsavel" } });
+  assert.equal(
+    comResponsavel.descricao_servico,
+    "Atendimento(s) psicológico(s) em 03 e 10/03/2026 Atendimento ao(à) Sr.(a):  Helena Prado Souza CPF:  529.982.247-25 Serviço prestado por: Ana Souza CRP: 06/12345",
+  );
+  const doPaciente = montarPayloadEmissao({ ...base, tomador: { documento: "1", nome: "Helena", origem: "paciente" } });
+  assert.equal(
+    doPaciente.descricao_servico,
+    "Atendimento(s) psicológico(s) em 03/03/2026 e 10/03/2026.\n\nServiço prestado por:\nAna Souza\nCRP: 06/12345",
+  );
 });
