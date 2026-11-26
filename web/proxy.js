@@ -1,23 +1,11 @@
 import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { deveRastrearVisita } from "@/lib/hosts";
 
 const OLD_DOMAIN = "psifacil.com.br";
 const NEW_DOMAIN = "psiagente.com.br";
 const BLOG_HOST = "blog.psiagente.com.br";
-
-// Funil de venda pré-login no domínio principal — rastreado igual aos
-// subdomínios públicos (ver deveRastrear). Igualdade exata, não prefixo:
-// mesmo cuidado já usado pra "/" no middleware de sessão, senão qualquer
-// path prefixado indevidamente entraria no funil.
-const PATHS_FUNIL = ["/", "/login", "/cadastro", "/completar-cadastro", "/esqueci-senha", "/comparativo"];
-
-function deveRastrear(host, pathname) {
-  if (host.startsWith("comece.") || host.startsWith("busca.") || host.startsWith("blog.")) {
-    return true;
-  }
-  return PATHS_FUNIL.includes(pathname);
-}
 
 function obterSessaoVisitante(request) {
   const existente = request.cookies.get("pv_id")?.value;
@@ -99,7 +87,7 @@ export async function proxy(request) {
   if (
     request.method === "GET" &&
     !request.headers.get("next-router-prefetch") &&
-    deveRastrear(host, request.nextUrl.pathname)
+    deveRastrearVisita(host, request.nextUrl.pathname)
   ) {
     await registrarVisita(request, sessaoId);
   }
