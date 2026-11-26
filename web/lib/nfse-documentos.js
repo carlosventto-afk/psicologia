@@ -53,10 +53,150 @@ export function notaTemDocumento(nota) {
   return Boolean(nota) && (nota.status === "autorizada" || nota.status === "cancelada") && Boolean(nota.chave_acesso);
 }
 
-export function nomeArquivoNota(nota, extensao) {
+// ---------------------------------------------------------------------------
+// Nome dos arquivos baixados:
+//   Responsável - Paciente - pg <data do pagamento> at <mês e ano dos atendimentos> - NFSe-série-número.ext
+// Peça que falta é pulada; sem nenhuma, fica só NFSe-série-número.ext (nota antiga, sem vínculos).
+// ---------------------------------------------------------------------------
+
+const MESES = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+const LIMITE_NOME_PJ = 40;
+const LIMITE_PACIENTES = 60;
+
+const apenasDigitos = (v) => String(v ?? "").replace(/\D/g, "");
+const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const chaveNome = (s) => semAcento(s).toLowerCase().replace(/\s+/g, " ").trim();
+// Tira o que o sistema de arquivos proíbe e junta os espaços.
+const limparPeca = (s) => String(s ?? "").replace(/[\u0000-\u001f<>:"/\\|?*]/g, "").replace(/\s+/g, " ").trim();
+const limitar = (s, max) => (s.length <= max ? s : s.slice(0, max).trim());
+const emLista = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+const listaComE = (itens) => (itens.length <= 1 ? itens.join("") : `${itens.slice(0, -1).join(", ")} e ${itens.at(-1)}`);
+
+// Primeiro nome; tudo em maiúsculas (ou minúsculas) vira "Marta", caixa mista fica como está.
+export function primeiroNome(nome) {
+  const token = limparPeca(String(nome ?? "").trim().split(/\s+/)[0]);
+  if (!token) return "";
+  const maiusculo = token.toLocaleUpperCase("pt-BR");
+  const minusculo = token.toLocaleLowerCase("pt-BR");
+  if (token !== maiusculo && token !== minusculo) return token;
+  return maiusculo.charAt(0) + minusculo.slice(1);
+}
+
+// "YYYY-MM-DD..." -> "dd-mm-aaaa" (barra não vale em nome de arquivo); inválido -> "".
+export function dataParaArquivo(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ""));
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+}
+
+// Mês e ano dos atendimentos por extenso: "outubro 2026", "outubro e novembro 2026",
+// "dezembro 2026 e janeiro 2027".
+export function mesesDosAtendimentos(datasISO) {
+  const meses = [
+    ...new Set(
+      (datasISO ?? []).map((d) => String(d).slice(0, 7)).filter((m) => /^\d{4}-(0[1-9]|1[0-2])$/.test(m)),
+    ),
+  ].sort();
+  const grupos = [];
+  for (const m of meses) {
+    const [ano, mes] = m.split("-");
+    const nome = MESES[Number(mes) - 1];
+    const ultimo = grupos.at(-1);
+    if (ultimo && ultimo.ano === ano) ultimo.nomes.push(nome);
+    else grupos.push({ ano, nomes: [nome] });
+  }
+  return listaComE(grupos.map((g) => `${listaComE(g.nomes)} ${g.ano}`));
+}
+
+// O que o nome do arquivo precisa saber da nota, lido do select da rota de download
+// (tomador_nome, tomador_documento e os vínculos Cobranca / RecebimentoSessao embutidos).
+// dataPagamento é a do recebimento da cobrança; as sessões vêm em ordem de data.
+export function contextoDoNomeArquivo(nota) {
+  const cobranca = nota?.Cobranca ?? null;
+  const rateio = nota?.RecebimentoSessao ?? null;
+  const recebimento = cobranca?.Recebimento ?? rateio?.Recebimento ?? null;
+  const sessoes = (cobranca ? emLista(cobranca.Recebimento?.RecebimentoSessao).map((r) => r?.Sessao) : [rateio?.Sessao])
+    .filter((s) => s && s.data)
+    .sort((a, b) => String(a.data).localeCompare(String(b.data)));
+
+  const vistos = new Set();
+  const pacientes = [];
+  for (const s of sessoes) {
+    const nome = String(s.Paciente?.nome ?? "").trim();
+    if (!nome) continue;
+    const chave = s.Paciente.id ?? nome;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    pacientes.push(nome);
+  }
+
+  const nomeResponsavel = String(nota?.tomador_nome ?? "").trim();
+  return {
+    responsavel: nomeResponsavel ? { nome: nomeResponsavel, documento: nota.tomador_documento ?? null } : null,
+    pacientes,
+    dataPagamento: recebimento?.data_recebimento ?? null,
+    datasAtendimento: sessoes.map((s) => String(s.data).slice(0, 10)),
+  };
+}
+
+function partesDoNome(contexto) {
+  const responsavel = contexto?.responsavel;
+  const nomeResponsavel = String(responsavel?.nome ?? "").trim();
+  // Responsável CNPJ (empresa): o nome inteiro, o primeiro nome não identificaria ninguém.
+  const pessoaJuridica = apenasDigitos(responsavel?.documento).length === 14;
+  const responsavelCurto = !nomeResponsavel
+    ? ""
+    : pessoaJuridica
+      ? limitar(limparPeca(nomeResponsavel), LIMITE_NOME_PJ)
+      : primeiroNome(nomeResponsavel);
+
+  // O responsável que também é o paciente (nota no nome do próprio paciente) aparece uma vez só.
+  const chaveResponsavel = chaveNome(nomeResponsavel);
+  const vistos = new Set();
+  const pacientes = [];
+  for (const nome of contexto?.pacientes ?? []) {
+    const chave = chaveNome(nome);
+    if (!chave || chave === chaveResponsavel || vistos.has(chave)) continue;
+    vistos.add(chave);
+    const curto = primeiroNome(nome);
+    if (curto) pacientes.push(curto);
+  }
+
+  const pagamento = dataParaArquivo(contexto?.dataPagamento);
+  const meses = mesesDosAtendimentos(contexto?.datasAtendimento);
+  const quando = [pagamento && `pg ${pagamento}`, meses && `at ${meses}`].filter(Boolean).join(" ");
+  return [responsavelCurto, limitar(listaComE(pacientes), LIMITE_PACIENTES), quando].filter(Boolean);
+}
+
+export function nomeArquivoNota(nota, extensao, contexto = null) {
   const serie = seguro(nota.serie) || "0";
   const numero = seguro(nota.numero) || String(nota.id);
-  return `NFSe-${serie}-${numero}.${extensao}`;
+  const partes = contexto ? partesDoNome(contexto) : [];
+  return `${[...partes, `NFSe-${serie}-${numero}`].join(" - ")}.${extensao}`;
+}
+
+// Cabeçalho Content-Disposition seguro para nome com acento: filename ASCII de reserva (navegadores
+// antigos) e filename* em UTF-8 (RFC 6266). Caractere fora do latin1 quebraria o cabeçalho HTTP.
+export function contentDispositionAnexo(nome) {
+  const ascii = semAcento(nome).replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  const utf8 = encodeURIComponent(nome).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
+// Nomes repetidos (no mesmo .zip) ganham " (2)", " (3)" antes da extensão.
+export function nomesUnicos(nomes) {
+  const usados = new Map();
+  return nomes.map((nome) => {
+    const n = (usados.get(nome) ?? 0) + 1;
+    usados.set(nome, n);
+    if (n === 1) return nome;
+    const ponto = nome.lastIndexOf(".");
+    const base = ponto > 0 ? nome.slice(0, ponto) : nome;
+    const extensao = ponto > 0 ? nome.slice(ponto) : "";
+    return `${base} (${n})${extensao}`;
+  });
 }
 
 const temTexto = (v) => String(v ?? "").trim() !== "";

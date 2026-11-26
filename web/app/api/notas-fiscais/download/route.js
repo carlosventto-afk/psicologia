@@ -5,10 +5,13 @@ import {
   CONTENT_TYPE,
   LIMITE_NOTAS_EM_BLOCO,
   bytesDoDocumento,
+  contentDispositionAnexo,
+  contextoDoNomeArquivo,
   documentosFaltantes,
   extensoesDoFormato,
   montarZip,
   nomeArquivoNota,
+  nomesUnicos,
   normalizarIdsNotas,
   notaTemDocumento,
 } from "@/lib/nfse-documentos";
@@ -23,11 +26,19 @@ import {
 // se o serviço não responder. Uma nota só e sem XML guardado (raro): busca de novo na SEFIN
 // e guarda (só o dono, pois usa o certificado). Em bloco não busca na SEFIN: lista o que
 // faltou no LEIA-ME.txt.
+// Os arquivos se chamam "Responsável - Paciente - pg <data do pagamento> at <mês ano> - NFSe-série-número"
+// (ver nomeArquivoNota); nota sem esses vínculos sai com o nome curto NFSe-série-número.
 
 const TEXTO = { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" };
 const resposta = (status, mensagem) => new Response(mensagem, { status, headers: TEXTO });
 
 const COLUNAS = "id, owner, status, ambiente, serie, numero, chave_acesso, xml_nfse, pdf_base64";
+// O nome do arquivo usa o tomador, o pagamento da cobrança e as sessões atendidas. Se este select com
+// vínculos falhar, o download não pode quebrar por causa do nome: repete só com as colunas da nota.
+const COLUNAS_COM_NOME =
+  `${COLUNAS}, tomador_nome, tomador_documento, ` +
+  "Cobranca(Recebimento(data_recebimento, RecebimentoSessao(Sessao(data, Paciente(id, nome))))), " +
+  "RecebimentoSessao(Recebimento(data_recebimento), Sessao(data, Paciente(id, nome)))";
 
 export async function GET(request) {
   const params = request.nextUrl.searchParams;
@@ -46,7 +57,11 @@ export async function GET(request) {
   } = await supabase.auth.getUser();
   if (!user) return resposta(401, "Não autorizado.");
 
-  const { data, error } = await supabase.from("NotaFiscal").select(COLUNAS).in("id", ids);
+  let { data, error } = await supabase.from("NotaFiscal").select(COLUNAS_COM_NOME).in("id", ids);
+  if (error) {
+    console.error(`NFS-e: select com vínculos falhou no download (${error.message}); seguindo só com as colunas da nota.`);
+    ({ data, error } = await supabase.from("NotaFiscal").select(COLUNAS).in("id", ids));
+  }
   if (error) {
     console.error(`NFS-e: falha ao listar notas para download: ${error.message}`);
     return resposta(500, "Não foi possível carregar as notas agora.");
@@ -68,14 +83,16 @@ export async function GET(request) {
   // PDF desenhado na hora a partir do XML; se o serviço falhar, cai no PDF guardado.
   const geradas = extensoes.includes("pdf") ? await gerarPdfsDasNotas(notas) : new Map();
 
+  const nomeDe = (nota, ext) => nomeArquivoNota(nota, ext, contextoDoNomeArquivo(nota));
+
   const arquivos = [];
   const ausentes = [];
   for (const nota of notas) {
     for (const ext of extensoes) {
       const pdfGerado = ext === "pdf" ? (geradas.get(String(nota.id)) ?? null) : null;
       const conteudo = bytesDoDocumento(nota, ext, pdfGerado);
-      if (conteudo) arquivos.push({ nome: nomeArquivoNota(nota, ext), conteudo, ext, origem: pdfGerado ? "gerado" : "guardado" });
-      else ausentes.push(nomeArquivoNota(nota, ext));
+      if (conteudo) arquivos.push({ nome: nomeDe(nota, ext), conteudo, ext, origem: pdfGerado ? "gerado" : "guardado" });
+      else ausentes.push(nomeDe(nota, ext));
     }
   }
 
@@ -94,14 +111,15 @@ export async function GET(request) {
       headers: {
         ...cabecalhos,
         "Content-Type": CONTENT_TYPE[a.ext],
-        "Content-Disposition": `attachment; filename="${a.nome}"`,
+        "Content-Disposition": contentDispositionAnexo(a.nome),
         // De onde veio o PDF (gerado agora ou o guardado de reserva): ajuda a diagnosticar.
         ...(a.ext === "pdf" ? { "X-Nfse-Pdf-Origem": a.origem } : {}),
       },
     });
   }
 
-  const zipados = arquivos.map(({ nome, conteudo }) => ({ nome, conteudo }));
+  const nomesNoZip = nomesUnicos(arquivos.map((a) => a.nome));
+  const zipados = arquivos.map(({ conteudo }, i) => ({ nome: nomesNoZip[i], conteudo }));
   if (ausentes.length > 0) {
     const linhas = [
       "Estes arquivos não estavam disponíveis e ficaram de fora deste pacote:",
@@ -112,12 +130,12 @@ export async function GET(request) {
     zipados.push({ nome: "LEIA-ME.txt", conteudo: Buffer.from(linhas.join("\n"), "utf-8") });
   }
 
-  const nomeZip = unica ? nomeArquivoNota(notas[0], "zip") : `notas-fiscais-${new Date().toISOString().slice(0, 10)}.zip`;
+  const nomeZip = unica ? nomeDe(notas[0], "zip") : `notas-fiscais-${new Date().toISOString().slice(0, 10)}.zip`;
   return new Response(montarZip(zipados), {
     headers: {
       ...cabecalhos,
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${nomeZip}"`,
+      "Content-Disposition": contentDispositionAnexo(nomeZip),
     },
   });
 }
