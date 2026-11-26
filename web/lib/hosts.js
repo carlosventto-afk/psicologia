@@ -48,6 +48,13 @@ export function destinoSemWww(host) {
   return nomeDoHost(host) === `www.${DOMINIO}` ? DOMINIO : null;
 }
 
+// Casa o prefixo de rota interna (/blog, /busca, /comece) pelo segmento
+// inteiro. `startsWith("/blog")` pegava também "/blog-de-psicologia" e fazia o
+// proxy deixar de prefixar o slug de um artigo cujo nome começa com "blog".
+export function dentroDoPrefixo(pathname, prefixo) {
+  return pathname === prefixo || pathname.startsWith(`${prefixo}/`);
+}
+
 export function deveRastrearVisita(host, pathname) {
   if (ehHostLocal(host)) return false;
   const tipo = classificarHost(host);

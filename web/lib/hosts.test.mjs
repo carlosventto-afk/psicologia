@@ -7,7 +7,19 @@ import {
   ehHostLocal,
   destinoSemWww,
   deveRastrearVisita,
+  dentroDoPrefixo,
 } from "./hosts.js";
+
+test("dentroDoPrefixo: o prefixo exato ou um caminho dentro dele, nunca um nome que so comeca igual", () => {
+  assert.equal(dentroDoPrefixo("/blog", "/blog"), true);
+  assert.equal(dentroDoPrefixo("/blog/artigo", "/blog"), true);
+  assert.equal(dentroDoPrefixo("/busca/ir/1", "/busca"), true);
+  assert.equal(dentroDoPrefixo("/comece/", "/comece"), true);
+  // artigo cujo slug comeca com "blog": nao pode ser tratado como rota interna
+  assert.equal(dentroDoPrefixo("/blog-de-psicologia", "/blog"), false);
+  assert.equal(dentroDoPrefixo("/blogger", "/blog"), false);
+  assert.equal(dentroDoPrefixo("/", "/blog"), false);
+});
 
 test("nomeDoHost: minusculo e sem porta", () => {
   assert.equal(nomeDoHost("Blog.PsiAgente.com.br:3000"), "blog.psiagente.com.br");
