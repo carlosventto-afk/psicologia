@@ -36,5 +36,5 @@ Nesta data os smokes (`smoke-admin-cobrancas.mjs` e o novo `smoke-publicar-lote.
 
 ## Não coberto
 
-- "Selecionar todos" com os 165 rascunhos reais: o banco falso cobre 120 artigos e o smoke publica 2 por vez, de propósito, para não mexer nos rascunhos reais de produção.
+- "Selecionar todos" com os 160 rascunhos reais de produção: o banco falso cobre 120 artigos e o smoke publica 2 por vez, de propósito, para não mexer nos rascunhos reais de produção.
 - Efeito no blog, no feed e no sitemap em produção. As rotas são dinâmicas; só se conferiu que a action revalida `/blog` e `/admin/artigos`.
