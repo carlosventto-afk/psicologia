@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizarIdsDoLote,
@@ -6,6 +6,8 @@ import {
   planejarPublicacao,
   resumirLote,
   publicarRascunhos,
+  podePublicar,
+  executarPublicacaoEmLote,
 } from "./publicacao-lote.js";
 
 const ID_A = "11111111-1111-4111-8111-111111111111";
@@ -256,6 +258,18 @@ const linhaDoBanco = (n, extra = {}) => ({
 
 const doBanco = (banco, n) => banco.tabela.find((l) => l.id === uuid(n));
 
+// Roda `fn` com console.error silenciado e devolve o que ele retornou mais cada
+// chamada ao log como texto. Falha deixa rastro no log do servidor; o teste confere.
+async function capturandoErros(fn) {
+  const log = mock.method(console, "error", () => {});
+  try {
+    const retorno = await fn();
+    return { retorno, logs: log.mock.calls.map((c) => c.arguments.map(String).join(" ")) };
+  } finally {
+    log.mock.restore();
+  }
+}
+
 test("publicarRascunhos: publica so os rascunhos pedidos e grava publicado, publicado_em e atualizado_em", async () => {
   const banco = criarBanco([
     linhaDoBanco(1), // pedido
@@ -294,7 +308,9 @@ test("publicarRascunhos: falha em um artigo (erro do banco ou conexao caida) nao
     excecaoNoUpdate: [uuid(3)],
   });
 
-  const resultado = await publicarRascunhos(banco, [1, 2, 3, 4].map(uuid), AGORA);
+  const { retorno: resultado, logs } = await capturandoErros(() =>
+    publicarRascunhos(banco, [1, 2, 3, 4].map(uuid), AGORA)
+  );
 
   assert.deepEqual(resultado.publicados.map((p) => p.id).sort(), [uuid(1), uuid(4)]);
   assert.deepEqual(resultado.falhas.map((f) => f.titulo).sort(), ["Artigo 2", "Artigo 3"]);
@@ -302,15 +318,25 @@ test("publicarRascunhos: falha em um artigo (erro do banco ou conexao caida) nao
   assert.equal(doBanco(banco, 2).publicado, false);
   assert.equal(doBanco(banco, 3).publicado, false);
   assert.equal(doBanco(banco, 4).publicado, true);
+
+  // Cada falha deixa rastro no log do servidor, com o id do artigo e o motivo.
+  assert.equal(logs.length, 2, logs.join("\n"));
+  assert.ok(logs.some((l) => l.includes(uuid(2)) && l.includes("falha simulada no update")), logs.join("\n"));
+  assert.ok(logs.some((l) => l.includes(uuid(3)) && l.includes("conexao caiu")), logs.join("\n"));
 });
 
 test("publicarRascunhos: update que nao altera linha nenhuma (o que o RLS faz, sem erro) conta como falha, nunca como publicado", async () => {
   const banco = criarBanco([linhaDoBanco(1), linhaDoBanco(2)], { updateSemEfeito: [uuid(2)] });
 
-  const resultado = await publicarRascunhos(banco, [uuid(1), uuid(2)], AGORA);
+  const { retorno: resultado, logs } = await capturandoErros(() =>
+    publicarRascunhos(banco, [uuid(1), uuid(2)], AGORA)
+  );
 
   assert.deepEqual(resultado.publicados.map((p) => p.id), [uuid(1)]);
   assert.deepEqual(resultado.falhas.map((f) => f.id), [uuid(2)]);
+  // Sem erro do banco o unico sinal e o log: id do artigo e o motivo provavel.
+  assert.equal(logs.length, 1, logs.join("\n"));
+  assert.ok(logs[0].includes(uuid(2)) && logs[0].includes("nenhuma linha"), logs[0]);
 });
 
 test("publicarRascunhos: artigo publicado por outra pessoa entre a leitura e a gravacao nao e sobrescrito", async () => {
@@ -322,7 +348,9 @@ test("publicarRascunhos: artigo publicado por outra pessoa entre a leitura e a g
       }),
   });
 
-  const resultado = await publicarRascunhos(banco, [uuid(1), uuid(2)], AGORA);
+  const { retorno: resultado } = await capturandoErros(() =>
+    publicarRascunhos(banco, [uuid(1), uuid(2)], AGORA)
+  );
 
   assert.deepEqual(resultado.publicados.map((p) => p.id), [uuid(1)]);
   assert.equal(doBanco(banco, 2).publicado_em, "2026-11-26T14:00:00+00:00");
@@ -365,4 +393,87 @@ test("publicarRascunhos: ids que nao sao UUID nao chegam ao banco", async () => 
   assert.equal(banco.leituras.length, 0);
   assert.equal(banco.atualizacoes.length, 0);
   assert.deepEqual(resultado, { publicados: [], falhas: [], ignorados: 0 });
+});
+
+// ---------------------------------------------------------------------------
+// executarPublicacaoEmLote: o que a server action faz antes de devolver a resposta
+// para a tela (permissao, selecao vazia, erro do banco, texto do resultado).
+// ---------------------------------------------------------------------------
+
+const admin = { role: "admin", criador_conteudo: false };
+const criador = { role: "psicologo", criador_conteudo: true };
+const psicologo = { role: "psicologo", criador_conteudo: false };
+
+test("podePublicar: so admin e criador de conteudo", () => {
+  assert.equal(podePublicar(admin), true);
+  assert.equal(podePublicar(criador), true);
+  assert.equal(podePublicar(psicologo), false);
+  assert.equal(podePublicar({ role: "psicologo" }), false);
+  assert.equal(podePublicar(null), false);
+});
+
+test("executarPublicacaoEmLote: quem nao pode publicar recebe erro e o banco nem e consultado", async () => {
+  const banco = criarBanco([linhaDoBanco(1)]);
+
+  const r = await executarPublicacaoEmLote({ supabase: banco, usuario: psicologo, ids: [uuid(1)], agora: AGORA });
+
+  assert.match(r.resposta.error, /permissão/);
+  assert.equal(r.publicou, false);
+  assert.equal(banco.leituras.length, 0);
+  assert.equal(doBanco(banco, 1).publicado, false);
+});
+
+test("executarPublicacaoEmLote: admin e criador de conteudo publicam", async () => {
+  for (const usuario of [admin, criador]) {
+    const banco = criarBanco([linhaDoBanco(1)]);
+
+    const r = await executarPublicacaoEmLote({ supabase: banco, usuario, ids: [uuid(1)], agora: AGORA });
+
+    assert.deepEqual(r.resposta, { sucesso: "1 artigo publicado." });
+    assert.equal(r.publicou, true);
+    assert.equal(doBanco(banco, 1).publicado, true);
+  }
+});
+
+test("executarPublicacaoEmLote: sem nenhum id valido pede para selecionar, sem consultar o banco", async () => {
+  const banco = criarBanco([linhaDoBanco(1)]);
+
+  for (const ids of [[], ["lixo"], undefined]) {
+    const r = await executarPublicacaoEmLote({ supabase: banco, usuario: admin, ids, agora: AGORA });
+    assert.match(r.resposta.error, /Selecione/);
+    assert.equal(r.publicou, false);
+  }
+  assert.equal(banco.leituras.length, 0);
+});
+
+test("executarPublicacaoEmLote: erro do banco vira mensagem generica, sem repassar o texto do erro", async () => {
+  const banco = criarBanco([linhaDoBanco(1)], { erroNaLeitura: true });
+
+  const { retorno: r, logs } = await capturandoErros(() =>
+    executarPublicacaoEmLote({ supabase: banco, usuario: admin, ids: [uuid(1)], agora: AGORA })
+  );
+
+  assert.match(r.resposta.error, /Não foi possível/);
+  assert.ok(!r.resposta.error.includes("falha simulada"), r.resposta.error);
+  assert.equal(r.publicou, false);
+  // O texto real do erro fica so no log do servidor.
+  assert.ok(logs.some((l) => l.includes("falha simulada na leitura")), logs.join("\n"));
+});
+
+test("executarPublicacaoEmLote: so conta como publicou se ao menos um artigo foi mesmo publicado", async () => {
+  const bloqueado = criarBanco([linhaDoBanco(1), linhaDoBanco(2)], { updateSemEfeito: [uuid(1), uuid(2)] });
+  const { retorno: nada } = await capturandoErros(() =>
+    executarPublicacaoEmLote({ supabase: bloqueado, usuario: admin, ids: [uuid(1), uuid(2)], agora: AGORA })
+  );
+  assert.equal(nada.publicou, false);
+  assert.equal(nada.resposta.sucesso, undefined);
+  assert.match(nada.resposta.error, /^2 artigos não foram publicados/);
+
+  const parcial = criarBanco([linhaDoBanco(1), linhaDoBanco(2)], { updateSemEfeito: [uuid(2)] });
+  const { retorno: alguns } = await capturandoErros(() =>
+    executarPublicacaoEmLote({ supabase: parcial, usuario: admin, ids: [uuid(1), uuid(2)], agora: AGORA })
+  );
+  assert.equal(alguns.publicou, true);
+  assert.equal(alguns.resposta.sucesso, "1 artigo publicado.");
+  assert.match(alguns.resposta.error, /^1 artigo não foi publicado/);
 });

@@ -83,6 +83,11 @@ const IDS_POR_CONSULTA = 50;
 // Gravações em andamento ao mesmo tempo.
 const ATUALIZACOES_SIMULTANEAS = 10;
 
+// A tela só recebe "1 artigo não foi publicado"; o motivo fica no log do servidor.
+function registrarFalha(id, motivo) {
+  console.error("[publicacao-lote] artigo não publicado:", id, motivo);
+}
+
 // Publica os rascunhos do lote e diz o que aconteceu com cada um. `supabase` é
 // o cliente da sessão de quem pediu (o RLS decide quem pode); `agora` entra por
 // parâmetro para os testes.
@@ -123,8 +128,17 @@ export async function publicarRascunhos(supabase, ids, agora = new Date()) {
             .eq("id", item.id)
             .eq("publicado", false)
             .select("id");
-          return !error && data?.length === 1;
-        } catch {
+          if (error) {
+            registrarFalha(item.id, error.message);
+            return false;
+          }
+          if (data?.length !== 1) {
+            registrarFalha(item.id, "nenhuma linha alterada (RLS ou publicado em paralelo)");
+            return false;
+          }
+          return true;
+        } catch (e) {
+          registrarFalha(item.id, e?.message ?? e);
           return false;
         }
       })
@@ -133,4 +147,35 @@ export async function publicarRascunhos(supabase, ids, agora = new Date()) {
   }
 
   return { publicados, falhas, ignorados: idsValidos.length - rascunhos.length };
+}
+
+// Mesma regra do layout de /admin e da policy `artigos_admin_write` do banco:
+// admin ou criador de conteúdo.
+export function podePublicar(usuario) {
+  return usuario?.role === "admin" || usuario?.criador_conteudo === true;
+}
+
+// O que a server action faz antes de responder à tela: confere a permissão e a
+// seleção, publica e devolve o texto do resultado. `publicou` diz se vale
+// revalidar o blog (só quando ao menos um artigo foi mesmo publicado).
+export async function executarPublicacaoEmLote({ supabase, usuario, ids, agora }) {
+  if (!podePublicar(usuario)) {
+    return { resposta: { error: "Você não tem permissão para publicar artigos." }, publicou: false };
+  }
+  if (normalizarIdsDoLote(ids).length === 0) {
+    return { resposta: { error: "Selecione ao menos um rascunho para publicar." }, publicou: false };
+  }
+
+  let resultado;
+  try {
+    resultado = await publicarRascunhos(supabase, ids, agora);
+  } catch (e) {
+    console.error("[publicacao-lote] erro ao ler os rascunhos:", e?.message ?? e);
+    return {
+      resposta: { error: "Não foi possível publicar os artigos agora. Tente de novo." },
+      publicou: false,
+    };
+  }
+
+  return { resposta: resumirLote(resultado), publicou: resultado.publicados.length > 0 };
 }
