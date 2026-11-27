@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ListaArtigosAdmin from "@/components/ListaArtigosAdmin";
 import { listarArtigosAdmin } from "@/lib/data/artigos";
 
 export default async function PaginaArtigosAdmin() {
@@ -16,24 +17,7 @@ export default async function PaginaArtigosAdmin() {
       {artigos.length === 0 ? (
         <p className="empty-state">Nenhum artigo cadastrado ainda.</p>
       ) : (
-        <div className="space-y-3">
-          {artigos.map((a) => (
-            <div
-              key={a.id}
-              className="card flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-navy">{a.titulo}</p>
-                <p className="text-sm text-muted">
-                  {a.publicado ? "Publicado" : "Rascunho"} · /blog/{a.slug}
-                </p>
-              </div>
-              <Link href={`/admin/artigos/${a.id}/editar`} className="text-sm link">
-                Editar
-              </Link>
-            </div>
-          ))}
-        </div>
+        <ListaArtigosAdmin artigos={artigos} />
       )}
     </div>
   );

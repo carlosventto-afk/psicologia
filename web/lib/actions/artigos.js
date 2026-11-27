@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { buscarUsuarioAtual } from "@/lib/data/usuario";
+import { executarPublicacaoEmLote } from "@/lib/publicacao-lote";
 import { normalizarSlug } from "@/lib/slugify";
 
 export async function fazerUploadImagemArtigo(slugArtigo, formData) {
@@ -201,4 +203,18 @@ export async function atualizarArtigo(id, prevState, formData) {
   revalidatePath("/blog");
   revalidatePath(`/blog/${atual.slug}`);
   redirect("/admin/artigos");
+}
+
+// Publica de uma vez os rascunhos marcados na lista de /admin/artigos. Os ids
+// vêm do navegador (entrada não confiável): permissão, validação e textos da
+// resposta ficam em lib/publicacao-lote.js, que tem os testes.
+export async function publicarArtigosEmLote(ids) {
+  const [usuario, supabase] = await Promise.all([buscarUsuarioAtual(), createClient()]);
+  const { resposta, publicou } = await executarPublicacaoEmLote({ supabase, usuario, ids });
+
+  revalidatePath("/admin/artigos");
+  // Tudo sob /blog (índice, artigos, categorias): um lote mexe em todos eles.
+  if (publicou) revalidatePath("/blog", "layout");
+
+  return resposta;
 }
